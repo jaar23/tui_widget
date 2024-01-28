@@ -14,22 +14,6 @@ type
   CursorDirection = enum
     Left, Right
 
-# proc inputBox*(w, h, s, px, py: int, ox, oy:bool, val: string, 
-#                fgColor = fgWhite): InputBox =
-#   var ib = InputBox(
-#     width: w,
-#     height: h,
-#     size: s,
-#     posX: px,
-#     posY: py,
-#     overflowX: ox,
-#     overflowY: oy, 
-#     value: val,
-#     fgColor: fgColor,
-#     focus: false
-#   )
-#   return ib
-
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
   var max = val.len
@@ -72,22 +56,11 @@ proc ltrRange(val: string, size: int, cursor: int): (int, int, int) =
 proc render*(ib: var InputBox, tb: var TerminalBuffer) =
   tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
   if ib.cursor < ib.value.len:
-    # let size = ib.width - ib.visualSkip - 1
-    # # echo "\nsize: " & $size
-    # if ib.cursor > size:
-    #   ib.visualCursor = size - 1
-    # else:
-    #   ib.visualCursor = ib.cursor
     tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
              resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
              bgGreen, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
              resetStyle, ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
-    # tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-    #          resetStyle, ib.visualVal.substr(0, ib.cursor - 1),
-    #          bgGreen, ib.visualVal.substr(ib.cursor, ib.cursor),
-    #          resetStyle, ib.visualVal.substr(ib.cursor + 1, ib.visualVal.len - 1))
   else:
-    #echo ">>>"
     tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
              resetStyle, ib.visualVal, bgGreen, " ", resetStyle)
   tb.display()
@@ -104,12 +77,9 @@ proc cursorMove(ib: var InputBox, direction: CursorDirection) =
     echo "vcursor:" & $ib.visualCursor
     echo "value len: " & $ib.value.len
     if ib.cursor >= 1:
-      #ib.value.delete(ib.cursor - 1..ib.cursor - 1)
       ib.cursor = ib.cursor - 1
-      #ib.visualCursor = ib.visualCursor - 1
     else:
       ib.cursor = 0
-      #ib.visualCursor = 0
     let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
@@ -119,18 +89,12 @@ proc cursorMove(ib: var InputBox, direction: CursorDirection) =
     echo "vcursor:" & $ib.visualCursor    
     echo "value len: " & $ib.value.len
     if ib.cursor < ib.value.len:
-      #ib.value.delete(ib.cursor - 1..ib.cursor - 1)
       ib.cursor = ib.cursor + 1
-      #ib.visualCursor = ib.visualCursor + 1
     else:
       ib.cursor = ib.value.len
-      #ib.visualCursor = ib.value.len
     let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
-
-  #echo "aft: " & $ib.cursor
-  #ib.value.insert("|", ib.cursor)
 
 
 proc onInput*(ib: var InputBox, tb: var TerminalBuffer) = 
@@ -144,15 +108,14 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
       ib.focus = false
       ib.mode = "|"
     of Key.Backspace:
-      #ib.value = ib.value.substr(0, ib.value.len - 2)
       if ib.cursor > 0:
         ib.value.delete(ib.cursor - 1..ib.cursor - 1)
         ib.cursorMove(Left)
         ib.visualCursor = ib.visualCursor - 1
         tb.clear()
-      # ib.cursor = ib.cursor - 1
-    of Key.ShiftC:
+    of Key.CtrlE:
       ib.value = ""
+      tb.clear()
     of Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6:
       discard
     of Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12:
@@ -186,6 +149,15 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
       ib.overflowWidth()
     of Key.QuestionMark:
       ib.value.insert("?", ib.cursor)
+      ib.overflowWidth()
+    of Key.Space:
+      ib.value.insert(" ", ib.cursor)
+      ib.overflowWidth()
+    of Key.Pipe:
+      ib.value.insert("|", ib.cursor)
+      ib.overflowWidth()
+    of Key.Slash:
+      ib.value.insert("/", ib.cursor)
       ib.overflowWidth()
     of Key.Equals:
       ib.value.insert("=", ib.cursor)
@@ -268,6 +240,84 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
     of Key.Zero:
       ib.value.insert("0", ib.cursor)
       ib.overflowWidth()
+    of Key.ShiftA:
+      ib.value.insert("A", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftB:
+      ib.value.insert("B", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftC:
+      ib.value.insert("C", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftD:
+      ib.value.insert("D", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftE:
+      ib.value.insert("E", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftF:
+      ib.value.insert("F", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftG:
+      ib.value.insert("G", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftH:
+      ib.value.insert("H", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftI:
+      ib.value.insert("I", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftJ:
+      ib.value.insert("J", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftK:
+      ib.value.insert("K", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftL:
+      ib.value.insert("L", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftM:
+      ib.value.insert("M", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftN:
+      ib.value.insert("N", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftO:
+      ib.value.insert("O", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftP:
+      ib.value.insert("P", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftQ:
+      ib.value.insert("Q", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftR:
+      ib.value.insert("R", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftS:
+      ib.value.insert("S", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftT:
+      ib.value.insert("T", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftU:
+      ib.value.insert("U", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftV:
+      ib.value.insert("V", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftW:
+      ib.value.insert("W", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftX:
+      ib.value.insert("X", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftY:
+      ib.value.insert("Y", ib.cursor)
+      ib.overflowWidth()
+    of Key.ShiftZ:
+      ib.value.insert("Z", ib.cursor)
+      ib.overflowWidth()
     of Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.Insert:
       discard
     of Key.Left:
@@ -278,36 +328,28 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
       tb.clear()
     of Key.Up, Key.Down:
       discard
-    of Key.Space:
-      ib.value.insert(" ", ib.cursor)
-      ib.overflowWidth()
-    of Key.Pipe:
-      ib.value.insert("|", ib.cursor)
-      ib.overflowWidth()
-    of Key.Slash:
-      ib.value.insert("/", ib.cursor)
-      ib.overflowWidth() 
     of Key.Enter:
       discard
     else:
-      ib.value.insert($key, ib.cursor)
+      var ch = $key
+      ib.value.insert(ch.toLower(), ib.cursor)
       ib.overflowWidth() 
 
     if ib.value.len >= ib.width - ib.visualSkip - 1:
-      #ib.visualVal = ib.value.substr(ib.visualCursor, ib.value.len)
       # visualSkip for 2 bytes on the ui border and mode
       # 1 byte to push cursor at last
       let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
       ib.visualVal = ib.value.substr(s, e)
       ib.visualCursor = cursorPos 
-      #ib.visualVal = ib.value.substr(ib.value.len - (ib.width - (ib.visualSkip + 1)), ib.value.len)
-      #echo "\n\n\nboom"
     else:
-      ib.visualVal = ib.value
-      ib.visualCursor = 2
+      let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
+      ib.visualVal = ib.value.substr(s, e)
+      ib.visualCursor = cursorPos 
+
+      # ib.visualVal = ib.value
+      # ib.visualCursor = 2
     ib.render(tb)
     sleep(10)
 
 
 proc value*(ib: var InputBox): string = ib.value
-

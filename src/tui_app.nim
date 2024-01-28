@@ -6,7 +6,7 @@ type
 
 
 var inputBox = InputBox(
-  width: 20, 
+  width: 40, 
   height: 2,
   size: 100, 
   posX: 0, 
@@ -24,7 +24,7 @@ setControlCHook(exitProc)
 hideCursor()
 
 ## all the widget should have 1 char lesser
-var tb = newTerminalBuffer(21, 20)
+var tb = newTerminalBuffer(41, 20)
 tb.setForegroundColor(fgWhite, true)
 
 while true:
