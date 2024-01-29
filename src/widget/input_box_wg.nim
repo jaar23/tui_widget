@@ -121,7 +121,7 @@ proc cursorMove(ib: var InputBox, direction: CursorDirection) =
     ib.visualCursor = vcursorPos
 
 
-proc onControl*(ib: var InputBox) = 
+method onControl*(ib: var InputBox) = 
   ib.focus = true
   ib.mode = ">"
   while ib.focus:

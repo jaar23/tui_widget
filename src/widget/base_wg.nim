@@ -1,7 +1,7 @@
 import illwill
 
 type
-  BaseWidget* = object of RootObj
+  BaseWidget* = ref object of RootObj
     width*: int
     height*: int
     posX*: int
@@ -14,3 +14,7 @@ proc consoleWidth*(): int =
 
 proc consoleHeight*(): int = 
   return terminalHeight() - 2
+
+
+method onControl*(this: var BaseWidget): void {.base.} =
+  echo "child needs to implement this!"

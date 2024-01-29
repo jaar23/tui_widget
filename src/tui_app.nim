@@ -5,6 +5,10 @@ var inputBox = newInputBox(consoleWidth(), 2, 1, 0, "tui widget")
 
 var display = newDisplay(consoleWidth(), 16, 1, 3, "board") 
 
+var oseq: seq[BaseWidget] = @[]
+oseq.add(inputBox)
+oseq.add(display)
+
 var text = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras quis accumsan lectus. Duis vitae rhoncus ex, at rhoncus diam. Aenean rutrum non tellus vel finibus. In hac habitasse platea dictumst. Curabitur feugiat, nibh laoreet tincidunt gravida, mi ante sagittis urna, sed ultricies lectus enim et libero. Nam tristique sem tempor lectus dignissim, ac imperdiet risus auctor. Aliquam erat volutpat. In iaculis laoreet ultrices. Curabitur pellentesque eros nec erat mattis, ac semper tortor facilisis.
 Morbi quis magna laoreet, lacinia libero sed, lobortis felis. Donec vitae posuere ipsum. Curabitur volutpat vel sem et fringilla. Quisque porttitor, urna nec tincidunt finibus, urna magna finibus ligula, sed cursus libero mauris ut nisi. Nulla erat nisl, blandit non tincidunt eget, bibendum at nisi. Vestibulum imperdiet nulla eu pharetra dictum. Duis vel pretium neque. Nam ac malesuada augue, quis varius purus. Vestibulum sit amet sagittis nibh. Proin in ultricies elit. Donec euismod luctus turpis, a ultrices dui dignissim eget. In mauris dui, sagittis et tortor sed, cursus sodales lectus. Aenean mollis velit nec purus blandit, eu scelerisque velit venenatis. Cras ipsum urna, hendrerit volutpat ullamcorper a, vulputate et neque.
@@ -48,6 +52,8 @@ proc mainPanel() =
 var currFocus = 0
 var components = @["input", "display"]
 
+#oseq[0].onControl()
+
 while true:
   mainPanel()
   var key = getKey()
@@ -58,11 +64,13 @@ while true:
     #tb.write(0, 20, components[currFocus])
     for n in 0..components.len:
       if currFocus == 0: 
-        inputBox.onControl()
+        #inputBox.onControl()
+        oseq[currFocus].onControl()
         display.focus = false
         break
       elif currFocus == 1: 
-        display.onControl()
+        #display.onControl()
+        oseq[currFocus].onControl()
         ## adding new text on each control
         display.add(text)
         inputBox.focus = false

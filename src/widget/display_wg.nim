@@ -80,7 +80,7 @@ proc render*(dp: var Display, standalone = false) =
     dp.tb.display()
 
 
-proc onControl*(dp: var Display) =
+method onControl*(dp: var Display) =
   dp.focus = true
   let textRows = dp.rowReCal()
   dp.textRows = textRows
