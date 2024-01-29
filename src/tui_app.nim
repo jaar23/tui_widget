@@ -1,9 +1,9 @@
 import illwill, os, widget/[base_wg, input_box_wg, display_wg]
 
 
-var inputBox = newInputBox(consoleWidth(), 2, 1, 0)
+var inputBox = newInputBox(consoleWidth(), 2, 1, 0, "tui widget")
 
-var display = newDisplay(consoleWidth(), 16, 1, 3) 
+var display = newDisplay(consoleWidth(), 16, 1, 3, "board") 
 
 var text = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras quis accumsan lectus. Duis vitae rhoncus ex, at rhoncus diam. Aenean rutrum non tellus vel finibus. In hac habitasse platea dictumst. Curabitur feugiat, nibh laoreet tincidunt gravida, mi ante sagittis urna, sed ultricies lectus enim et libero. Nam tristique sem tempor lectus dignissim, ac imperdiet risus auctor. Aliquam erat volutpat. In iaculis laoreet ultrices. Curabitur pellentesque eros nec erat mattis, ac semper tortor facilisis.

@@ -10,6 +10,7 @@ type
     visualCursor: int = 2
     mode: string = "|"
     visualSkip: int = 2
+    title: string
     tb: TerminalBuffer
 
   CursorDirection = enum
@@ -20,7 +21,7 @@ var cb = clipboard_new(nil)
 cb.clipboard_clear(LCB_CLIPBOARD)
 
 
-proc newInputBox*(w, h, px, py: int, val: string = "", 
+proc newInputBox*(w, h, px, py: int, title = "", val: string = "", 
                   modeChar: string = "|", 
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + 1)): InputBox =
   var inputBox = InputBox(
@@ -30,6 +31,7 @@ proc newInputBox*(w, h, px, py: int, val: string = "",
     posY: py,
     value: val,
     mode: modeChar,
+    title: title,
     tb: tb
   )
   return inputBox
@@ -74,6 +76,8 @@ proc ltrRange(val: string, size: int, cursor: int): (int, int, int) =
 
 proc render*(ib: var InputBox, standalone = false) =
   ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
+  if ib.title != "":
+    ib.tb.write(ib.posX + 2, ib.posY, ib.title)
   if ib.cursor < ib.value.len:
     ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
              resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),

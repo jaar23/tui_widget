@@ -9,9 +9,10 @@ type
     rowCursor: int = 0
     visualSkip: int = 2
     tb: TerminalBuffer
+    title: string
 
 
-proc newDisplay*(w, h, px, py: int, text: string = "",
+proc newDisplay*(w, h, px, py: int, title: string = "", text: string = "",
                 tb: TerminalBuffer = newTerminalBuffer(w + 2, h + 4)): Display =
   var display = Display(
     width: w,
@@ -20,6 +21,7 @@ proc newDisplay*(w, h, px, py: int, text: string = "",
     posY: py,
     text: text,
     rows: h - 4,
+    title: title,
     tb: tb
   )
   return display
@@ -58,6 +60,8 @@ proc rowReCal(dp: var Display): seq[string] =
 proc render*(dp: var Display, standalone = false) =
   dp.tb.drawRect(dp.width, dp.height + 2, dp.posX, dp.posY,
       doubleStyle = dp.focus)
+  if dp.title != "":
+    dp.tb.write(dp.posX + 2, dp.posY, dp.title)
   var index = 1
   let rowStart = dp.rowCursor
   let rowEnd = if dp.rowCursor + dp.rows >= dp.textRows.len: dp.textRows.len -
