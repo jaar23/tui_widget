@@ -11,3 +11,4 @@ srcDir        = "src"
 
 requires "nim >= 2.0.0"
 requires "illwill >= 0.3.1"
+requires "nimclipboard >= 0.1.2"

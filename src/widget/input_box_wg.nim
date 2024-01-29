@@ -1,4 +1,5 @@
 import illwill, os, strutils, base_wg
+import nimclipboard/libclipboard
 
 type
   InputBox* = ref object of BaseWidget
@@ -14,6 +15,9 @@ type
   CursorDirection = enum
     Left, Right
 
+var cb = clipboard_new(nil)
+
+cb.clipboard_clear(LCB_CLIPBOARD)
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
   var max = val.len
@@ -107,7 +111,7 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
     of Key.Escape:
       ib.focus = false
       ib.mode = "|"
-    of Key.Backspace:
+    of Key.Backspace, Key.Delete:
       if ib.cursor > 0:
         ib.value.delete(ib.cursor - 1..ib.cursor - 1)
         ib.cursorMove(Left)
@@ -318,7 +322,13 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
     of Key.ShiftZ:
       ib.value.insert("Z", ib.cursor)
       ib.overflowWidth()
-    of Key.Home, Key.End, Key.PageUp, Key.PageDown, Key.Insert:
+    of Key.Home: 
+      ib.cursor = 0
+      tb.clear()
+    of Key.End: 
+      ib.cursor = ib.value.len
+      tb.clear()
+    of Key.PageUp, Key.PageDown, Key.Insert:
       discard
     of Key.Left:
       ib.cursorMove(Left)
@@ -328,6 +338,15 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
       tb.clear()
     of Key.Up, Key.Down:
       discard
+    # of Key.CtrlC:
+    #   try:
+    #     discard cb.clipboard_set_text(ib.value)
+    #   except:
+    #     echo "\n" & getCurrentExceptionMsg()
+    of Key.CtrlV:
+      let copiedText = $cb.clipboard_text()
+      ib.value.insert(copiedText, ib.cursor)
+      ib.cursor = ib.cursor + copiedText.len
     of Key.Enter:
       discard
     else:
@@ -353,3 +372,5 @@ proc onInput*(ib: var InputBox, tb: var TerminalBuffer) =
 
 
 proc value*(ib: var InputBox): string = ib.value
+
+
