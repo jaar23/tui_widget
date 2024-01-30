@@ -30,6 +30,7 @@ var checkbox = newCheckbox(20, 22, 1, 20, title="done", label="yes", value="y", 
 
 var checkbox2 = newCheckbox(40, 22, 21, 20, title="accept", label="yes", value="y", tb=tb)
 
+var button = newButton(20, 26, 1, 24, label="Confirm", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
@@ -48,9 +49,10 @@ proc mainPanel() =
   - display
   - checkbox
   - checkbox2
+  - button
 
 let enterEv: EnterEventProcedure = proc(arg: string) =
-  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg}"
+  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} is entered"
 
 let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
   echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
@@ -59,6 +61,7 @@ let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
 inputBox.onEnter(some(enterEv))
 checkbox.onSpace(some(spaceEv))
 checkbox2.onSpace(some(spaceEv))
+button.onEnter(some(enterEv))
 
 var currFocus = 0
 var components: seq[BaseWidget] = @[]
@@ -67,6 +70,8 @@ components.add(inputBox)
 components.add(display)
 components.add(checkbox)
 components.add(checkbox2)
+components.add(button)
+
 
 while true:
   mainPanel()

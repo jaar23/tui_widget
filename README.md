@@ -35,7 +35,7 @@ Widgets:
 
 - display panel (y)
 
-- button
+- button (y)
 
 - list view (wip)
 
