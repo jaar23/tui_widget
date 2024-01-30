@@ -1,7 +1,6 @@
 import illwill, os, strformat, options
 import tui_widget
 
-## all the widget should have 1 char lesser
 var tb = newTerminalBuffer(terminalWidth(), terminalHeight())
 
 var inputBox = newInputBox(consoleWidth(), 3, 1, 1, "tui widget", tb=tb)
@@ -63,15 +62,11 @@ checkbox2.onSpace(some(spaceEv))
 
 var currFocus = 0
 var components: seq[BaseWidget] = @[]
+
 components.add(inputBox)
 components.add(display)
 components.add(checkbox)
 components.add(checkbox2)
-
-# tb.merge(inputBox.terminalBuffer())
-# tb.merge(display.terminalBuffer())
-# tb.merge(checkbox.terminalBuffer())
-# tb.merge(checkbox2.terminalBuffer())
 
 while true:
   mainPanel()
@@ -82,49 +77,7 @@ while true:
       currFocus = 0
     components[currFocus].onControl()
     currFocus = currFocus + 1
-    # if currFocus > components.len - 1:
-    #   currFocus = 0
-    # #tb.write(0, 20, components[currFocus])
-    # for n in 0..components.len:
-    #   if currFocus == 0: 
-    #     #inputBox.onControl()
-    #     oseq[currFocus].onControl()
-    #     display.focus = false
-    #     break
-    #   elif currFocus == 1: 
-    #     #display.onControl()
-    #     oseq[currFocus].onControl()
-    #     ## adding new text on each control
-    #     display.add(text)
-    #     inputBox.focus = false
-    #     break
-    # currFocus = currFocus + 1
   else: discard
-
-  ## combining terminal buffer from bottom up
-  ## examples components: [1, 2, 3, 4, 5]
-  ## copy sequences: 5 --copy-- 4, 5--copy--3, 5--copy--2, 5--copy--1
-  ## main terminal buffer: tb --copy--5
-  #display.merge(inputBox)
-  #checkbox.merge(display)
-  #checkbox2.merge(checkbox)
-  #checkbox.terminalBuffer().copyFrom(display.terminalBuffer())
-  #display.terminalBuffer().copyFrom(inputBox.terminalBuffer()) 
-  # checkbox2.merge(checkbox.terminalBuffer())
-  # checkbox2.merge(display.terminalBuffer())
-  # checkbox2.merge(inputBox.terminalBuffer())
-  #tb.copyFrom(checkbox2.terminalBuffer(),transparency=true)
-  #display.terminalBuffer().copyFrom(inputBox.terminalBuffer()) 
-  #tb.copyFrom(display.terminalBuffer())
-  
-  # tb[] = inputBox.terminalBuffer()[]
-  # tb[] = display.terminalBuffer()[]
-  # tb[] = checkbox.terminalBuffer()[]
-  # tb[] = checkbox2.terminalBuffer()[]
-  # tb.merge(inputBox.terminalBuffer())
-  # tb.merge(display.terminalBuffer())
-  # tb.merge(checkbox.terminalBuffer())
-  # tb.merge(checkbox2.terminalBuffer())
 
   tb.display()
 
