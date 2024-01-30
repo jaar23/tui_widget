@@ -42,3 +42,5 @@ Widgets:
 - select
 
 - table
+
+- checkbox (y)

@@ -8,12 +8,11 @@ type
     cursor: int = 0
     rowCursor: int = 0
     visualSkip: int = 2
-    tb: TerminalBuffer
     title: string
 
 
 proc newDisplay*(w, h, px, py: int, title: string = "", text: string = "",
-                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + 4)): Display =
+                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Display =
   var display = Display(
     width: w,
     height: h,
@@ -87,7 +86,7 @@ method onControl*(dp: var Display) =
   while dp.focus:
     var key = getKey()
     case key
-    of Key.None:
+    of Key.None: 
       dp.render(true)
     of Key.Up:
       if dp.rowCursor == 0:
@@ -116,14 +115,12 @@ method onControl*(dp: var Display) =
       dp.rowCursor = 0
     of Key.End:
       dp.rowCursor = dp.textRows.len - dp.rows
-    of Key.Escape:
-      dp.focus = false
-    of Key.Tab:
+    of Key.Escape, Key.Tab:
       dp.focus = false
     else: discard
   dp.render(true)
   sleep(20)
-
+ 
 
 proc show*(dp: var Display) = dp.render(true)
 
@@ -139,6 +136,10 @@ proc text*(dp: var Display): string = dp.text
 
 proc terminalBuffer*(dp: var Display): var TerminalBuffer =
   return dp.tb
+
+
+proc merge*(dp: var Display, wg: BaseWidget) =
+  dp.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, wg.posX, wg.posY, transparency=true)
 
 
 proc `-`*(dp: var Display) = dp.show()

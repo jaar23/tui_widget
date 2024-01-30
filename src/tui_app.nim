@@ -1,13 +1,12 @@
-import illwill, os, widget/[base_wg, input_box_wg, display_wg]
+import illwill, os, strformat, options
+import tui_widget
 
+## all the widget should have 1 char lesser
+var tb = newTerminalBuffer(terminalWidth(), terminalHeight())
 
-var inputBox = newInputBox(consoleWidth(), 2, 1, 0, "tui widget")
+var inputBox = newInputBox(consoleWidth(), 3, 1, 1, "tui widget", tb=tb)
 
-var display = newDisplay(consoleWidth(), 16, 1, 3, "board") 
-
-var oseq: seq[BaseWidget] = @[]
-oseq.add(inputBox)
-oseq.add(display)
+var display = newDisplay(consoleWidth(), 16, 1, 4, "board", tb=tb) 
 
 var text = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras quis accumsan lectus. Duis vitae rhoncus ex, at rhoncus diam. Aenean rutrum non tellus vel finibus. In hac habitasse platea dictumst. Curabitur feugiat, nibh laoreet tincidunt gravida, mi ante sagittis urna, sed ultricies lectus enim et libero. Nam tristique sem tempor lectus dignissim, ac imperdiet risus auctor. Aliquam erat volutpat. In iaculis laoreet ultrices. Curabitur pellentesque eros nec erat mattis, ac semper tortor facilisis.
@@ -28,6 +27,10 @@ Ut feugiat rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla. Nu
 
 display.add(text & text & text & text & text & text & text & text & text)
 
+var checkbox = newCheckbox(20, 22, 1, 20, title="done", label="yes", value="y", tb=tb)
+
+var checkbox2 = newCheckbox(40, 22, 21, 20, title="accept", label="yes", value="y", tb=tb)
+
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
@@ -39,20 +42,36 @@ illwillInit(fullscreen=true)
 setControlCHook(exitProc)
 hideCursor()
 
-## all the widget should have 1 char lesser
-var tb = newTerminalBuffer(82, 30)
-
 
 # align components in sequence according to pos Y
 proc mainPanel() =
   - inputBox
   - display
+  - checkbox
+  - checkbox2
 
+let enterEv: EnterEventProcedure = proc(arg: string) =
+  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg}"
+
+let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
+  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
+
+
+inputBox.onEnter(some(enterEv))
+checkbox.onSpace(some(spaceEv))
+checkbox2.onSpace(some(spaceEv))
 
 var currFocus = 0
-var components = @["input", "display"]
+var components: seq[BaseWidget] = @[]
+components.add(inputBox)
+components.add(display)
+components.add(checkbox)
+components.add(checkbox2)
 
-#oseq[0].onControl()
+# tb.merge(inputBox.terminalBuffer())
+# tb.merge(display.terminalBuffer())
+# tb.merge(checkbox.terminalBuffer())
+# tb.merge(checkbox2.terminalBuffer())
 
 while true:
   mainPanel()
@@ -61,28 +80,54 @@ while true:
   of Key.Tab, None:
     if currFocus > components.len - 1:
       currFocus = 0
-    #tb.write(0, 20, components[currFocus])
-    for n in 0..components.len:
-      if currFocus == 0: 
-        #inputBox.onControl()
-        oseq[currFocus].onControl()
-        display.focus = false
-        break
-      elif currFocus == 1: 
-        #display.onControl()
-        oseq[currFocus].onControl()
-        ## adding new text on each control
-        display.add(text)
-        inputBox.focus = false
-        break
+    components[currFocus].onControl()
     currFocus = currFocus + 1
+    # if currFocus > components.len - 1:
+    #   currFocus = 0
+    # #tb.write(0, 20, components[currFocus])
+    # for n in 0..components.len:
+    #   if currFocus == 0: 
+    #     #inputBox.onControl()
+    #     oseq[currFocus].onControl()
+    #     display.focus = false
+    #     break
+    #   elif currFocus == 1: 
+    #     #display.onControl()
+    #     oseq[currFocus].onControl()
+    #     ## adding new text on each control
+    #     display.add(text)
+    #     inputBox.focus = false
+    #     break
+    # currFocus = currFocus + 1
   else: discard
 
   ## combining terminal buffer from bottom up
-  display.terminalBuffer().copyFrom(inputBox.terminalBuffer()) 
-  tb.copyFrom(display.terminalBuffer())
+  ## examples components: [1, 2, 3, 4, 5]
+  ## copy sequences: 5 --copy-- 4, 5--copy--3, 5--copy--2, 5--copy--1
+  ## main terminal buffer: tb --copy--5
+  #display.merge(inputBox)
+  #checkbox.merge(display)
+  #checkbox2.merge(checkbox)
+  #checkbox.terminalBuffer().copyFrom(display.terminalBuffer())
+  #display.terminalBuffer().copyFrom(inputBox.terminalBuffer()) 
+  # checkbox2.merge(checkbox.terminalBuffer())
+  # checkbox2.merge(display.terminalBuffer())
+  # checkbox2.merge(inputBox.terminalBuffer())
+  #tb.copyFrom(checkbox2.terminalBuffer(),transparency=true)
+  #display.terminalBuffer().copyFrom(inputBox.terminalBuffer()) 
+  #tb.copyFrom(display.terminalBuffer())
   
+  # tb[] = inputBox.terminalBuffer()[]
+  # tb[] = display.terminalBuffer()[]
+  # tb[] = checkbox.terminalBuffer()[]
+  # tb[] = checkbox2.terminalBuffer()[]
+  # tb.merge(inputBox.terminalBuffer())
+  # tb.merge(display.terminalBuffer())
+  # tb.merge(checkbox.terminalBuffer())
+  # tb.merge(checkbox2.terminalBuffer())
+
   tb.display()
+
   sleep(20)
   
 

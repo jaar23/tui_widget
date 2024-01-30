@@ -1,4 +1,4 @@
-import illwill, os, strutils, base_wg
+import illwill, os, strutils, base_wg, options, sequtils, encodings
 import nimclipboard/libclipboard
 
 type
@@ -11,10 +11,12 @@ type
     mode: string = "|"
     visualSkip: int = 2
     title: string
-    tb: TerminalBuffer
+    onEnter: Option[EnterEventProcedure]
+    showSize: bool = false
 
   CursorDirection = enum
     Left, Right
+
 
 var cb = clipboard_new(nil)
 
@@ -23,7 +25,7 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 proc newInputBox*(w, h, px, py: int, title = "", val: string = "", 
                   modeChar: string = "|", 
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + 1)): InputBox =
+                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): InputBox =
   var inputBox = InputBox(
     width: w,
     height: h,
@@ -74,6 +76,12 @@ proc ltrRange(val: string, size: int, cursor: int): (int, int, int) =
   return (min, max, cursorPos)
 
 
+proc formatText(val: string): string = 
+  let converted = val.convert()
+  let replaced = converted.replace("\n", " ")
+  return replaced
+
+
 proc render*(ib: var InputBox, standalone = false) =
   ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
   if ib.title != "":
@@ -81,13 +89,26 @@ proc render*(ib: var InputBox, standalone = false) =
   if ib.cursor < ib.value.len:
     ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
              resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
-             bgGreen, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
+             bgGreen, styleBlink, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
              resetStyle, ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
   else:
     ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-             resetStyle, ib.visualVal, bgGreen, " ", resetStyle)
+             resetStyle, ib.visualVal, bgGreen, styleBlink, "_", resetStyle)
+  if ib.showSize:
+    let sizeStr = $ib.value.len
+    ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
+    ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
   if standalone:
     ib.tb.display()
+
+
+proc clear(ib: var InputBox) =
+  ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
+
+
+proc rerender(ib: var InputBox) =
+  ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
+  ib.render(true)
 
 
 proc overflowWidth(ib: var InputBox, moved = 1) =
@@ -121,14 +142,28 @@ proc cursorMove(ib: var InputBox, direction: CursorDirection) =
     ib.visualCursor = vcursorPos
 
 
+
+## optional callback proc function
+#method onControl*(ib: var InputBox, onEnter: Option[CallbackProcedure] = none(CallbackProcedure)) = 
 method onControl*(ib: var InputBox) = 
+  const EscapeKeys = {Key.Escape, Key.Tab}
+  const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
+                  Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
+  const CtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF, 
+                    Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
+                    Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
+                    Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
+                    Key.CtrlY, Key.CtrlZ}
+  const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
+                        Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
+
   ib.focus = true
   ib.mode = ">"
   while ib.focus:
     var key = getKey()
     case key
-    of Key.None: discard
-    of Key.Escape:
+    of Key.None, FnKeys, CtrlKeys: discard
+    of EscapeKeys:
       ib.focus = false
       ib.mode = "|"
     of Key.Backspace, Key.Delete:
@@ -136,16 +171,22 @@ method onControl*(ib: var InputBox) =
         ib.value.delete(ib.cursor - 1..ib.cursor - 1)
         ib.cursorMove(Left)
         ib.visualCursor = ib.visualCursor - 1
-        ib.tb.clear()
+        ib.clear()
     of Key.CtrlE:
       ib.value = ""
       ib.cursor = 0
-      ib.tb.clear()
-    of Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6:
-      discard
-    of Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12:
-      discard
-    of Key.Comma: 
+      ib.clear()
+    of Key.ShiftA..Key.ShiftZ:
+      let tmpKey = $key
+      let alphabet = toSeq(tmpKey.items()).pop()
+      ib.value.insert($alphabet.toUpperAscii(), ib.cursor)
+      ib.overflowWidth()
+    of Key.Zero..Key.Nine:
+      let keyPos = NumericKeys.find(key)
+      if keyPos > -1:
+        ib.value.insert($keyPos, ib.cursor)
+        ib.overflowWidth()
+    of Key.Comma:
       ib.value.insert(",", ib.cursor)
       ib.overflowWidth()
     of Key.Colon:
@@ -160,10 +201,6 @@ method onControl*(ib: var InputBox) =
     of Key.Dot:
       ib.value.insert(".", ib.cursor)
       ib.overflowWidth()
-    of Key.Tab:
-      #ib.value.insert("    ", ib.cursor)
-      #ib.overflowWidth(moved=4)
-      ib.focus = false
     of Key.Ampersand:
       ib.value.insert("&", ib.cursor)
       ib.overflowWidth()
@@ -236,141 +273,34 @@ method onControl*(ib: var InputBox) =
     of Key.Caret:
       ib.value.insert("^", ib.cursor)
       ib.overflowWidth()
-    of Key.One: 
-      ib.value.insert("1", ib.cursor)
-      ib.overflowWidth()
-    of Key.Two:
-      ib.value.insert("2", ib.cursor)
-      ib.overflowWidth()
-    of Key.Three:
-      ib.value.insert("3", ib.cursor)
-      ib.overflowWidth()
-    of Key.Four:
-      ib.value.insert("4", ib.cursor)
-      ib.overflowWidth()
-    of Key.Five:
-      ib.value.insert("5", ib.cursor)
-      ib.overflowWidth()
-    of Key.Six:
-      ib.value.insert("6", ib.cursor)
-      ib.overflowWidth()
-    of Key.Seven:
-      ib.value.insert("7", ib.cursor)
-      ib.overflowWidth()
-    of Key.Eight:
-      ib.value.insert("8", ib.cursor)
-      ib.overflowWidth()
-    of Key.Nine:
-      ib.value.insert("9", ib.cursor)
-      ib.overflowWidth()
-    of Key.Zero:
-      ib.value.insert("0", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftA:
-      ib.value.insert("A", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftB:
-      ib.value.insert("B", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftC:
-      ib.value.insert("C", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftD:
-      ib.value.insert("D", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftE:
-      ib.value.insert("E", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftF:
-      ib.value.insert("F", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftG:
-      ib.value.insert("G", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftH:
-      ib.value.insert("H", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftI:
-      ib.value.insert("I", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftJ:
-      ib.value.insert("J", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftK:
-      ib.value.insert("K", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftL:
-      ib.value.insert("L", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftM:
-      ib.value.insert("M", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftN:
-      ib.value.insert("N", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftO:
-      ib.value.insert("O", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftP:
-      ib.value.insert("P", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftQ:
-      ib.value.insert("Q", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftR:
-      ib.value.insert("R", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftS:
-      ib.value.insert("S", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftT:
-      ib.value.insert("T", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftU:
-      ib.value.insert("U", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftV:
-      ib.value.insert("V", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftW:
-      ib.value.insert("W", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftX:
-      ib.value.insert("X", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftY:
-      ib.value.insert("Y", ib.cursor)
-      ib.overflowWidth()
-    of Key.ShiftZ:
-      ib.value.insert("Z", ib.cursor)
-      ib.overflowWidth()
     of Key.Home: 
       ib.cursor = 0
-      ib.tb.clear()
+      ib.rerender()
     of Key.End: 
       ib.cursor = ib.value.len
-      ib.tb.clear()
+      ib.rerender()
     of Key.PageUp, Key.PageDown, Key.Insert:
       discard
     of Key.Left:
       ib.cursorMove(Left)
-      ib.tb.clear()
+      ib.rerender()
     of Key.Right: 
       ib.cursorMove(Right)
-      ib.tb.clear()
+      ib.rerender()
     of Key.Up, Key.Down:
       discard
-    # of Key.CtrlC:
-    #   try:
-    #     discard cb.clipboard_set_text(ib.value)
-    #   except:
-    #     echo "\n" & getCurrentExceptionMsg()
     of Key.CtrlV:
       let copiedText = $cb.clipboard_text()
-      ib.value.insert(copiedText, ib.cursor)
+      ib.value.insert(formatText(copiedText), ib.cursor)
       ib.cursor = ib.cursor + copiedText.len
     of Key.Enter:
-      discard
+      # when implementing function as a callback
+      # if onEnter.isSome:
+      #   let cb = onEnter.get
+      #   cb(ib.value)
+      if ib.onEnter.isSome:
+        let fn = ib.onEnter.get
+        fn(ib.value)
     else:
       var ch = $key
       ib.value.insert(ch.toLower(), ib.cursor)
@@ -387,8 +317,6 @@ method onControl*(ib: var InputBox) =
       ib.visualVal = ib.value.substr(s, e)
       ib.visualCursor = cursorPos 
 
-      # ib.visualVal = ib.value
-      # ib.visualCursor = 2
     ib.render(true)
     sleep(20)
 
@@ -407,9 +335,23 @@ proc hide*(ib: var InputBox) =
   ib.render()
 
 
-proc terminalBuffer*(ib: var InputBox): TerminalBuffer =
+proc terminalBuffer*(ib: var InputBox): var TerminalBuffer =
   return ib.tb
 
 
+proc merge*(ib: var InputBox, wg: BaseWidget) =
+  ib.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, ib.posX, ib.posY, transparency=true)
+
+
+proc onEnter*(ib: var InputBox, cb: Option[EnterEventProcedure]) =
+  ib.onEnter = cb
+
+
 proc `- `*(ib: var InputBox) = ib.show()
+
+
+proc showSize*(ib: var InputBox): void = ib.showSize = true
+
+
+proc hideSize*(ib: var InputBox): void = ib.showSize = false
 

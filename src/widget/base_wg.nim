@@ -1,4 +1,4 @@
-import illwill
+import illwill, options
 
 type
   BaseWidget* = ref object of RootObj
@@ -8,6 +8,13 @@ type
     posY*: int
     fgColor*: ForegroundColor = fgWhite
     focus*: bool = false
+    tb*: TerminalBuffer
+
+  CallbackProcedure* = proc(x: string): void
+
+  EnterEventProcedure* = proc(x: string): void
+
+  SpaceEventProcedure* = proc(x: string, b: bool): void
 
 proc consoleWidth*(): int =
   return terminalWidth() - 2
@@ -17,4 +24,26 @@ proc consoleHeight*(): int =
 
 
 method onControl*(this: var BaseWidget): void {.base.} =
-  echo "child needs to implement this!"
+  #child needs to implement this!
+  echo ""
+
+
+method onControl*(this: var BaseWidget, cb: proc(args: varargs[string])): void {.base.} =
+  #child needs to implement this!
+  echo ""
+
+
+method onControl*(this: var BaseWidget, cb: proc(args: string)): void {.base.} =
+  #child needs to implement this!
+  echo ""
+
+
+method onControl*(this: var BaseWidget, cb: Option[CallbackProcedure]): void {.base.} =
+  #child needs to implement this!
+  echo ""
+
+# having compilation bugs when using this method
+# method merge*(this: var BaseWidget, wg: BaseWidget): void {.base.} = 
+#   echo ""
+
+
