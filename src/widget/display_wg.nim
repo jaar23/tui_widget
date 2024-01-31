@@ -1,4 +1,4 @@
-import illwill, sequtils, base_wg, os
+import illwill, sequtils, base_wg, os, std/wordwrap, strutils
 
 type
   Display = ref object of BaseWidget
@@ -26,24 +26,26 @@ proc newDisplay*(w, h, px, py: int, title: string = "", text: string = "",
   return display
 
 
-proc splitBySize(val: string, size: int, rows: int): (seq[string], int) =
-  var textArr = toSeq(val.items)
-  var cursor = 0
-  var lines = newSeq[string]()
-  for n in 0..rows:
-    var line = ""
-    var wordCnt = 0
-    for t in textArr[cursor..textArr.len - 1]:
-      wordCnt = wordCnt + 1
-      if @["\n", "\L"].contains($t):
-        #echo $t
-        break
-      line = line & $t
-      if wordCnt == size:
-        break
-    if line.len > 0:
-      lines.add(line)
-    cursor = cursor + wordCnt
+proc splitBySize(val: string, size: int, rows: int, visualSkip = 2): (seq[string], int) =
+  var wrappedWords = val.wrapWords(maxLineWidth=size - visualSkip, splitLongWords=false)
+  var lines = wrappedWords.split("\n")
+  var cursor = wrappedWords.len
+  #var textArr = toSeq(wrappedWords.items)
+  #var cursor = 0
+  #var lines = newSeq[string]()
+  # for n in 0..rows:
+  #   var line = ""
+  #   var wordCnt = 0
+  #   for t in textArr[cursor..textArr.len - 1]:
+  #     wordCnt = wordCnt + 1
+  #     if @["\n", "\L"].contains($t):
+  #       break
+  #     line = line & $t
+  #     # if wordCnt == size:
+  #     #   break
+  #   if line.len > 0:
+  #     lines.add(line)
+  #   cursor = cursor + wordCnt
   return (lines, cursor)
 
 
@@ -60,20 +62,20 @@ proc render*(dp: var Display, standalone = false) =
   dp.tb.drawRect(dp.width, dp.height + 2, dp.posX, dp.posY,
       doubleStyle = dp.focus)
   if dp.title != "":
-    dp.tb.write(dp.posX + 2, dp.posY, dp.title)
+    dp.tb.write(dp.posX + dp.visualSkip, dp.posY, dp.title)
   var index = 1
   let rowStart = dp.rowCursor
   let rowEnd = if dp.rowCursor + dp.rows >= dp.textRows.len: dp.textRows.len -
       1 else: dp.rowCursor + dp.rows - 1
   for row in dp.textRows[rowStart..rowEnd]:
-    dp.tb.fill(dp.posX + 1, dp.posY + index, dp.width, dp.height, " ")
+    dp.tb.fill(dp.posX + dp.visualSkip, dp.posY + index, dp.width, dp.height, " ")
     dp.tb.drawVertLine(dp.width, dp.height, dp.posY + 1, doubleStyle = true)
-    dp.tb.write(dp.posX + 1, dp.posY + index, resetStyle, row)
+    dp.tb.write(dp.posX + dp.visualSkip, dp.posY + index, resetStyle, row)
     index = index + 1
   ## cursor pointer
-  dp.tb.fill(dp.posX + 1, dp.posY + dp.rows + dp.visualSkip, dp.posX + 9,
+  dp.tb.fill(dp.posX + dp.visualSkip, dp.posY + dp.rows + dp.visualSkip, dp.posX + 9,
       dp.posY + dp.rows + dp.visualSkip, " ")
-  dp.tb.write(dp.posX + 1, dp.posY + dp.rows + dp.visualSkip, fgYellow,
+  dp.tb.write(dp.posX + dp.visualSkip, dp.posY + dp.rows + dp.visualSkip, fgYellow,
       "rows: ", $dp.rowCursor, resetStyle)
   if standalone:
     dp.tb.display()
