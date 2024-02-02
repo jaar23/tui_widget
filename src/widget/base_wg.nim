@@ -7,8 +7,13 @@ type
     posX*: int
     posY*: int
     fgColor*: ForegroundColor = fgWhite
+    bgColor*: BackgroundColor = bgNone
     focus*: bool = false
     tb*: TerminalBuffer
+    bordered*: bool = true
+    paddingX*: int = 1
+    paddingY*: int = 1
+
 
   CallbackProcedure* = proc(x: string): void
 

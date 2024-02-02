@@ -32,6 +32,45 @@ var checkbox2 = newCheckbox(40, 22, 21, 20, title="accept", label="yes", value="
 
 var button = newButton(20, 26, 1, 24, label="Confirm", tb=tb)
 
+var tc1 = newTableColumn(20, 1, "WuShiKai", "wsk")
+var tc2 = newTableColumn(20, 1, "WangFei", "wf")
+var tc3 = newTableColumn(10, 1, "30", "age")
+var tc4 = newTableColumn(20, 1, "Name   ", "Name")
+var tc5 = newTableColumn(10, 1, "ShortName", "Short Name")
+var tc6 = newTableColumn(10, 1, "Age", "age")
+
+var columns = newSeq[TableColumn]()
+columns.add(tc1)
+columns.add(tc2)
+columns.add(tc3)
+var tr = newTableRow(20, 1, columns)
+var trs = newSeq[TableRow]()
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+trs.add(tr)
+
+var tc7 = newTableColumn(20, 1, "Jess   ", "J")
+var tc8 = newTableColumn(10, 1, "J", "j")
+var tc9 = newTableColumn(10, 1, "29", "age")
+var columns2 = newSeq[TableColumn]()
+columns2.add(tc7)
+columns2.add(tc8)
+columns2.add(tc9)
+var tr2 = newTableRow(20, 1, columns2)
+trs.add(tr2)
+trs.add(tr2)
+var hcolumns = newSeq[TableColumn]()
+hcolumns.add(tc4) 
+hcolumns.add(tc5)
+hcolumns.add(tc6)
+var th = newTableRow(20, 1, hcolumns)
+var table = newTable(42, 36, 1, 28, trs, headers=some(th), title="table", tb=tb)
+
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
   showCursor()
@@ -50,6 +89,7 @@ proc mainPanel() =
   - checkbox
   - checkbox2
   - button
+  - table
 
 let enterEv: EnterEventProcedure = proc(arg: string) =
   echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} is entered"
@@ -71,7 +111,7 @@ components.add(display)
 components.add(checkbox)
 components.add(checkbox2)
 components.add(button)
-
+components.add(table)
 
 while true:
   mainPanel()

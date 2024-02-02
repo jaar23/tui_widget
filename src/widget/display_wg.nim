@@ -1,4 +1,4 @@
-import illwill, sequtils, base_wg, os, std/wordwrap, strutils
+import illwill, base_wg, os, std/wordwrap, strutils
 
 type
   Display = ref object of BaseWidget
@@ -67,7 +67,7 @@ proc render*(dp: var Display, standalone = false) =
   let rowStart = dp.rowCursor
   let rowEnd = if dp.rowCursor + dp.rows >= dp.textRows.len: dp.textRows.len -
       1 else: dp.rowCursor + dp.rows - 1
-  for row in dp.textRows[rowStart..rowEnd]:
+  for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
     dp.tb.fill(dp.posX + dp.visualSkip, dp.posY + index, dp.width, dp.height, " ")
     dp.tb.drawVertLine(dp.width, dp.height, dp.posY + 1, doubleStyle = true)
     dp.tb.write(dp.posX + dp.visualSkip, dp.posY + index, resetStyle, row)

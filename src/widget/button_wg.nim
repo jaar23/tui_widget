@@ -8,7 +8,6 @@ type
     label: string = ""
     disabled: bool = false
     onEnter: Option[EnterEventProcedure]
-    bgColor: BackgroundColor
     state: ButtonState = Unpressed
 
 
