@@ -34,10 +34,10 @@ var button = newButton(20, 26, 1, 24, label="Confirm", tb=tb)
 
 var tc1 = newTableColumn(20, 1, "WuShiKai", "wsk")
 var tc2 = newTableColumn(20, 1, "WangFei", "wf")
-var tc3 = newTableColumn(10, 1, "30", "age")
+var tc3 = newTableColumn(20, 1, "30", "age")
 var tc4 = newTableColumn(20, 1, "Name   ", "Name")
-var tc5 = newTableColumn(10, 1, "ShortName", "Short Name")
-var tc6 = newTableColumn(10, 1, "Age", "age")
+var tc5 = newTableColumn(20, 1, "ShortName", "Short Name")
+var tc6 = newTableColumn(20, 1, "Age", "age")
 
 var columns = newSeq[TableColumn]()
 columns.add(tc1)
@@ -69,7 +69,7 @@ hcolumns.add(tc4)
 hcolumns.add(tc5)
 hcolumns.add(tc6)
 var th = newTableRow(20, 1, hcolumns)
-var table = newTable(42, 38, 1, 28, trs, headers=some(th), title="table", tb=tb)
+var table = newTable(46, 38, 1, 28, trs, headers=some(th), title="table", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          

@@ -20,6 +20,8 @@ type
     fgColor: ForegroundColor
     align: Alignment = Left
     columnType: ColumnType
+    data: string = ""
+    visible: bool = true
 
   TableRow* = object
     index: int
@@ -31,6 +33,7 @@ type
     onEnter: Option[EnterEventProcedure]
     bgColor: BackgroundColor
     fgColor: ForegroundColor
+    visible: bool = true
     isSelected: bool
 
   Table = ref object of BaseWidget
@@ -114,35 +117,77 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
     tb: tb,
     bordered: bordered,
     paddingX: if bordered: 2 else: 1,
-    colCursor: w
+    colCursor: 0
   )
   if headers.isSome: 
     table.size -= 1
-    var seqCol = newTableColumn(seqColWidth, 1, text = "", key = "", index = 0)
+    var seqCol = newTableColumn(seqColWidth, 1, text = alignLeft("i", seqColWidth), key = "", index = 0)
     table.headers.get.columns.insert(seqCol, 0)
   return table
 
 
+
+proc rowMaxWidth(table: var Table): int =
+  result = 0
+  if table.headers.isSome:
+    for col in table.headers.get.columns:
+      result += col.width
+  else:
+    for col in table.rows[table.cursor].columns:
+      result += col.width
+
+
+proc dtmColumnToDisplay(table: var Table) =
+  var posX = table.paddingX
+  for i in table.colCursor..<table.headers.get.columns.len:
+    #if posX + table.headers.get.columns[i].width < table.width:
+    if posX < table.width:
+      table.headers.get.columns[i].visible = true
+      posX += table.headers.get.columns[i].width
+    else:
+      table.headers.get.columns[i].visible = false
+  for i in 0..<table.colCursor:
+    table.headers.get.columns[i].visible = false
+
+
+proc filter(table: var Table, filterStr: string) =
+  for r in 0..<table.rows.len:
+    for col in table.rows[r].columns:
+      if col.text.contains(filterStr): 
+        table.rows[r].visible = true
+        continue
+      else:
+        table.rows[r].visible = false
+
+
+proc resetFilter(table: var Table) =
+  for r in 0..<table.rows.len:
+    table.rows[r].visible = true
+
+
+proc renderClearRow(table: var Table, index: int, full = false) =
+  if full:
+    var totalWidth = table.rowMaxWidth()
+    table.tb.fill(table.posX + table.paddingX, table.posY + index,
+                  totalWidth, table.height, " ")
+  else:
+    table.tb.fill(table.posX + table.paddingX, table.posY + index,
+                  table.width - table.paddingX, table.height, " ")
+
+
 proc renderTableHeader(table: var Table): int =
   result = 1
+  table.renderClearRow(result, true)
   let borderX = if table.bordered: 1 else: 2
   if table.headers.isSome:
     var posX = table.paddingX
-    for col in table.headers.get.columns:
-      table.tb.write(table.posX + posX, table.posY + result, bgBlue, col.fgColor, 
-                     alignLeft(col.text, min(col.width, table.width - table.posX - posX - borderX)), 
-                     resetStyle)
-      posX = posX + col.width + 1
+    for i in table.colCursor..<table.headers.get.columns.len:
+      if table.headers.get.columns[i].visible and posX < table.width:
+        table.tb.write(table.posX + posX, table.posY + result, bgBlue, table.headers.get.columns[i].fgColor, 
+                       alignLeft(table.headers.get.columns[i].text, min(table.headers.get.columns[i].width, table.width - table.posX - posX - borderX)), 
+                       resetStyle)
+        posX = posX + table.headers.get.columns[i].width + 1
     result += 1
-
-
-proc renderClearRow(table: var Table, index: int) =
-  # if withIndex:
-  #   table.tb.fill(table.posX, table.posY + index,
-  #                 table.width - table.paddingX, table.height, " ")
-  # else:
-  table.tb.fill(table.posX + table.paddingX, table.posY + index,
-                table.width - table.paddingX, table.height, " ")
 
 
 proc calColWidth(table: var Table, cindex: int, defaultWidth: int): int =
@@ -152,28 +197,28 @@ proc calColWidth(table: var Table, cindex: int, defaultWidth: int): int =
     result = defaultWidth
 
 
+
 proc renderTableRow(table: var Table, row: TableRow, index: int) =
   var posX = table.paddingX
   var borderX = if table.bordered: 1 else: 0
   for i in 0..<row.columns.len:
     var text = row.columns[i].text
-    var width = table.calColWidth(i, row.columns[i].width)
-    if row.columns[i].align == Left:
-      text = alignLeft(text, min(width, table.width - table.posX - posX - i - borderX))
-    elif row.columns[i].align == Center:
-      text = center(text, min(width, table.width - table.posX - posX - i - borderX))
-    elif row.columns[i].align == Right:
-      text = align(text, min(width, table.width - table.posX - posX - i - borderX))
-    #table.tb.write(table.posX, table.posY + index, $(row.index + 1))
-    var bgSelected = row.columns[i].bgColor
-    if row.index == table.cursor:
-      bgSelected = bgGreen
-    table.tb.write(table.posX + posX + i, table.posY + index, 
-                   bgSelected, row.columns[i].fgColor, text, resetStyle)
-    posX += width
+    if table.headers.get.columns[i].visible and posX < table.width:
+      var width = table.calColWidth(i, row.columns[i].width)
+      if row.columns[i].align == Left:
+        text = alignLeft(text, min(width, table.width - table.posX - posX - borderX))
+      elif row.columns[i].align == Center:
+        text = center(text, min(width, table.width - table.posX - posX - borderX))
+      elif row.columns[i].align == Right:
+        text = align(text, min(width, table.width - table.posX - posX - borderX))
+      var bgSelected = row.columns[i].bgColor
+      if row.index == table.cursor:
+        bgSelected = bgGreen
+      table.tb.write(table.posX + posX, table.posY + index, 
+                     bgSelected, row.columns[i].fgColor, text, resetStyle)
+      posX += width + 1
 
 
-#proc renderRowSelection(table: var Table, index: int)
 
 
 proc render*(table: var Table): void =
@@ -194,7 +239,8 @@ proc render*(table: var Table): void =
     table.renderTableRow(row, index)
     index += 1
   table.tb.write(table.posX + table.paddingX, table.posY + table.size +
-      table.paddingX + 1, $rowStart, "...", $rowEnd, " selected: ", $table.cursor)
+      table.paddingY + 2, $rowStart, "...", $rowEnd, " selected: ", $table.cursor, " col: " & $table.colCursor)
+  table.tb.drawVertLine(table.width, table.height, table.posY + 1, doubleStyle = true)
   table.tb.display()
 
 
@@ -222,16 +268,20 @@ method onControl*(table: var Table): void =
         table.cursor = table.rows.len - 1
       else:
         table.cursor += 1
-    of Key.Right:
-      if table.colCursor > table.width:
-        table.colCursor += 1
+    of Key.Right: 
+      if table.colCursor == table.headers.get.columns.len - 1:
+        table.colCursor = table.headers.get.columns.len - 1
       else:
-        table.colCursor = table.width
+        table.colCursor += 1
+      table.dtmColumnToDisplay()
     of Key.Left:
-      if table.colCursor <= table.width:
-        table.colCursor = table.width
+      if table.colCursor == 0:
+        table.colCursor = 0
       else:
         table.colCursor -= 1
+      table.dtmColumnToDisplay()
+    of Key.Slash:
+      discard
     of Key.Escape, Key.Tab: table.focus = false
     else: discard
   table.render()
