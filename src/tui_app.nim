@@ -69,7 +69,7 @@ hcolumns.add(tc4)
 hcolumns.add(tc5)
 hcolumns.add(tc6)
 var th = newTableRow(20, 1, hcolumns)
-var table = newTable(42, 36, 1, 28, trs, headers=some(th), title="table", tb=tb)
+var table = newTable(42, 38, 1, 28, trs, headers=some(th), title="table", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
