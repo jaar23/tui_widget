@@ -1,2 +1,4 @@
 terminal_ui*
 tui_app
+.vscode
+bin

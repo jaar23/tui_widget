@@ -69,7 +69,7 @@ hcolumns.add(tc4)
 hcolumns.add(tc5)
 hcolumns.add(tc6)
 var th = newTableRow(20, 1, hcolumns)
-var table = newTable(46, 38, 1, 28, trs, headers=some(th), title="table", tb=tb)
+var table = newTable(45, 34, 1, 28, trs, headers=some(th), title="table", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
@@ -85,23 +85,23 @@ hideCursor()
 # align components in sequence according to pos Y
 proc mainPanel() =
   - inputBox
+  - table
   - display
   - checkbox
   - checkbox2
   - button
-  - table
 
-let enterEv: EnterEventProcedure = proc(arg: string) =
-  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} is entered"
+#let enterEv: EnterEventProcedure = proc(arg: string) =
+  #echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} is entered"
 
-let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
-  echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
+#let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
+  #echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
 
 
-inputBox.onEnter(some(enterEv))
-checkbox.onSpace(some(spaceEv))
-checkbox2.onSpace(some(spaceEv))
-button.onEnter(some(enterEv))
+#inputBox.onEnter(some(enterEv))
+#checkbox.onSpace(some(spaceEv))
+#checkbox2.onSpace(some(spaceEv))
+#button.onEnter(some(enterEv))
 
 var currFocus = 0
 var components: seq[BaseWidget] = @[]

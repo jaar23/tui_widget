@@ -24,6 +24,19 @@ A quick preview
 │                                                                                             ║
 │rows: 0                                                                                      │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ ╔═table═════════════════════════════════════╗
+ ║ i  Name                 ShortName         ║
+ ║ 1  WuShiKai             WangFei           ║
+ ║ 2  WuShiKai             WangFei           ║
+ ║ 3  WuShiKai             WangFei           ║
+ ║ 4  WuShiKai             WangFei           ║
+ ║ 5  WuShiKai             WangFei           ║
+ ║ 6  WuShiKai             WangFei           ║
+ ║                                           ║
+ ╚═rows: 10 selected: 0══════════════════════╝
+
+
 ```
 
 The widgets used to work as a standalone widget and on a combinations uses of multiple widgets navigate via `[tab]` button. 
@@ -41,6 +54,6 @@ Widgets:
 
 - select
 
-- table
+- table (wip)
 
 - checkbox (y)

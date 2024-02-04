@@ -24,7 +24,7 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 
 proc newInputBox*(w, h, px, py: int, title = "", val: string = "", 
-                  modeChar: string = "|", 
+                  modeChar: char = '|', 
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): InputBox =
   var inputBox = InputBox(
     width: w,
@@ -32,7 +32,7 @@ proc newInputBox*(w, h, px, py: int, title = "", val: string = "",
     posX: px,
     posY: py,
     value: val,
-    mode: modeChar,
+    mode: $modeChar,
     title: title,
     tb: tb
   )
@@ -82,33 +82,38 @@ proc formatText(val: string): string =
   return replaced
 
 
-proc render*(ib: var InputBox, standalone = false) =
-  ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
-  if ib.title != "":
-    ib.tb.write(ib.posX + 2, ib.posY, ib.title)
-  if ib.cursor < ib.value.len:
-    ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-             resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
-             bgGreen, styleBlink, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
-             resetStyle, ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
-  else:
-    ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-             resetStyle, ib.visualVal, bgGreen, styleBlink, "_", resetStyle)
-  if ib.showSize:
-    let sizeStr = $ib.value.len
-    ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
-    ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
-  if standalone:
-    ib.tb.display()
-
-
 proc clear(ib: var InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
 
 
+proc render*(ib: var InputBox, display = true) =
+  if display:
+    ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
+    if ib.title != "":
+      ib.tb.write(ib.posX + 2, ib.posY, ib.title)
+    if ib.cursor < ib.value.len:
+      ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
+               resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
+               bgGreen, styleBlink, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
+               resetStyle, ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
+    else:
+      ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
+               resetStyle, ib.visualVal, bgGreen, styleBlink, "_", resetStyle)
+    if ib.showSize:
+      let sizeStr = $ib.value.len
+      ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
+      ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
+    ib.tb.display()
+  else:
+    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 1, " ")
+    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 2, " ")
+    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 3, " ")
+    #ib.clear()
+
+
 proc rerender(ib: var InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
-  ib.render(true)
+  ib.render()
 
 
 proc overflowWidth(ib: var InputBox, moved = 1) =
@@ -317,9 +322,14 @@ method onControl*(ib: var InputBox) =
       ib.visualVal = ib.value.substr(s, e)
       ib.visualCursor = cursorPos 
 
-    ib.render(true)
+    ib.render()
     sleep(20)
 
+
+# method onControl*(ib: var InputBox, cb: Option[CallbackProcedure]): void =
+#   ib.onEnter = cb
+#   ib.onControl()
+#
 
 proc value*(ib: var InputBox, val: string) = ib.value = val
 
@@ -328,11 +338,11 @@ proc value*(ib: var InputBox): string = ib.value
 
 
 proc show*(ib: var InputBox) =
-  ib.render(true)
+  ib.render()
 
 
 proc hide*(ib: var InputBox) =
-  ib.render()
+  ib.render(false)
 
 
 proc terminalBuffer*(ib: var InputBox): var TerminalBuffer =
