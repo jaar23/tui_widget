@@ -39,7 +39,7 @@ type
     visible: bool = true
     selected: bool = false
 
-  Table = ref object of BaseWidget
+  Table = object of BaseWidget
     headers: Option[TableRow]
     rows: seq[TableRow]
     size: int
@@ -104,13 +104,13 @@ proc newTableRow*(width, height: int, columns: var seq[TableColumn], index = 0,
 proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[TableRow] = none(TableRow), 
                title: string = "", cursor = 0, rowCursor = 0,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4),
-               bordered = true): Table =
+               bordered = true): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
     var seqCol = newTableColumn(seqColWidth, 1, text = $(i + 1), key = $i, index = i)
     rows[i].columns.insert(seqCol, 0)
     rows[i].index = i
-  var table = Table(
+  var table = (ref Table)(
     width: min(w + seqColWidth, w),
     height: h,
     posX: px,
@@ -140,9 +140,9 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
 proc newTable*(w, h, px, py: int, 
                title: string = "", cursor = 0, rowCursor = 0,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4),
-               bordered = true): Table =
+               bordered = true): ref Table =
   var rows = newSeq[TableRow]()
-  var table = Table(
+  var table = (ref Table)(
     width: w + 3,
     height: h,
     posX: px,
@@ -163,7 +163,7 @@ proc newTable*(w, h, px, py: int,
 
 
 
-proc rowMaxWidth(table: var Table): int =
+proc rowMaxWidth(table: ref Table): int =
   result = 0
   if table.headers.isSome:
     for col in table.headers.get.columns:
@@ -173,10 +173,10 @@ proc rowMaxWidth(table: var Table): int =
       result += col.width
 
 
-proc vrows(table: var Table): seq[TableRow] = table.rows.filter(proc(r: TableRow): bool = r.visible)
+proc vrows(table: ref Table): seq[TableRow] = table.rows.filter(proc(r: TableRow): bool = r.visible)
 
 
-proc dtmColumnToDisplay(table: var Table) =
+proc dtmColumnToDisplay(table: ref Table) =
   var posX = table.paddingX
   for i in table.colCursor..<table.headers.get.columns.len:
     if posX + table.headers.get.columns[i].width < table.width:
@@ -189,13 +189,13 @@ proc dtmColumnToDisplay(table: var Table) =
     table.headers.get.columns[i].visible = false
 
 
-proc emptyRows(table: var Table, emptyMessage = "No records") =
+proc emptyRows(table: ref Table, emptyMessage = "No records") =
   table.tb.write(table.posX + table.paddingX,
                  table.posY + 3, bgRed, fgWhite, 
                  center(emptyMessage, table.width - table.paddingX - 2), resetStyle)
 
 
-proc renderClearRow(table: var Table, index: int, full = false) =
+proc renderClearRow(table: ref Table, index: int, full = false) =
   if full:
     let totalWidth = table.rowMaxWidth()
     table.tb.fill(table.posX, table.posY,
@@ -205,7 +205,7 @@ proc renderClearRow(table: var Table, index: int, full = false) =
                   table.width - table.paddingX, table.posY + index, " ")
 
 
-proc renderTableHeader(table: var Table): int =
+proc renderTableHeader(table: ref Table): int =
   result = 1
   let borderX = if table.bordered: 1 else: 2
   if table.headers.isSome:
@@ -222,14 +222,14 @@ proc renderTableHeader(table: var Table): int =
     result += 1
 
 
-proc calColWidth(table: var Table, cindex: int, defaultWidth: int): int =
+proc calColWidth(table: ref Table, cindex: int, defaultWidth: int): int =
   if table.headers.isSome:
     result = table.headers.get.columns[cindex].width
   else:
     result = defaultWidth
 
 
-proc renderTableRow(table: var Table, row: TableRow, index: int) =
+proc renderTableRow(table: ref Table, row: TableRow, index: int) =
   var posX = table.paddingX
   var borderX = if table.bordered: 1 else: 0
   for i in 0..<row.columns.len:
@@ -251,13 +251,13 @@ proc renderTableRow(table: var Table, row: TableRow, index: int) =
       posX += width + 1
 
 
-proc renderStatusBar(table: var Table) =
+proc renderStatusBar(table: ref Table) =
   table.tb.write(table.posX + table.paddingX, table.height + 1 + table.paddingY, 
                  fgYellow, "rows: ", $table.vrows().len , " selected: ", $table.selectedRow, 
                  resetStyle)
 
 
-proc render*(table: var Table): void =
+proc render*(table: ref Table): void =
   table.renderClearRow(0, true)
   if table.bordered:
     table.tb.drawRect(table.width, table.height + table.paddingY + 1,
@@ -284,7 +284,7 @@ proc render*(table: var Table): void =
     table.tb.display()
 
 
-proc filter(table: var Table, filterStr: string) =
+proc filter(table: ref Table, filterStr: string) =
   for r in 0..<table.rows.len:
     for col in table.rows[r].columns:
       if col.text.toLower().contains(filterStr.strip().toLower()): 
@@ -294,7 +294,7 @@ proc filter(table: var Table, filterStr: string) =
         table.rows[r].visible = false
 
 
-proc prevSelection(table: var Table) =
+proc prevSelection(table: ref Table) =
   let rows = table.vrows()
   if table.cursor == 0:
     table.cursor = 0
@@ -310,7 +310,7 @@ proc prevSelection(table: var Table) =
         table.rows[r].selected = false
 
 
-proc nextSelection(table: var Table) =
+proc nextSelection(table: ref Table) =
   let rows = table.vrows()
   if table.cursor >= rows.len - 1:
     table.cursor = rows.len - 1
@@ -326,24 +326,31 @@ proc nextSelection(table: var Table) =
         table.rows[r].selected = false
 
 
-proc onFilter(table: var Table) =
+proc onFilter(table: ref Table) =
   table.cursor = 0
   table.rowCursor = 0
   table.colCursor = 0
   table.renderClearRow(table.size + 5)
   var input = newInputBox(table.width, table.height + 4, table.posX, 
-                          table.posY + table.size + 4, title="search", tb=table.tb)
-  let enterEv = proc(x: string) = 
+                          table.posY + table.size + 4, title="search", 
+                          tb=table.tb)
+  let enterEv: CallbackProcedure = proc(x: string) = 
+    table.filter(x)
+    table.prevSelection()
     input.focus = false
-  input.onEnter(some(enterEv))
-  procCall input.onControl()
-  let filterStr = input.value()
-  table.filter(filterStr)
-  input.hide()
-  table.prevSelection()
+    input.hide()
+  # passing enter event as a callback
+  procCall input.onControl(some(enterEv))
+  
+  # passing enter event to onEnter method
+  #input.onEnter(some(enterEv))
+  # let filterStr = input.value()
+  # table.filter(filterStr)
+  # input.hide()
+  # table.prevSelection()
 
 
-proc resetFilter(table: var Table) =
+proc resetFilter(table: ref Table) =
   for r in 0..<table.rows.len:
     table.rows[r].visible = true
   table.size = table.height - table.posY - table.paddingY - 1
@@ -357,7 +364,7 @@ proc resetFilter(table: var Table) =
 
 
 
-method onControl*(table: var Table): void =
+method onControl*(table: ref Table): void =
   table.focus = true
   while table.focus:
     var key = getKey()
@@ -401,13 +408,13 @@ method onControl*(table: var Table): void =
   sleep(20)
 
 
-proc show*(table: var Table) = table.render()
+proc show*(table: ref Table) = table.render()
 
 
-proc `-`*(table: var Table) = table.show()
+proc `-`*(table: ref Table) = table.show()
 
 
-proc addRow*(table: var Table, tablerow: var TableRow, index: Option[int] = none(int)): void =
+proc addRow*(table: ref Table, tablerow: var TableRow, index: Option[int] = none(int)): void =
   for i in 0..<tablerow.columns.len:
     if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:
       table.headers.get.columns[i].width = min(table.maxColWidth, 
@@ -420,15 +427,15 @@ proc addRow*(table: var Table, tablerow: var TableRow, index: Option[int] = none
   table.rows.add(tablerow)
 
 
-proc removeRow*(table: var Table, index: int): void =
+proc removeRow*(table: ref Table, index: int): void =
   return
 
 
-proc selected*(table: var Table): TableRow =
+proc selected*(table: ref Table): TableRow =
   return table.rows[table.cursor]
 
 
-proc loadFromCsv*(table: var Table, filepath: string, withHeader = false, withIndex = false): void =
+proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIndex = false): void =
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")

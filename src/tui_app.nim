@@ -74,7 +74,7 @@ let enterEv: EnterEventProcedure = proc(arg: string) =
 button.onEnter(some(enterEv))
 
 var currFocus = 0
-var components: seq[BaseWidget] = @[]
+var components: seq[ref BaseWidget] = @[]
 
 components.add(inputBox)
 components.add(display)

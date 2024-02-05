@@ -1,7 +1,7 @@
 import illwill, base_wg, options, os
 
 type
-  Checkbox = ref object of BaseWidget
+  Checkbox = object of BaseWidget
     label: string = ""
     value: string = ""
     visualSkip: int = 2
@@ -9,9 +9,10 @@ type
     checked: bool
     onSpace: Option[SpaceEventProcedure]
 
-proc newCheckbox*(w, h, px, py: int, title = "", label = "", value = "", checked = false,
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Checkbox =
-  var checkbox = Checkbox(
+proc newCheckbox*(w, h, px, py: int, title = "", label = "", 
+                  value = "", checked = false,
+                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Checkbox =
+  var checkbox = (ref Checkbox)(
     width: w,
     height: h,
     posX: px,
@@ -25,23 +26,26 @@ proc newCheckbox*(w, h, px, py: int, title = "", label = "", value = "", checked
   return checkbox
 
 
-proc render*(ch: var Checkbox, standalone = false) =
-  ch.tb.drawRect(ch.width, ch.height, ch.posX, ch.posY, doubleStyle=ch.focus)
-  if ch.title != "":
-    ch.tb.write(ch.posX + 2, ch.posY, ch.title)
-  if ch.checked:
-    ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
-    ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, "X")
-    ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
+proc render*(ch: ref Checkbox, display = true) =
+  if display:
+    ch.tb.drawRect(ch.width, ch.height, ch.posX, ch.posY, doubleStyle=ch.focus)
+    if ch.title != "":
+      ch.tb.write(ch.posX + 2, ch.posY, ch.title)
+    if ch.checked:
+      ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
+      ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, "X")
+      ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
+    else:
+      ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
+      ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, " ")
+      ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
+    ch.tb.write(ch.posX + 6, ch.posY + 1, resetStyle, ch.label)
+    ch.tb.display()
   else:
-    ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
-    ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, " ")
-    ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
-  ch.tb.write(ch.posX + 6, ch.posY + 1, resetStyle, ch.label)
-  if standalone: ch.tb.display()
+    echo "not implement"
 
 
-method onControl*(ch: var Checkbox) =
+method onControl*(ch: ref Checkbox) =
   ch.focus = true
   while ch.focus:
     var key = getKey()
@@ -59,28 +63,28 @@ method onControl*(ch: var Checkbox) =
   sleep(20)
 
 
-proc show*(ch: var Checkbox) = ch.render(true)
+proc show*(ch: ref Checkbox) = ch.render(true)
 
 
-proc hide*(ch: var Checkbox) = ch.render()
+proc hide*(ch: ref Checkbox) = ch.render()
 
 
-proc checked*(ch: var Checkbox): bool = ch.checked
+proc checked*(ch: ref Checkbox): bool = ch.checked
 
 
-proc checked*(ch: var Checkbox, state: bool) = ch.checked = state
+proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
 
 
-proc onSpace*(ch: var Checkbox, cb: Option[SpaceEventProcedure]) =
+proc onSpace*(ch: ref Checkbox, cb: Option[SpaceEventProcedure]) =
   ch.onSpace = cb
 
 
-proc `-`*(ch: var Checkbox) = ch.show()
+proc `-`*(ch: ref Checkbox) = ch.show()
 
 
-proc merge*(ch: var Checkbox, wg: BaseWidget): void =
+proc merge*(ch: ref Checkbox, wg: BaseWidget): void =
   ch.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, wg.posX, wg.posY, transparency=true)
 
 
-proc terminalBuffer*(ch: var Checkbox): var TerminalBuffer =
+proc terminalBuffer*(ch: ref Checkbox): var TerminalBuffer =
   ch.tb

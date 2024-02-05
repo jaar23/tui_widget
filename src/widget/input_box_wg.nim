@@ -2,7 +2,7 @@ import illwill, os, strutils, base_wg, options, sequtils, encodings
 import nimclipboard/libclipboard
 
 type
-  InputBox = ref object of BaseWidget
+  InputBox = object of BaseWidget
     row*: int = 1
     cursor: int = 0
     value: string = ""
@@ -25,8 +25,8 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 proc newInputBox*(w, h, px, py: int, title = "", val: string = "", 
                   modeChar: char = '|', 
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): InputBox =
-  var inputBox = InputBox(
+                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
+  var inputBox = (ref InputBox)(
     width: w,
     height: h,
     posX: px,
@@ -82,11 +82,11 @@ proc formatText(val: string): string =
   return replaced
 
 
-proc clear(ib: var InputBox) =
+proc clear(ib: ref InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
 
 
-proc render*(ib: var InputBox, display = true) =
+proc render*(ib: ref InputBox, display = true) =
   if display:
     ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
     if ib.title != "":
@@ -111,16 +111,16 @@ proc render*(ib: var InputBox, display = true) =
     #ib.clear()
 
 
-proc rerender(ib: var InputBox) =
+proc rerender(ib: ref InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
   ib.render()
 
 
-proc overflowWidth(ib: var InputBox, moved = 1) =
+proc overflowWidth(ib: ref InputBox, moved = 1) =
   ib.cursor = ib.cursor + moved
 
 
-proc cursorMove(ib: var InputBox, direction: CursorDirection) =
+proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
   case direction
   of Left:
     # echo "\ncursor: " & $ib.cursor
@@ -149,8 +149,8 @@ proc cursorMove(ib: var InputBox, direction: CursorDirection) =
 
 
 ## optional callback proc function
-#method onControl*(ib: var InputBox, onEnter: Option[CallbackProcedure] = none(CallbackProcedure)) = 
-method onControl*(ib: var InputBox) = 
+#method onControl*(ib: ref InputBox, onEnter: Option[CallbackProcedure] = none(CallbackProcedure)) = 
+method onControl*(ib: ref InputBox) = 
   const EscapeKeys = {Key.Escape, Key.Tab}
   const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
                   Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
@@ -326,42 +326,42 @@ method onControl*(ib: var InputBox) =
     sleep(20)
 
 
-# method onControl*(ib: var InputBox, cb: Option[CallbackProcedure]): void =
-#   ib.onEnter = cb
-#   ib.onControl()
-#
-
-proc value*(ib: var InputBox, val: string) = ib.value = val
+method onControl*(ib: ref InputBox, cb: Option[CallbackProcedure]): void =
+  ib.onEnter = cb
+  ib.onControl()
 
 
-proc value*(ib: var InputBox): string = ib.value
+proc value*(ib: ref InputBox, val: string) = ib.value = val
 
 
-proc show*(ib: var InputBox) =
+proc value*(ib: ref InputBox): string = ib.value
+
+
+proc show*(ib: ref InputBox) =
   ib.render()
 
 
-proc hide*(ib: var InputBox) =
+proc hide*(ib: ref InputBox) =
   ib.render(false)
 
 
-proc terminalBuffer*(ib: var InputBox): var TerminalBuffer =
+proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb
 
 
-proc merge*(ib: var InputBox, wg: BaseWidget) =
+proc merge*(ib: ref InputBox, wg: BaseWidget) =
   ib.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, ib.posX, ib.posY, transparency=true)
 
 
-proc onEnter*(ib: var InputBox, cb: Option[EnterEventProcedure]) =
+proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =
   ib.onEnter = cb
 
 
-proc `- `*(ib: var InputBox) = ib.show()
+proc `- `*(ib: ref InputBox) = ib.show()
 
 
-proc showSize*(ib: var InputBox): void = ib.showSize = true
+proc showSize*(ib: ref InputBox): void = ib.showSize = true
 
 
-proc hideSize*(ib: var InputBox): void = ib.showSize = false
+proc hideSize*(ib: ref InputBox): void = ib.showSize = false
 

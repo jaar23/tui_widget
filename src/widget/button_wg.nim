@@ -4,16 +4,17 @@ type
   ButtonState = enum
     Pressed, Unpressed
 
-  Button = ref object of BaseWidget
+  Button = object of BaseWidget
     label: string = ""
     disabled: bool = false
     onEnter: Option[EnterEventProcedure]
     state: ButtonState = Unpressed
 
 
-proc newButton*(w, h, px, py: int, label: string, disabled = false, bgColor = bgGreen,
-                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Button =
-  var button = Button(
+proc newButton*(w, h, px, py: int, label: string, 
+                disabled = false, bgColor = bgGreen,
+                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Button =
+  var button = (ref Button)(
     width: w,
     height: h,
     posX: px,
@@ -25,24 +26,26 @@ proc newButton*(w, h, px, py: int, label: string, disabled = false, bgColor = bg
   return button
 
 
-proc render*(bt: var Button, standalone = false) =
-  if bt.state == Pressed:
-    bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY, doubleStyle=bt.focus)
-    bt.tb.write(bt.posX + 1, bt.posY + 1, bgGreen, center(bt.label, bt.width - 2), resetStyle)
+proc render*(bt: ref Button, display = true) =
+  if display:
+    if bt.state == Pressed:
+      bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY,
+          doubleStyle = bt.focus)
+      bt.tb.write(bt.posX + 1, bt.posY + 1, bgGreen, 
+                  center(bt.label, bt.width - 2), resetStyle)
+    else:
+      bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY,
+          doubleStyle = bt.focus)
+      bt.tb.write(bt.posX + 1, bt.posY + 1, bgBlue, fgBlack, 
+                  center(bt.label, bt.width - 2), resetStyle)
+
+    bt.tb.display()
   else:
-    bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY, doubleStyle=bt.focus)
-    bt.tb.write(bt.posX + 1, bt.posY + 1, bgBlue, fgBlack, center(bt.label, bt.width - 2), resetStyle)
-
-  if standalone: bt.tb.display()
+    echo "not implement"
 
 
-# proc rerender*(bt: var Button, standalone = false) =
-#   bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY, doubleStyle=bt.focus)
-#   bt.tb.write(bt.posX + 2, bt.posY + 1, bgBlue, bt.label, resetStyle)
-#   if standalone: bt.tb.display()
-#
 
-method onControl*(bt: var Button) =
+method onControl*(bt: ref Button) =
   bt.focus = true
   var delay = 100
   while bt.focus:
@@ -57,30 +60,30 @@ method onControl*(bt: var Button) =
         fn("")
         bt.state = Pressed
         bt.render()
-     # bt.render(true)
+    # bt.render(true)
     else: discard
     if bt.state == Pressed:
       delay = delay - 1
-    if delay == 0: 
+    if delay == 0:
       bt.state = Unpressed
       delay = 100
   bt.render(true)
   sleep(20)
 
 
-proc onEnter*(bt: var Button, cb: Option[EnterEventProcedure]) = 
+proc onEnter*(bt: ref Button, cb: Option[EnterEventProcedure]) =
   bt.onEnter = cb
 
-proc show*(bt: var Button) = bt.render(true)
+proc show*(bt: ref Button) = bt.render()
 
 
-proc hide*(bt: var Button) = bt.render()
+proc hide*(bt: ref Button) = bt.render()
 
 
-proc `-`*(bt: var Button) = bt.show()
+proc `-`*(bt: ref Button) = bt.show()
 
 
-proc terminalBuffer*(bt: var Button): var TerminalBuffer =
+proc terminalBuffer*(bt: ref Button): var TerminalBuffer =
   bt.tb
 
 

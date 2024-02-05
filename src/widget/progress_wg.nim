@@ -1,4 +1,4 @@
-import illwill, sequtils, base_wg, unicode, strformat
+import illwill, base_wg, strformat
 
 
 type
@@ -11,12 +11,14 @@ type
     loadedBlock: string
     loadingBlock: string
     showPercentage: bool
-    
-  
+
+
 proc newProgressBar*(w, h, px, py: int,
-                     tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py), 
-                     bordered = true, percent: Percent = 0.0, loadedBlock = "█",
-                     loadingBlock = "-", showPercentage = true): ref ProgressBar =
+                     tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py),
+                     bordered = true, percent: Percent = 0.0,
+                     loadedBlock = "█",
+                     loadingBlock = "-",
+                     showPercentage = true): ref ProgressBar =
   result = (ref ProgressBar)(
     width: w,
     height: h,
@@ -60,12 +62,14 @@ proc render*(pb: ref ProgressBar) =
   pb.tb.write(pb.posX + 1, pb.height - 1, pb.bgColor, pb.fgLoaded, progressLoaded, resetStyle,
               pb.bgColor, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
 
-proc move*(pb: ref ProgressBar, point: float) = 
+
+proc move*(pb: ref ProgressBar, point: float) =
   if pb.percent + point >= 100.0:
     pb.percent = 100.0
   else:
     pb.percent += point
   pb.render()
+
 
 proc update*(pb: ref ProgressBar, point: float) =
   if point >= 100.0:
@@ -76,9 +80,11 @@ proc update*(pb: ref ProgressBar, point: float) =
     pb.percent = point
   pb.render()
 
+
 proc completed*(pb: ref ProgressBar) =
   pb.percent = 100.0
   pb.render()
+
 
 proc show*(pb: ref ProgressBar): void =
   pb.render()
@@ -86,3 +92,5 @@ proc show*(pb: ref ProgressBar): void =
 
 proc `-`*(pb: ref ProgressBar): void =
   pb.show()
+
+
