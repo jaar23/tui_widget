@@ -278,6 +278,9 @@ method onControl*(ib: ref InputBox) =
     of Key.Caret:
       ib.value.insert("^", ib.cursor)
       ib.overflowWidth()
+    of Key.GraveAccent:
+      ib.value.insert("~", ib.cursor)
+      ib.overflowWidth()
     of Key.Home: 
       ib.cursor = 0
       ib.rerender()

@@ -35,9 +35,19 @@ var button = newButton(20, 26, 1, 24, label="Confirm", tb=tb)
 var table = newTable(45, 34, 1, 28, title="table", tb=tb)
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
-
 var progress = newProgressBar(consoleWidth(), 42, 1, 40 , tb=tb, percent=0.0)
 progress.render()
+
+
+var list = newSeq[ref ListRow]()
+var i = 0
+const keys = {Key.A..Key.Z}
+for key in keys:
+  var listRow = newListRow(i, $key, $key)
+  list.add(listRow)
+var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor\n, dictum maximus nulla.\nNulla feugiat convallis magna,", "ttt", align=Center)
+list.add(listRow)
+var listview = newListView(45, 52, 1, 46, rows=list, title="list", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
@@ -59,6 +69,7 @@ proc mainPanel() =
   - button
   - table
   - progress
+  - listview
 
 # widget implements event needs to be ref
 let enterEv: EnterEventProcedure = proc(arg: string) =
@@ -82,6 +93,7 @@ components.add(checkbox)
 components.add(checkbox2)
 components.add(button)
 components.add(table)
+components.add(listview)
 
 while true:
   mainPanel()

@@ -2,14 +2,8 @@ import illwill, sequtils, base_wg, os, options, strutils, parsecsv, input_box_wg
 from std/streams import newFileStream
 
 type
-  Alignment* = enum
-    Left, Center, Right
-
   ColumnType* = enum
     Header, Column
-
-  Mode = enum
-    Normal, Filter
 
   TableColumn* = object
     index: int
@@ -23,7 +17,7 @@ type
     fgColor: ForegroundColor
     align: Alignment = Left
     columnType: ColumnType
-    data: string = ""
+    value*: string = ""
     visible: bool = true
 
   TableRow* = object

@@ -1,6 +1,12 @@
 import illwill, options
 
 type
+  Alignment* = enum
+    Left, Center, Right
+
+  Mode* = enum
+    Normal, Filter
+
   BaseWidget* = object of RootObj
     width*: int
     height*: int
@@ -46,5 +52,6 @@ method onControl*(this: ref BaseWidget, cb: proc(args: string)): void {.base.} =
 method onControl*(this: ref BaseWidget, cb: Option[CallbackProcedure]): void {.base.} =
   #child needs to implement this!
   echo ""
+
 
 
