@@ -81,6 +81,7 @@ proc render*(dp: var Display, standalone = false) =
     dp.tb.display()
 
 
+# TODO: scroll left right when no word wrap
 method onControl*(dp: var Display) =
   dp.focus = true
   let textRows = dp.rowReCal()

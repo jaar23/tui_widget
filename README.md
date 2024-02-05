@@ -54,6 +54,12 @@ Widgets:
 
 - select
 
-- table (wip)
+- table (y)
 
 - checkbox (y)
+
+- progressbar (y)
+
+- label
+
+- radio button

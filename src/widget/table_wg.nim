@@ -37,7 +37,7 @@ type
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     visible: bool = true
-    selected: bool
+    selected: bool = false
 
   Table = ref object of BaseWidget
     headers: Option[TableRow]
@@ -50,6 +50,7 @@ type
     mode: Mode = Normal
     filteredSize: int = 0
     selectedRow: int = 0
+    maxColWidth: int = 64
 
 
 proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow: bool = false,
@@ -95,7 +96,7 @@ proc newTableRow*(width, height: int, columns: var seq[TableColumn], index = 0,
     bgColor: bgColor,
     fgColor: fgColor,
     selected: selected,
-    maxColWidth: maxColWidth
+    maxColWidth: maxColWidth,
   )
   return tr
 
@@ -123,7 +124,8 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
     tb: tb,
     bordered: bordered,
     paddingX: if bordered: 2 else: 1,
-    colCursor: 0
+    colCursor: 0,
+    maxColWidth: w
   )
   if headers.isSome: 
     table.size -= 1
@@ -132,6 +134,31 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
     table.height += table.paddingY
   if table.rows.len > 0:
     table.rows[0].selected = true
+  return table
+
+
+proc newTable*(w, h, px, py: int, 
+               title: string = "", cursor = 0, rowCursor = 0,
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4),
+               bordered = true): Table =
+  var rows = newSeq[TableRow]()
+  var table = Table(
+    width: w + 3,
+    height: h,
+    posX: px,
+    posY: py,
+    headers: none(TableRow),
+    rows: rows,
+    title: title,
+    cursor: cursor,
+    rowCursor: rowCursor,
+    size: h - py - 1,
+    tb: tb,
+    bordered: bordered,
+    paddingX: if bordered: 2 else: 1,
+    colCursor: 0
+  )
+  table.height += table.paddingY
   return table
 
 
@@ -162,9 +189,10 @@ proc dtmColumnToDisplay(table: var Table) =
     table.headers.get.columns[i].visible = false
 
 
-proc emptyRows*(table: var Table, emptyMessage = "No records") =
+proc emptyRows(table: var Table, emptyMessage = "No records") =
   table.tb.write(table.posX + table.paddingX,
-                 table.posY + 3, bgRed, fgWhite, center(emptyMessage, table.width - table.paddingX - 2), resetStyle)
+                 table.posY + 3, bgRed, fgWhite, 
+                 center(emptyMessage, table.width - table.paddingX - 2), resetStyle)
 
 
 proc renderClearRow(table: var Table, index: int, full = false) =
@@ -184,8 +212,11 @@ proc renderTableHeader(table: var Table): int =
     var posX = table.paddingX
     for i in table.colCursor..<table.headers.get.columns.len:
       if table.headers.get.columns[i].visible and posX < table.width:
-        table.tb.write(table.posX + posX, table.posY + result, bgBlue, table.headers.get.columns[i].fgColor, 
-                       alignLeft(table.headers.get.columns[i].text, min(table.headers.get.columns[i].width, table.width - table.posX - posX - borderX)), 
+        table.tb.write(table.posX + posX, table.posY + result, bgBlue, 
+                       table.headers.get.columns[i].fgColor, 
+                       alignLeft(table.headers.get.columns[i].text, 
+                                 min(table.headers.get.columns[i].width, 
+                                     table.width - table.posX - posX - borderX)), 
                        resetStyle)
         posX = posX + table.headers.get.columns[i].width + 1
     result += 1
@@ -215,7 +246,7 @@ proc renderTableRow(table: var Table, row: TableRow, index: int) =
       if row.selected:
         bgSelected = bgGreen
       #else: bgSelected = bgRed
-      table.tb.write(table.posX + posX, table.posY + index, 
+      table.tb.write(table.posX + posX, table.posY + index, resetStyle,
                      bgSelected, row.columns[i].fgColor, text, resetStyle)
       posX += width + 1
 
@@ -300,7 +331,8 @@ proc onFilter(table: var Table) =
   table.rowCursor = 0
   table.colCursor = 0
   table.renderClearRow(table.size + 5)
-  var input = newInputBox(table.width, table.height + 4, table.posX, table.posY + table.size + 4, title="search", tb=table.tb)
+  var input = newInputBox(table.width, table.height + 4, table.posX, 
+                          table.posY + table.size + 4, title="search", tb=table.tb)
   let enterEv = proc(x: string) = 
     input.focus = false
   input.onEnter(some(enterEv))
@@ -375,8 +407,17 @@ proc show*(table: var Table) = table.render()
 proc `-`*(table: var Table) = table.show()
 
 
-proc addRow*(table: var Table, tablerow: var TableRow): void =
-  return
+proc addRow*(table: var Table, tablerow: var TableRow, index: Option[int] = none(int)): void =
+  for i in 0..<tablerow.columns.len:
+    if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:
+      table.headers.get.columns[i].width = min(table.maxColWidth, 
+                                               tablerow.columns[i].text.len + 1)
+  if index.isSome:
+    tablerow.index = index.get
+  else:
+    tablerow.index = table.rows.len + 1
+  tablerow.selected = false
+  table.rows.add(tablerow)
 
 
 proc removeRow*(table: var Table, index: int): void =
@@ -387,7 +428,7 @@ proc selected*(table: var Table): TableRow =
   return table.rows[table.cursor]
 
 
-proc loadFromCsv*(table: var Table, filepath: string, withHeader = false): void =
+proc loadFromCsv*(table: var Table, filepath: string, withHeader = false, withIndex = false): void =
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")
@@ -402,6 +443,9 @@ proc loadFromCsv*(table: var Table, filepath: string, withHeader = false): void 
       var row = newSeq[TableColumn]()
       if rindex == 0:
         var headerWidth = 0
+        if not withIndex:
+          var column = newTableColumn(($rindex).len + 1, 1, "s/q", $rindex, rindex, columnType=Header)
+          row.add(column)
         for val in items(csvparser.row):
           var column = newTableColumn(val.len + 1, 1, val, $rindex, rindex, columnType=Header)
           row.add(column)
@@ -410,12 +454,19 @@ proc loadFromCsv*(table: var Table, filepath: string, withHeader = false): void 
         table.headers = some(header)
       else:
         var rowWidth = 0
+        if not withIndex:
+          var column = newTableColumn(($rindex).len, 1, $rindex, $rindex, rindex, columnType=Column)
+          row.add(column)
         for val in items(csvparser.row):
           var col = newTableColumn(val.len, 1, val, $rindex, rindex, columnType=Column)
           row.add(col)
           rowWidth += val.len
         var tableRow = newTableRow(rowWidth, 1, row)
-        table.rows.add(tableRow) 
+        table.addRow(tableRow)
+      rindex += 1
+    csvparser.close()
+    table.cursor = 0
+    table.prevSelection()
   except:
     echo "failed to open file"
 

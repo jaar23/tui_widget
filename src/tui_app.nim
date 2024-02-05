@@ -32,44 +32,12 @@ var checkbox2 = newCheckbox(40, 22, 21, 20, title="accept", label="yes", value="
 
 var button = newButton(20, 26, 1, 24, label="Confirm", tb=tb)
 
-var tc1 = newTableColumn(20, 1, "WuShiKai", "wsk")
-var tc2 = newTableColumn(20, 1, "WangFei", "wf")
-var tc3 = newTableColumn(20, 1, "30", "age")
-var tc4 = newTableColumn(20, 1, "Name   ", "Name")
-var tc5 = newTableColumn(20, 1, "ShortName", "Short Name")
-var tc6 = newTableColumn(20, 1, "Age", "age")
+var table = newTable(45, 34, 1, 28, title="table", tb=tb)
+table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
-var columns = newSeq[TableColumn]()
-columns.add(tc1)
-columns.add(tc2)
-columns.add(tc3)
-var tr = newTableRow(20, 1, columns)
-var trs = newSeq[TableRow]()
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
-trs.add(tr)
 
-var tc7 = newTableColumn(20, 1, "Jess   ", "J")
-var tc8 = newTableColumn(10, 1, "J", "j")
-var tc9 = newTableColumn(10, 1, "29", "age")
-var columns2 = newSeq[TableColumn]()
-columns2.add(tc7)
-columns2.add(tc8)
-columns2.add(tc9)
-var tr2 = newTableRow(20, 1, columns2)
-trs.add(tr2)
-trs.add(tr2)
-var hcolumns = newSeq[TableColumn]()
-hcolumns.add(tc4) 
-hcolumns.add(tc5)
-hcolumns.add(tc6)
-var th = newTableRow(20, 1, hcolumns)
-var table = newTable(45, 34, 1, 28, trs, headers=some(th), title="table", tb=tb)
+var progress = newProgressBar(consoleWidth(), 42, 1, 40 , tb=tb, percent=0.0)
+progress.render()
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
   illwillDeinit()                                                                                                                                                                                                                          
@@ -85,14 +53,16 @@ hideCursor()
 # align components in sequence according to pos Y
 proc mainPanel() =
   - inputBox
-  - table
   - display
   - checkbox
   - checkbox2
   - button
+  - table
+  - progress
 
-#let enterEv: EnterEventProcedure = proc(arg: string) =
-  #echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} is entered"
+# widget implements event needs to be ref
+let enterEv: EnterEventProcedure = proc(arg: string) =
+  progress.move(5.0)
 
 #let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
   #echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
@@ -101,7 +71,7 @@ proc mainPanel() =
 #inputBox.onEnter(some(enterEv))
 #checkbox.onSpace(some(spaceEv))
 #checkbox2.onSpace(some(spaceEv))
-#button.onEnter(some(enterEv))
+button.onEnter(some(enterEv))
 
 var currFocus = 0
 var components: seq[BaseWidget] = @[]

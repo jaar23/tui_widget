@@ -47,6 +47,8 @@ method onControl*(this: var BaseWidget, cb: Option[CallbackProcedure]): void {.b
   #child needs to implement this!
   echo ""
 
+#TODO: callback function
+
 # having compilation bugs when using this method
 # method merge*(this: var BaseWidget, wg: BaseWidget): void {.base.} = 
 #   echo ""
