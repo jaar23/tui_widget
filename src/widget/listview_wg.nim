@@ -77,6 +77,13 @@ proc emptyRows(lv: ref ListView, emptyMessage = "No records") =
                  center(emptyMessage, lv.width - lv.paddingX - 2), resetStyle)
 
 
+proc scrollRow(lv: ref ListView, startIndex: int): string =
+  var actualStartIndex = max(0, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX * 2)))
+  actualStartIndex = min(actualStartIndex, startIndex)
+  let endIndex = min(actualStartIndex + lv.width - (lv.paddingX * 2), lv.rows[lv.cursor].text.len)
+  return lv.rows[lv.cursor].text[actualStartIndex ..< endIndex]
+
+
 proc renderClearRow(lv: ref ListView, index: int, full = false) =
   if full:
     let totalWidth = lv.width
@@ -90,7 +97,8 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
 proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
   var posX = lv.paddingX
   var borderX = if lv.bordered: 1 else: 0
-  var text = row.text
+  var text = if row.selected: lv.scrollRow(lv.colCursor) 
+    else: row.text[0..min(row.text.len - 1, lv.width - lv.posX - posX - borderX)]
   if row.align == Left:
     text = alignLeft(text, min(lv.width, lv.width - lv.posX - posX - borderX))
   elif row.align == Center:
@@ -190,13 +198,20 @@ method onControl*(lv: ref ListView): void =
       else:
         lv.rowCursor = lv.rowCursor - 1
       lv.prevSelection()
+      lv.colCursor = 0
     of Key.Down:
       let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
       if lv.rowCursor >= rowSize - 1:
         lv.rowCursor = rowSize - 1
       else:
         lv.rowCursor += 1
-      lv.nextSelection() 
+      lv.nextSelection()
+      lv.colCursor = 0
+    of Key.Right:
+      lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX * 2)))
+    of Key.Left:
+      lv.colCursor = max(lv.colCursor - 1, 0)
+
     of Tab: lv.focus = false
     else: discard
   lv.render()
@@ -213,3 +228,6 @@ proc selected*(lv: ref ListView): ref ListRow =
   return lv.rows[lv.cursor]
 
 
+## TODO: preprocess rows text
+## TODO: event handler
+## TODO: ui for selection

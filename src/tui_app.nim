@@ -42,11 +42,11 @@ progress.render()
 var list = newSeq[ref ListRow]()
 var i = 0
 const keys = {Key.A..Key.Z}
+var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla.Nulla feugiat convallis magna,", "ttt", align=Center)
+list.add(listRow)
 for key in keys:
   var listRow = newListRow(i, $key, $key)
   list.add(listRow)
-var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor\n, dictum maximus nulla.\nNulla feugiat convallis magna,", "ttt", align=Center)
-list.add(listRow)
 var listview = newListView(45, 52, 1, 46, rows=list, title="list", tb=tb)
 
 proc exitProc() {.noconv.} =                                                                                                                                                                                                               
