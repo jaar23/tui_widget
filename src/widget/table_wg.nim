@@ -183,6 +183,38 @@ proc dtmColumnToDisplay(table: ref Table) =
     table.headers.get.columns[i].visible = false
 
 
+proc prevSelection(table: ref Table) =
+  let rows = table.vrows()
+  if table.cursor == 0:
+    table.cursor = 0
+  else:
+    table.cursor -= 1
+  if rows.len > 0:
+    let index = rows[table.cursor].index
+    for r in 0..<table.rows.len:
+      if table.rows[r].index == index:
+        table.rows[r].selected = true
+        table.selectedRow = table.rows[r].index
+      else:
+        table.rows[r].selected = false
+
+
+proc nextSelection(table: ref Table) =
+  let rows = table.vrows()
+  if table.cursor >= rows.len - 1:
+    table.cursor = rows.len - 1
+  else:
+    table.cursor += 1
+  if rows.len > 0:
+    let index = rows[table.cursor].index
+    for r in 0..<table.rows.len:
+      if table.rows[r].index == index:
+        table.rows[r].selected = true
+        table.selectedRow = table.rows[r].index
+      else:
+        table.rows[r].selected = false
+
+
 proc emptyRows(table: ref Table, emptyMessage = "No records") =
   table.tb.write(table.posX + table.paddingX,
                  table.posY + 3, bgRed, fgWhite, 
@@ -262,16 +294,26 @@ proc render*(table: ref Table): void =
   let rows = table.vrows()
   if rows.len > 0:
     table.filteredSize = min(table.size, rows.len)
-    let rowStart = table.rowCursor
-    let rowEnd = if table.rowCursor + table.filteredSize > rows.len - 1: rows.len - 1
-      else: table.rowCursor + table.filteredSize
-    #echo "\n\n\n\n\n\n" & $table.rowCursor & " " & $rowStart & "-" & $rowEnd
+    ##########################################
+    # highlight at bottom while cursor moving
+    var rowStart = max(0, table.rowCursor)
+    var rowEnd = rowStart + table.filteredSize
+    if rowEnd > table.filteredSize:
+      rowStart = max(0, table.rowCursor - table.filteredSize)
+      rowEnd = max(table.rowCursor + 1, table.filteredSize)
+    
+    ##########################################
+    # highlight at top while cursor moving
+    # 
+    # var rowStart = table.rowCursor
+    # var rowEnd = if table.rowCursor + table.filteredSize > rows.len - 1: rows.len - 1
+    #   else: table.rowCursor + table.filteredSize
+    #########################################
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
       table.renderClearRow(index)
       table.renderTableRow(row, index)
       index += 1
     table.renderStatusBar()
-    #table.tb.drawVertLine(table.width, table.height, table.posY + 1, doubleStyle = true)
     table.tb.display()
   else:
     table.emptyRows()
@@ -286,38 +328,6 @@ proc filter(table: ref Table, filterStr: string) =
         break
       else:
         table.rows[r].visible = false
-
-
-proc prevSelection(table: ref Table) =
-  let rows = table.vrows()
-  if table.cursor == 0:
-    table.cursor = 0
-  else:
-    table.cursor -= 1
-  if rows.len > 0:
-    let index = rows[table.cursor].index
-    for r in 0..<table.rows.len:
-      if table.rows[r].index == index:
-        table.rows[r].selected = true
-        table.selectedRow = table.rows[r].index
-      else:
-        table.rows[r].selected = false
-
-
-proc nextSelection(table: ref Table) =
-  let rows = table.vrows()
-  if table.cursor >= rows.len - 1:
-    table.cursor = rows.len - 1
-  else:
-    table.cursor += 1
-  if rows.len > 0:
-    let index = rows[table.cursor].index
-    for r in 0..<table.rows.len:
-      if table.rows[r].index == index:
-        table.rows[r].selected = true
-        table.selectedRow = table.rows[r].index
-      else:
-        table.rows[r].selected = false
 
 
 proc onFilter(table: ref Table) =
@@ -335,7 +345,6 @@ proc onFilter(table: ref Table) =
     input.hide()
   # passing enter event as a callback
   procCall input.onControl(some(enterEv))
-  
   # passing enter event to onEnter method
   #input.onEnter(some(enterEv))
   # let filterStr = input.value()

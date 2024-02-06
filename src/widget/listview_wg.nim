@@ -121,16 +121,25 @@ proc render*(lv: ref ListView) =
   let rows = lv.vrows()
   if rows.len > 0:
     lv.filteredSize = min(lv.size, rows.len)
-    let rowStart = lv.rowCursor
-    let rowEnd = if lv.rowCursor + lv.filteredSize > rows.len - 1: rows.len - 1
-      else: lv.rowCursor + lv.filteredSize
-    #echo "\n\n\n\n\n\n" & $lv.rowCursor & " " & $rowStart & "-" & $rowEnd
+    ##########################################
+    # highlight at bottom while cursor moving
+    var rowStart = max(0, lv.rowCursor)
+    var rowEnd = rowStart + lv.filteredSize
+    if rowEnd > lv.filteredSize:
+      rowStart = max(0, lv.rowCursor - lv.filteredSize)
+      rowEnd = max(lv.rowCursor + 1, lv.filteredSize)
+    
+    ##########################################
+    # highlight at top while cursor moving
+    #
+    #let rowStart = lv.rowCursor
+    #let rowEnd = if lv.rowCursor + lv.filteredSize > rows.len - 1: rows.len - 1
+    #  else: lv.rowCursor + lv.filteredSize
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
       lv.renderClearRow(index)
       lv.renderListRow(row, index)
       index += 1
     lv.renderStatusBar()
-    #lv.tb.drawVertLine(lv.width, lv.height, lv.posY + 1, doubleStyle = true)
     lv.tb.display()
   else:
     lv.emptyRows()
