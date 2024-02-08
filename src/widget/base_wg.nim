@@ -1,4 +1,4 @@
-import illwill, options
+import illwill, options, sequtils
 
 type
   Alignment* = enum
@@ -7,19 +7,36 @@ type
   Mode* = enum
     Normal, Filter
 
+  WidgetStyle* = object
+    fgColor*: ForegroundColor
+    bgColor*: BackgroundColor
+    border*: bool
+    paddingX1*: int
+    paddingX2*: int
+    paddingY1*: int
+    paddingY2*: int
+
+  #############################
+  # posX, posY-----------width
+  # | 
+  # |
+  # |
+  # |
+  # |
+  # height
+  ############################
   BaseWidget* = object of RootObj
     width*: int
     height*: int
     posX*: int
     posY*: int
-    fgColor*: ForegroundColor = fgWhite
-    bgColor*: BackgroundColor = bgNone
+    size*: int
+    title*: string
     focus*: bool = false
     tb*: TerminalBuffer
-    bordered*: bool = true
-    paddingX*: int = 1
-    paddingY*: int = 1
-
+    style*: WidgetStyle
+    statusbar*: bool = true
+    statusbarSize*: int = 0
 
   CallbackProcedure* = proc(x: string): void
 
@@ -54,4 +71,143 @@ method onControl*(this: ref BaseWidget, cb: Option[CallbackProcedure]): void {.b
   echo ""
 
 
+# method onControl*(this: ref BaseWidget, cb: Option[EnterEventProcedure]): void {.base.} =
+#   #child needs to implement this!
+#   echo ""
 
+
+method render*(this: ref BaseWidget): void {.base.} = 
+  echo ""
+
+
+# proc width*(bw: ref BaseWidget, w: int) = bw.width = w
+#
+# proc height*(bw: ref BaseWidget, h: int) = bw.height = h
+#
+# proc posX*(bw: ref BaseWidget, px: int) = bw.posX = px
+#
+# proc posY*(bw: ref BaseWidget, py: int) = bw.posY = py
+#
+
+proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
+  bw.style.bgColor = bgColor
+
+
+proc fg*(bw: ref BaseWidget, fgColor: ForegroundColor) =
+  bw.style.fgColor = fgColor
+
+
+proc bg*(bw: ref BaseWidget): BackgroundColor = bw.style.bgColor
+
+
+proc fg*(bw: ref BaseWidget): ForegroundColor = bw.style.fgColor
+
+
+proc border*(bw: ref BaseWidget, bordered: bool) =
+  bw.style.border = bordered
+
+
+proc border*(bw: ref BaseWidget): bool = bw.style.border
+
+proc padding*(bw: ref BaseWidget, x1:int, x2: int, y1: int, y2: int) =
+  bw.style.paddingX1 = x1
+  bw.style.paddingX2 = x2
+  bw.style.paddingY1 = y1
+  bw.style.paddingY2 = y2
+
+
+proc paddingX*(bw: ref BaseWidget, x1:int, x2: int) =
+  bw.style.paddingX1 = x1
+  bw.style.paddingX2 = x2
+
+
+proc paddingY*(bw: ref BaseWidget, y1: int, y2: int) =
+  bw.style.paddingY1 = y1
+  bw.style.paddingY2 = y2
+
+
+proc paddingX1*(bw: ref BaseWidget): int = bw.style.paddingX1
+proc paddingX2*(bw: ref BaseWidget): int = bw.style.paddingX2
+proc paddingY1*(bw: ref BaseWidget): int = bw.style.paddingY1
+proc paddingY2*(bw: ref BaseWidget): int = bw.style.paddingY2
+
+####################### w
+# x1,y1-------------x2,y1
+# |                 |
+# |                 |
+# |                 |
+# |                 |
+# x1,y2-------------x2,y2
+###################### h
+proc widthPaddLeft*(bw: ref BaseWidget): int =
+  result = bw.posX
+  if bw.style.border:
+    result = bw.posX + bw.style.paddingX1
+
+
+proc widthPaddRight*(bw: ref BaseWidget): int =
+  result = bw.width
+  if bw.style.border:
+    result = bw.width - bw.style.paddingX2
+
+
+proc heightPaddTop*(bw: ref BaseWidget): int =
+  result = bw.posY
+  if bw.style.border:
+    result = bw.posY + bw.style.paddingY1
+
+
+proc heightPaddBottom*(bw: ref BaseWidget): int =
+  result = bw.height
+  if bw.style.border:
+    result = bw.height - bw.style.paddingY2
+
+
+proc offsetLeft*(bw: ref BaseWidget): int =
+  result = bw.width - bw.style.paddingX1
+
+
+proc offsetRight*(bw: ref BaseWidget): int =
+  result = bw.width - bw.style.paddingX2
+
+
+proc offsetTop*(bw: ref BaseWidget): int =
+  result = bw.height - bw.style.paddingY1
+
+
+proc offsetBottom*(bw: ref BaseWidget): int =
+  result = bw.posY + bw.size + bw.style.paddingY2
+
+
+proc x1*(bw: ref BaseWidget): int = bw.widthPaddLeft
+
+proc y1*(bw: ref BaseWidget): int = bw.heightPaddTop
+
+proc x2*(bw: ref BaseWidget): int = bw.widthPaddRight
+
+proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
+
+
+proc renderBorder*(bw: ref BaseWidget) =
+  if bw.style.border:
+    bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
+
+proc renderTitle*(bw: ref BaseWidget, content: string, index: int = 0) =
+  if bw.title != "":
+    bw.tb.write(bw.widthPaddLeft, bw.posY + index, content, resetStyle)
+
+
+proc renderCleanRow*(bw: ref BaseWidget, index = 0) =
+  bw.tb.fill(bw.x1, bw.posY + index, bw.x2, bw.posY + index, " ")
+
+
+proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
+  bw.tb.fill(x1, y1, x2, y2, " ")
+
+
+proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
+  bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
+
+
+proc rerender*(bw: ref BaseWidget) =
+  bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, " ")

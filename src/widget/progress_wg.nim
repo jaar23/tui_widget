@@ -13,12 +13,24 @@ type
     showPercentage: bool
 
 
-proc newProgressBar*(w, h, px, py: int,
+proc newProgressBar*(px, py, w, h: int,
                      tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py),
-                     bordered = true, percent: Percent = 0.0,
+                     border = true, percent: Percent = 0.0,
+                     fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                      loadedBlock = "█",
                      loadingBlock = "-",
                      showPercentage = true): ref ProgressBar =
+  let padding = if border: 2 else: 1
+  let style = WidgetStyle(
+    paddingX1: padding,
+    paddingX2: padding,
+    paddingY1: padding,
+    paddingY2: padding,
+    border: border,
+    fgColor: fgColor,
+    bgColor: bgColor
+  )
+
   result = (ref ProgressBar)(
     width: w,
     height: h,
@@ -28,9 +40,7 @@ proc newProgressBar*(w, h, px, py: int,
     fgLoaded: fgGreen,
     percent: percent,
     tb: tb,
-    bordered: bordered,
-    paddingY: if bordered: 2 else: 1,
-    paddingX: if bordered: 2 else: 1,
+    style: style,
     loadedBlock: loadedBlock,
     loadingBlock: loadingBlock,
     showPercentage: showPercentage
@@ -38,18 +48,18 @@ proc newProgressBar*(w, h, px, py: int,
 
 
 proc renderClearRow(pb: ref ProgressBar): void =
-  pb.tb.fill(pb.posX + pb.paddingX, pb.posY, pb.width - pb.paddingX,
-             pb.height, " ")
+  pb.tb.fill(pb.x1, pb.posY, pb.x2, pb.height, " ")
 
-proc render*(pb: ref ProgressBar) =
+
+method render*(pb: ref ProgressBar) =
   pb.renderClearRow()
   var progressLoaded: string = ""
   var progressLoading: string = ""
-  var fullProgress = pb.width - pb.paddingX - 8
+  var fullProgress = pb.width - pb.paddingX1 - 8
   var progressBarWidth = pb.width
   if fullProgress <= 10:
     fullProgress = 10
-    progressBarWidth = 10 + 8 + pb.paddingX
+    progressBarWidth = 10 + 8 + pb.paddingX1
   let pc = (pb.percent/100) * fullProgress.toFloat()
   for i in 0..<fullProgress:
     if i <= pc.toInt():
@@ -59,8 +69,8 @@ proc render*(pb: ref ProgressBar) =
   let percentage = fmt"{(pc / fullProgress.toFloat()) * 100.0:>3.2f}"
   #echo "\n\n\n" & percentage
   pb.tb.drawRect(progressBarWidth, pb.height, pb.posX, pb.posY)
-  pb.tb.write(pb.posX + 1, pb.height - 1, pb.bgColor, pb.fgLoaded, progressLoaded, resetStyle,
-              pb.bgColor, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
+  pb.tb.write(pb.posX + 1, pb.height - 1, pb.bg, pb.fgLoaded, progressLoaded, resetStyle,
+              pb.bg, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
 
 
 proc move*(pb: ref ProgressBar, point: float) =

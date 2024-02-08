@@ -36,8 +36,6 @@ type
   Table = object of BaseWidget
     headers: Option[TableRow]
     rows: seq[TableRow]
-    size: int
-    title: string
     cursor: int = 0
     rowCursor: int = 0
     colCursor: int = 0
@@ -95,15 +93,28 @@ proc newTableRow*(width, height: int, columns: var seq[TableColumn], index = 0,
   return tr
 
 
-proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[TableRow] = none(TableRow), 
-               title: string = "", cursor = 0, rowCursor = 0,
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4),
-               bordered = true): ref Table =
+proc newTable*(px, py, w, h: int, rows: var seq[TableRow], 
+               headers: Option[TableRow] = none(TableRow), 
+               title: string = "", cursor = 0, rowCursor = 0, 
+               border: bool = true, statusbar: bool = true,
+               fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
     var seqCol = newTableColumn(seqColWidth, 1, text = $(i + 1), key = $i, index = i)
     rows[i].columns.insert(seqCol, 0)
     rows[i].index = i
+  let padding = if border: 2 else: 1
+  let style = WidgetStyle(
+    paddingX1: padding,
+    paddingX2: padding,
+    paddingY1: padding,
+    paddingY2: padding,
+    border: border,
+    fgColor: fgColor,
+    bgColor: bgColor
+  )
+
   var table = (ref Table)(
     width: min(w + seqColWidth, w),
     height: h,
@@ -114,10 +125,9 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
     title: title,
     cursor: cursor,
     rowCursor: rowCursor,
-    size: h - py,
+    size: h - py - style.paddingY1 - style.paddingY2,
     tb: tb,
-    bordered: bordered,
-    paddingX: if bordered: 2 else: 1,
+    style: style,
     colCursor: 0,
     maxColWidth: w
   )
@@ -125,19 +135,30 @@ proc newTable*(w, h, px, py: int, rows: var seq[TableRow], headers: Option[Table
     table.size -= 1
     var seqCol = newTableColumn(seqColWidth, 1, text = alignLeft("i", seqColWidth), key = "", index = 0)
     table.headers.get.columns.insert(seqCol, 0)
-    table.height += table.paddingY
+    table.height += table.style.paddingY1
   if table.rows.len > 0:
     table.rows[0].selected = true
   return table
 
 
-proc newTable*(w, h, px, py: int, 
-               title: string = "", cursor = 0, rowCursor = 0,
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4),
-               bordered = true): ref Table =
+proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0, 
+               border: bool = true, statusbar: bool = true,
+               fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[TableRow]()
+  let padding = if border: 2 else: 1
+  let style = WidgetStyle(
+    paddingX1: padding,
+    paddingX2: padding,
+    paddingY1: padding,
+    paddingY2: padding,
+    border: border,
+    fgColor: fgColor,
+    bgColor: bgColor
+  )
+  ##  size tp remove border, table title
   var table = (ref Table)(
-    width: w + 3,
+    width: w,
     height: h,
     posX: px,
     posY: py,
@@ -146,15 +167,13 @@ proc newTable*(w, h, px, py: int,
     title: title,
     cursor: cursor,
     rowCursor: rowCursor,
-    size: h - py - 1,
+    size: h - py - style.paddingY1 - style.paddingY2,
     tb: tb,
-    bordered: bordered,
-    paddingX: if bordered: 2 else: 1,
+    style: style,
     colCursor: 0
   )
-  table.height += table.paddingY
+  #table.height += table.style.paddingY1
   return table
-
 
 
 proc rowMaxWidth(table: ref Table): int =
@@ -171,7 +190,7 @@ proc vrows(table: ref Table): seq[TableRow] = table.rows.filter(proc(r: TableRow
 
 
 proc dtmColumnToDisplay(table: ref Table) =
-  var posX = table.paddingX
+  var posX = table.paddingX1
   for i in table.colCursor..<table.headers.get.columns.len:
     if posX + table.headers.get.columns[i].width < table.width:
     #if posX < table.width:
@@ -216,26 +235,26 @@ proc nextSelection(table: ref Table) =
 
 
 proc emptyRows(table: ref Table, emptyMessage = "No records") =
-  table.tb.write(table.posX + table.paddingX,
+  table.tb.write(table.posX + table.paddingX1,
                  table.posY + 3, bgRed, fgWhite, 
-                 center(emptyMessage, table.width - table.paddingX - 2), resetStyle)
+                 center(emptyMessage, table.width - table.paddingX1 - 2), resetStyle)
 
 
 proc renderClearRow(table: ref Table, index: int, full = false) =
   if full:
     let totalWidth = table.rowMaxWidth()
     table.tb.fill(table.posX, table.posY,
-                  totalWidth, table.height + table.paddingY + 3, " ")
+                  totalWidth, table.height + table.paddingY1 + 3, " ")
   else:
-    table.tb.fill(table.posX + table.paddingX, table.posY + index,
-                  table.width - table.paddingX, table.posY + index, " ")
+    table.tb.fill(table.posX + table.paddingX1, table.posY + index,
+                  table.width - table.paddingX1, table.posY + index, " ")
 
 
 proc renderTableHeader(table: ref Table): int =
   result = 1
-  let borderX = if table.bordered: 1 else: 2
+  let borderX = if table.border: 1 else: 2
   if table.headers.isSome:
-    var posX = table.paddingX
+    var posX = table.paddingX1
     for i in table.colCursor..<table.headers.get.columns.len:
       if table.headers.get.columns[i].visible and posX < table.width:
         table.tb.write(table.posX + posX, table.posY + result, bgBlue, 
@@ -256,8 +275,8 @@ proc calColWidth(table: ref Table, cindex: int, defaultWidth: int): int =
 
 
 proc renderTableRow(table: ref Table, row: TableRow, index: int) =
-  var posX = table.paddingX
-  var borderX = if table.bordered: 1 else: 0
+  var posX = table.paddingX1
+  var borderX = if table.border: 1 else: 0
   for i in 0..<row.columns.len:
     var text = row.columns[i].text
     if row.visible and table.headers.get.columns[i].visible and posX < table.width:
@@ -278,18 +297,21 @@ proc renderTableRow(table: ref Table, row: TableRow, index: int) =
 
 
 proc renderStatusBar(table: ref Table) =
-  table.tb.write(table.posX + table.paddingX, table.height + 1 + table.paddingY, 
-                 fgYellow, "rows: ", $table.vrows().len , " selected: ", $table.selectedRow, 
-                 resetStyle)
+  if table.statusbar:
+    table.tb.write(table.x1, table.height, fgYellow, "rows: ", 
+                   $table.vrows().len , " selected: ", $table.selectedRow, 
+                   resetStyle)
 
 
-proc render*(table: ref Table): void =
+method render*(table: ref Table): void =
   table.renderClearRow(0, true)
-  if table.bordered:
-    table.tb.drawRect(table.width, table.height + table.paddingY + 1,
-                      table.posX, table.posY, doubleStyle = table.focus)
+  if table.border:
+    table.renderBorder()
+    # table.tb.drawRect(table.width, table.height + table.paddingY1 + 1,
+    #                   table.posX, table.posY, doubleStyle = table.focus)
   if table.title != "":
-    table.tb.write(table.posX + table.paddingX, table.posY, table.title)
+    table.renderTitle(table.title)
+    # table.tb.write(table.posX + table.paddingX1, table.posY, table.title)
   var index = table.renderTableHeader()
   let rows = table.vrows()
   if rows.len > 0:
@@ -335,14 +357,15 @@ proc onFilter(table: ref Table) =
   table.rowCursor = 0
   table.colCursor = 0
   table.renderClearRow(table.size + 5)
-  var input = newInputBox(table.width, table.height + 4, table.posX, 
-                          table.posY + table.size + 4, title="search", 
+  var input = newInputBox(table.x1, table.y1, 
+                          table.x2, table.y2, 
+                          title="search", 
                           tb=table.tb)
   let enterEv: CallbackProcedure = proc(x: string) = 
     table.filter(x)
     table.prevSelection()
     input.focus = false
-    input.hide()
+    input.remove()
   # passing enter event as a callback
   procCall input.onControl(some(enterEv))
   # passing enter event to onEnter method
@@ -356,7 +379,7 @@ proc onFilter(table: ref Table) =
 proc resetFilter(table: ref Table) =
   for r in 0..<table.rows.len:
     table.rows[r].visible = true
-  table.size = table.height - table.posY - table.paddingY - 1
+  table.size = table.height - table.posY - table.paddingY1 - table.paddingY2
   #if table.headers.isSome: table.size -= 1
   table.rowCursor = 0
   table.cursor = 0

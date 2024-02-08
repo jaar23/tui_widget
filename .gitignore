@@ -2,3 +2,5 @@ terminal_ui*
 tui_app
 .vscode
 bin
+src/tui_app.nim
+src/layout

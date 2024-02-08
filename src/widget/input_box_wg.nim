@@ -3,16 +3,15 @@ import nimclipboard/libclipboard
 
 type
   InputBox = object of BaseWidget
-    row*: int = 1
+    #row*: int = 1
     cursor: int = 0
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = "|"
-    visualSkip: int = 2
-    title: string
+    #visualSkip: int = 2
     onEnter: Option[EnterEventProcedure]
-    showSize: bool = false
+    #showSize: bool = false
 
   CursorDirection = enum
     Left, Right
@@ -23,10 +22,22 @@ var cb = clipboard_new(nil)
 cb.clipboard_clear(LCB_CLIPBOARD)
 
 
-proc newInputBox*(w, h, px, py: int, title = "", val: string = "", 
-                  modeChar: char = '|', 
+proc newInputBox*(px, py, w, h: int, title = "", val: string = "", 
+                  modeChar: char = '|', border: bool = true, statusbar: bool = false,
+                  fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
-  var inputBox = (ref InputBox)(
+  let padding = if border: 2 else: 1
+  let statusbarSize = if statusbar: 1 else: 0
+  let style = WidgetStyle(
+    paddingX1: padding,
+    paddingX2: padding,
+    paddingY1: padding,
+    paddingY2: padding,
+    border: border,
+    fgColor: fgColor,
+    bgColor: bgColor
+  )
+  result = (ref InputBox)(
     width: w,
     height: h,
     posX: px,
@@ -34,9 +45,11 @@ proc newInputBox*(w, h, px, py: int, title = "", val: string = "",
     value: val,
     mode: $modeChar,
     title: title,
-    tb: tb
+    tb: tb,
+    style: style,
+    statusbar: statusbar,
+    statusbarSize: statusbarSize
   )
-  return inputBox
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
@@ -86,29 +99,35 @@ proc clear(ib: ref InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
 
 
-proc render*(ib: ref InputBox, display = true) =
-  if display:
-    ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
-    if ib.title != "":
-      ib.tb.write(ib.posX + 2, ib.posY, ib.title)
-    if ib.cursor < ib.value.len:
-      ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-               resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
-               bgGreen, styleBlink, ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
-               resetStyle, ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
-    else:
-      ib.tb.write(ib.posX + 1, ib.posY + 1, fgGreen, ib.mode, 
-               resetStyle, ib.visualVal, bgGreen, styleBlink, "_", resetStyle)
-    if ib.showSize:
-      let sizeStr = $ib.value.len
-      ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
-      ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
-    ib.tb.display()
+method render*(ib: ref InputBox) =
+  ib.clear()
+  ib.renderBorder()
+  #ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
+  if ib.title != "":
+    ib.renderTitle(ib.title)
+    #ib.tb.write(ib.posX + 2, ib.posY, ib.title)
+  if ib.cursor < ib.value.len:
+    ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
+                resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
+                styleBlink, styleUnderscore, ib.style.bgColor,
+                ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
+                resetStyle, 
+                ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
   else:
-    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 1, " ")
-    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 2, " ")
-    ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 3, " ")
-    #ib.clear()
+    ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
+                resetStyle, ib.visualVal, ib.style.bgColor, styleBlink, "_", resetStyle)
+  if ib.statusbar:
+    let sizeStr = $ib.value.len
+    ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
+    ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
+  ib.tb.display()
+
+
+proc remove*(ib : ref InputBox) =
+  ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 1, " ")
+  ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 2, " ")
+  ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 3, " ")
+  ib.clear()
 
 
 proc rerender(ib: ref InputBox) =
@@ -130,7 +149,7 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
       ib.cursor = ib.cursor - 1
     else:
       ib.cursor = 0
-    let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
+    let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
     # echo "\n\n" & ib.visualVal
@@ -142,7 +161,7 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
       ib.cursor = ib.cursor + 1
     else:
       ib.cursor = ib.value.len
-    let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
+    let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
 
@@ -281,6 +300,9 @@ method onControl*(ib: ref InputBox) =
     of Key.GraveAccent:
       ib.value.insert("~", ib.cursor)
       ib.overflowWidth()
+    of Key.Tilde:
+      ib.value.insert("`", ib.cursor)
+      ib.overflowWidth()
     of Key.Home: 
       ib.cursor = 0
       ib.rerender()
@@ -314,14 +336,14 @@ method onControl*(ib: ref InputBox) =
       ib.value.insert(ch.toLower(), ib.cursor)
       ib.overflowWidth() 
 
-    if ib.value.len >= ib.width - ib.visualSkip - 1:
+    if ib.value.len >= ib.width - ib.paddingX1 - 1:
       # visualSkip for 2 bytes on the ui border and mode
       # 1 byte to push cursor at last
-      let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
+      let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
       ib.visualVal = ib.value.substr(s, e)
       ib.visualCursor = cursorPos 
     else:
-      let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.visualSkip - 1), ib.cursor)
+      let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
       ib.visualVal = ib.value.substr(s, e)
       ib.visualCursor = cursorPos 
 
@@ -344,10 +366,6 @@ proc show*(ib: ref InputBox) =
   ib.render()
 
 
-proc hide*(ib: ref InputBox) =
-  ib.render(false)
-
-
 proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb
 
@@ -363,8 +381,8 @@ proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =
 proc `- `*(ib: ref InputBox) = ib.show()
 
 
-proc showSize*(ib: ref InputBox): void = ib.showSize = true
+proc showStatusBar*(ib: ref InputBox): void = ib.statusbar = true
 
 
-proc hideSize*(ib: ref InputBox): void = ib.showSize = false
+proc hideSize*(ib: ref InputBox): void = ib.statusbar = false
 

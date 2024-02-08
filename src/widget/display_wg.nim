@@ -2,31 +2,38 @@ import illwill, base_wg, os, std/wordwrap, strutils
 
 type
   Display = object of BaseWidget
-    size*: int = 1
     text*: string = ""
     textRows: seq[string] = newSeq[string]()
     rowCursor: int = 0
-    title: string
 
 
-proc newDisplay*(w, h, px, py: int, title: string = "", 
-                 text: string = "", bordered: bool = true,
+proc newDisplay*(px, py, w, h: int, 
+                 title: string = "", text: string = "", border: bool = true, statusbar = true,
+                 fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Display =
-  let padding = if bordered: 2 else: 1
-  var display = (ref Display)(
+  let padding = if border: 2 else: 1
+  let statusbarSize = if statusbar: 1 else: 0
+  let style = WidgetStyle(
+    paddingX1: padding,
+    paddingX2: padding,
+    paddingY1: padding,
+    paddingY2: padding,
+    border: border,
+    fgColor: fgColor,
+    bgColor: bgColor
+  )
+  result = (ref Display)(
     width: w,
     height: h,
     posX: px,
     posY: py,
     text: text,
-    size: h - (padding * 2),
+    size: h - (padding * 2) - statusbarSize,
+    statusbarSize: statusbarSize,
     title: title,
     tb: tb,
-    paddingX: padding,
-    paddingY: padding,
-    bordered: bordered
+    style: style
   )
-  return display
 
 
 proc splitBySize(val: string, size: int, rows: int, 
@@ -38,38 +45,44 @@ proc splitBySize(val: string, size: int, rows: int,
 
 proc rowReCal(dp: ref Display): seq[string] =
   let rows = dp.text.len / toInt(dp.width.toFloat() * 0.5)
-  let textRows = dp.text.splitBySize(dp.width - dp.paddingX, toInt(
-      rows) + dp.paddingX)
+  let textRows = dp.text.splitBySize(dp.widthPaddRight, toInt(rows) + dp.style.paddingX2)
   return textRows
 
 
-proc render*(dp: ref Display, display = true) =
-  if display:
-    if dp.bordered:
-      dp.tb.drawRect(dp.width, dp.height + dp.paddingY, dp.posX, dp.posY,
-          doubleStyle = dp.focus)
-    if dp.title != "":
-      dp.tb.write(dp.posX + dp.paddingX, dp.posY, dp.title)
-    var index = 1
-    let rowStart = dp.rowCursor
-    let rowEnd = if dp.rowCursor + dp.size >= dp.textRows.len: dp.textRows.len -
-        1 else: dp.rowCursor + dp.size - 1
-    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
-      dp.tb.fill(dp.posX + dp.paddingX, dp.posY + index, dp.width - dp.paddingX, dp.height, " ")
-      #dp.tb.drawVertLine(dp.width, dp.height, dp.posY + 1, doubleStyle = true)
-      dp.tb.write(dp.posX + dp.paddingX, dp.posY + index, resetStyle, row)
-      index = index + 1
-    ## cursor pointer
-    dp.tb.fill(dp.posX + dp.paddingX, dp.posY + dp.size + dp.paddingX, dp.posX + dp.size,
-        dp.posY + dp.size + dp.paddingX, " ")
-    dp.tb.write(dp.posX + dp.paddingX, dp.posY + dp.size + dp.paddingX, fgYellow,
-        "rows: ", $dp.rowCursor, resetStyle)
-    dp.tb.display()
-  else:
-    echo "not implement"
+method render*(dp: ref Display) =
+  dp.renderBorder()
+    # dp.tb.drawRect(dp.width, dp.height + dp.paddingY, dp.posX, dp.posY,
+    #     doubleStyle = dp.focus)
+  if dp.title != "":
+    # dp.tb.write(dp.posX + dp.paddingX, dp.posY, dp.title)
+    dp.renderTitle(dp.title)
+  var index = 1
+  let rowStart = dp.rowCursor
+  let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size - dp.statusbarSize)
+  # let rowEnd = if dp.rowCursor + dp.size >= dp.textRows.len: dp.textRows.len -
+  #     1 else: dp.rowCursor + dp.size - 1
+  for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
+    # dp.tb.fill(dp.posX + dp.paddingX, dp.posY + index, dp.width - dp.paddingX, dp.height, " ")
+    dp.renderCleanRow(index)
+    dp.renderRow(row, index)
+    # dp.tb.write(dp.posX + dp.paddingX, dp.posY + index, resetStyle, row)
+    inc index
+  ## cursor pointer
+  #dp.renderCleanRow(index + 1)
+  dp.renderCleanRect(dp.x1, dp.height, dp.x1 + 6, dp.height)
+  # dp.tb.fill(dp.posX + dp.style.paddingX1, 
+  #            dp.posY + dp.size + dp.style.paddingX1, 
+  #            dp.posX + dp.size,
+  #            dp.posY + dp.size + dp.style.paddingX2, 
+  #            "$")
+  dp.tb.write(dp.x1, dp.height, fgYellow, "rows: ", $dp.rowCursor, resetStyle)
+  dp.tb.display()
+  #dp.display() 
+  # dp.tb.write(dp.posX + dp.paddingX, dp.posY + dp.size + dp.paddingX, fgYellow,
+  #     "rows: ", $dp.rowCursor, resetStyle)
+  # dp.tb.display()
+ 
 
-
-# TODO: scroll left right when no word wrap
 method onControl*(dp: ref Display) =
   dp.focus = true
   let textRows = dp.rowReCal()
@@ -78,7 +91,7 @@ method onControl*(dp: ref Display) =
     var key = getKey()
     case key
     of Key.None: 
-      dp.render(true)
+      dp.render()
     of Key.Up:
       dp.rowCursor = max(0, dp.rowCursor - 1)
     of Key.Down:
@@ -94,14 +107,11 @@ method onControl*(dp: ref Display) =
     of Key.Escape, Key.Tab:
       dp.focus = false
     else: discard
-  dp.render(true)
+  dp.render()
   sleep(20)
  
 
 proc show*(dp: ref Display) = dp.render()
-
-
-proc hide*(dp: ref Display) = dp.render(false)
 
 
 proc text*(dp: ref Display, text: string) = dp.text = text
