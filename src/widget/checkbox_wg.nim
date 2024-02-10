@@ -41,7 +41,7 @@ method render*(ch: ref Checkbox) =
   ch.renderBorder()
   #ch.tb.drawRect(ch.width, ch.height, ch.posX, ch.posY, doubleStyle=ch.focus)
   if ch.title != "":
-    ch.renderTitle(ch.title)
+    ch.renderTitle()
     #ch.tb.write(ch.posX + 2, ch.posY, ch.title)
   if ch.checked:
     ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")

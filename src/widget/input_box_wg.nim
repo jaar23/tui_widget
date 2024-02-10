@@ -104,7 +104,7 @@ method render*(ib: ref InputBox) =
   ib.renderBorder()
   #ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
   if ib.title != "":
-    ib.renderTitle(ib.title)
+    ib.renderTitle()
     #ib.tb.write(ib.posX + 2, ib.posY, ib.title)
   if ib.cursor < ib.value.len:
     ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 

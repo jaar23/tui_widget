@@ -55,7 +55,7 @@ method render*(dp: ref Display) =
     #     doubleStyle = dp.focus)
   if dp.title != "":
     # dp.tb.write(dp.posX + dp.paddingX, dp.posY, dp.title)
-    dp.renderTitle(dp.title)
+    dp.renderTitle()
   var index = 1
   let rowStart = dp.rowCursor
   let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size - dp.statusbarSize)

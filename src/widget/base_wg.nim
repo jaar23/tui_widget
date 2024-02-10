@@ -7,6 +7,10 @@ type
   Mode* = enum
     Normal, Filter
 
+  SelectionStyle* = enum
+    Highlight, Arrow, HighlightArrow
+
+
   WidgetStyle* = object
     fgColor*: ForegroundColor
     bgColor*: BackgroundColor
@@ -192,9 +196,9 @@ proc renderBorder*(bw: ref BaseWidget) =
   if bw.style.border:
     bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
 
-proc renderTitle*(bw: ref BaseWidget, content: string, index: int = 0) =
+proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
   if bw.title != "":
-    bw.tb.write(bw.widthPaddLeft, bw.posY + index, content, resetStyle)
+    bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.title, resetStyle)
 
 
 proc renderCleanRow*(bw: ref BaseWidget, index = 0) =

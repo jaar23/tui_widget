@@ -244,7 +244,7 @@ proc renderClearRow(table: ref Table, index: int, full = false) =
   if full:
     let totalWidth = table.rowMaxWidth()
     table.tb.fill(table.posX, table.posY,
-                  totalWidth, table.height + table.paddingY1 + 3, " ")
+                  totalWidth, table.height + table.paddingY1, " ")
   else:
     table.tb.fill(table.posX + table.paddingX1, table.posY + index,
                   table.width - table.paddingX1, table.posY + index, " ")
@@ -310,7 +310,7 @@ method render*(table: ref Table): void =
     # table.tb.drawRect(table.width, table.height + table.paddingY1 + 1,
     #                   table.posX, table.posY, doubleStyle = table.focus)
   if table.title != "":
-    table.renderTitle(table.title)
+    table.renderTitle()
     # table.tb.write(table.posX + table.paddingX1, table.posY, table.title)
   var index = table.renderTableHeader()
   let rows = table.vrows()
@@ -358,7 +358,7 @@ proc onFilter(table: ref Table) =
   table.colCursor = 0
   table.renderClearRow(table.size + 5)
   var input = newInputBox(table.x1, table.y1, 
-                          table.x2, table.y2, 
+                          table.x2, table.y1 + 2, 
                           title="search", 
                           tb=table.tb)
   let enterEv: CallbackProcedure = proc(x: string) = 

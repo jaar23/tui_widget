@@ -31,7 +31,7 @@ var checkbox = newCheckbox(1, 20, 20, 22, title="done", label="yes", value="y")
 
 var checkbox2 = newCheckbox(21, 20, 40, 22, title="accept", label="yes", value="y")
 
-var table = newTable(1, 28, 45, 34, title="table")
+var table = newTable(1, 28, 45, 37, title="table")
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
 var progress = newProgressBar(1, 40, consoleWidth(), 42, percent=0.0)
@@ -39,6 +39,16 @@ var progress = newProgressBar(1, 40, consoleWidth(), 42, percent=0.0)
 let enterEv: EnterEventProcedure = proc(arg: string) =
   progress.move(5.0)
 button.onEnter(some(enterEv))
+
+var list = newSeq[ref ListRow]()
+var i = 0
+const keys = {Key.A..Key.Z}
+var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla.Nulla feugiat convallis magna,", "ttt", align=Center)
+list.add(listRow)
+for key in keys:
+  var listRow = newListRow(i, $key, $key)
+  list.add(listRow)
+var listview = newListView(1, 46, 45, 52, rows=list, title="list", selectionStyle=Arrow)
 
 
 var app = newTerminalApp(title="octo")
@@ -50,6 +60,7 @@ app.addWidget(checkbox2)
 app.addWidget(button)
 app.addWidget(table)
 app.addWidget(progress)
+app.addWidget(listView)
 app.run()
 
 #
@@ -58,16 +69,6 @@ app.run()
 # progress.render()
 #
 #
-# var list = newSeq[ref ListRow]()
-# var i = 0
-# const keys = {Key.A..Key.Z}
-# var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla.Nulla feugiat convallis magna,", "ttt", align=Center)
-# list.add(listRow)
-# for key in keys:
-#   var listRow = newListRow(i, $key, $key)
-#   list.add(listRow)
-# var listview = newListView(45, 52, 1, 46, rows=list, title="list", tb=tb)
-
 
 # align components in sequence according to pos Y
 # proc mainPanel() =
