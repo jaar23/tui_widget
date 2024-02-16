@@ -42,6 +42,7 @@ type
     mode: Mode = Normal
     filteredSize: int = 0
     selectedRow: int = 0
+    selectionStyle: SelectionStyle
     maxColWidth: int = 64
 
 
@@ -98,6 +99,7 @@ proc newTable*(px, py, w, h: int, rows: var seq[TableRow],
                title: string = "", cursor = 0, rowCursor = 0, 
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+               selectionStyle: SelectionStyle,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
@@ -129,7 +131,8 @@ proc newTable*(px, py, w, h: int, rows: var seq[TableRow],
     tb: tb,
     style: style,
     colCursor: 0,
-    maxColWidth: w
+    maxColWidth: w,
+    selectionStyle: selectionStyle
   )
   if headers.isSome: 
     table.size -= 1
@@ -144,6 +147,7 @@ proc newTable*(px, py, w, h: int, rows: var seq[TableRow],
 proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0, 
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+               selectionStyle: SelectionStyle = Highlight,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[TableRow]()
   let padding = if border: 2 else: 1
@@ -170,7 +174,8 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     size: h - py - style.paddingY1 - style.paddingY2,
     tb: tb,
     style: style,
-    colCursor: 0
+    colCursor: 0,
+    selectionStyle: selectionStyle
   )
   #table.height += table.style.paddingY1
   return table
@@ -280,6 +285,8 @@ proc renderTableRow(table: ref Table, row: TableRow, index: int) =
   for i in 0..<row.columns.len:
     var text = row.columns[i].text
     if row.visible and table.headers.get.columns[i].visible and posX < table.width:
+      if row.selected and (table.selectionStyle == Arrow or table.selectionStyle == HighlightArrow):
+        table.tb.write(table.posX + 1, table.posY + index, fgGreen, ">", resetStyle)
       var width = table.calColWidth(i, row.columns[i].width)
       if row.columns[i].align == Left:
         text = alignLeft(text, min(width, table.width - table.posX - posX - borderX))
@@ -288,11 +295,21 @@ proc renderTableRow(table: ref Table, row: TableRow, index: int) =
       elif row.columns[i].align == Right:
         text = align(text, min(width, table.width - table.posX - posX - borderX))
       var bgSelected = row.columns[i].bgColor
-      if row.selected:
+      if row.selected and (table.selectionStyle == Highlight or table.selectionStyle == HighlightArrow):
         bgSelected = bgGreen
-      #else: bgSelected = bgRed
-      table.tb.write(table.posX + posX, table.posY + index, resetStyle,
-                     bgSelected, row.columns[i].fgColor, text, resetStyle)
+        table.tb.write(table.posX + posX, table.posY + index, resetStyle,
+                       bgSelected, row.columns[i].fgColor, text, resetStyle)
+      # elif row.selected and table.selectionStyle == HighlightArrow:
+      #   table.tb.write(table.posX + 1, table.posY + index, resetStyle,
+      #                  fgGreen, ">",
+      #                  row.bgColor, row.columns[i].fgColor, text, resetStyle)
+      # elif row.selected and table.selectionStyle == Arrow:
+      #   table.tb.write(table.posX + posX, table.posY + index, resetStyle,
+      #                  fgGreen, ">",
+      #                  row.columns[i].fgColor, text, resetStyle)
+      else:
+        table.tb.write(table.posX + posX, table.posY + index, resetStyle,
+                       bgSelected, row.columns[i].fgColor, text, resetStyle)
       posX += width + 1
 
 

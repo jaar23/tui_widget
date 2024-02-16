@@ -31,7 +31,7 @@ var checkbox = newCheckbox(1, 20, 20, 22, title="done", label="yes", value="y")
 
 var checkbox2 = newCheckbox(21, 20, 40, 22, title="accept", label="yes", value="y")
 
-var table = newTable(1, 28, 45, 37, title="table")
+var table = newTable(1, 28, 45, 37, title="table", selectionStyle=Highlight)
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
 var progress = newProgressBar(1, 40, consoleWidth(), 42, percent=0.0)
