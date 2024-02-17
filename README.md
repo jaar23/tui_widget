@@ -17,7 +17,7 @@ Widgets:
 
 - button (y)
 
-- list view (wip)
+- list view (y)
 
 - select
 
@@ -27,6 +27,6 @@ Widgets:
 
 - progressbar (y)
 
-- label
+- label (y)
 
 - radio button

@@ -79,6 +79,9 @@ method wg*(ch: ref Checkbox): ref BaseWidget = ch
 proc show*(ch: ref Checkbox) = ch.render()
 
 
+proc hide*(ch: ref Checkbox) = ch.clear()
+
+
 proc checked*(ch: ref Checkbox): bool = ch.checked
 
 

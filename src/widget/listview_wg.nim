@@ -5,8 +5,6 @@ type
     index: int
     text: string
     value*: string
-    onSpace: Option[SpaceEventProcedure]
-    onEnter: Option[EnterEventProcedure]
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     visible: bool = true
@@ -22,19 +20,16 @@ type
     mode: Mode = Normal
     filteredSize: int = 0
     selectionStyle: SelectionStyle
+    onEnter: Option[EnterEventProcedure]
 
 
 proc newListRow*(index: int, text: string, value: string, align=Center,
-                 onSpace: Option[SpaceEventProcedure] = none(SpaceEventProcedure),
-                 onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                  bgColor = bgNone, fgColor = fgWhite, visible = true,
                  selected = false): ref ListRow =
   result = (ref ListRow)(
     index: index,
     text: text,
     value: value,
-    onSpace: onSpace,
-    onEnter: onEnter,
     bgColor: bgColor,
     fgColor: fgColor,
     visible: visible,
@@ -46,6 +41,7 @@ proc newListView*(px, py, w, h: int, rows: var seq[ref ListRow],
                   title = "", border = true, statusbar = true,
                   fgColor = fgWhite, bgColor = bgNone,
                   selectionStyle: SelectionStyle = Highlight,
+                  onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
   let padding = if border: 2 else: 1
   let statusbarSize = if statusbar: 1 else: 0
@@ -77,7 +73,8 @@ proc newListView*(px, py, w, h: int, rows: var seq[ref ListRow],
     statusbar: statusbar,
     statusbarSize: statusbarSize,
     selectionStyle: selectionStyle,
-    colCursor: 0
+    colCursor: 0,
+    onEnter: onEnter
   )
 
 
@@ -92,11 +89,11 @@ proc emptyRows(lv: ref ListView, emptyMessage = "No records") =
 
 
 proc scrollRow(lv: ref ListView, startIndex: int): string =
-  var actualStartIndex = max(0, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 * 2)))
+  var actualStartIndex = max(0, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 + lv.paddingX2)))
   actualStartIndex = min(actualStartIndex, startIndex)
   if actualStartIndex < 0:
     actualStartIndex = 0
-  let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 * 2), lv.rows[lv.cursor].text.len)
+  let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 + lv.paddingX2), lv.rows[lv.cursor].text.len)
   return lv.rows[lv.cursor].text[actualStartIndex ..< min(lv.rows[lv.cursor].text.len, endIndex)]
 
 
@@ -104,7 +101,7 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
   if full:
     let totalWidth = lv.width
     lv.tb.fill(lv.posX, lv.posY,
-               totalWidth, lv.height + lv.paddingY1, " ")
+               totalWidth, lv.height, " ")
   else:
     lv.tb.fill(lv.posX + lv.paddingX1, lv.posY + index,
                lv.width - lv.paddingX1, lv.posY + index, " ")
@@ -237,7 +234,10 @@ method onControl*(lv: ref ListView): void =
       lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 + lv.paddingX2)))
     of Key.Left:
       lv.colCursor = max(lv.colCursor - 1, 0)
-
+    of Key.Enter:
+      if lv.onEnter.isSome:
+        let fn = lv.onEnter.get
+        fn(lv.rows[lv.cursor].value)
     of Tab: lv.focus = false
     else: discard
   lv.render()
@@ -250,7 +250,14 @@ method wg*(lv: ref ListView): ref BaseWidget = lv
 proc show*(lv: ref ListView) = lv.render()
 
 
+proc hide*(lv: ref ListView) = lv.clear()
+
+
 proc `-`*(lv: ref ListView) = lv.show()
+
+
+proc onEnter*(lv: ref ListView, cb: Option[EnterEventProcedure]) =
+  lv.onEnter = cb
 
 
 proc selected*(lv: ref ListView): ref ListRow =

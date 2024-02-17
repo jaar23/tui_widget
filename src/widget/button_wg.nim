@@ -81,6 +81,9 @@ proc onEnter*(bt: ref Button, cb: Option[EnterEventProcedure]) =
 proc show*(bt: ref Button) = bt.render()
 
 
+proc hide*(bt: ref Button) = bt.clear()
+
+
 proc `-`*(bt: ref Button) = bt.show()
 
 

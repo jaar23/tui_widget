@@ -353,9 +353,10 @@ proc value*(ib: ref InputBox, val: string) = ib.value = val
 proc value*(ib: ref InputBox): string = ib.value
 
 
-proc show*(ib: ref InputBox) =
-  ib.render()
+proc show*(ib: ref InputBox) = ib.render()
 
+
+proc hide*(ib: ref InputBox) = ib.clear
 
 proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb

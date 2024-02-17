@@ -47,6 +47,7 @@ type
   EnterEventProcedure* = proc(x: string): void
 
   SpaceEventProcedure* = proc(x: string, b: bool): void
+  
 
 proc consoleWidth*(): int =
   return terminalWidth() - 2
@@ -212,5 +213,10 @@ proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
   bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
 
 
-proc rerender*(bw: ref BaseWidget) =
+proc clear*(bw: ref BaseWidget) =
   bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, " ")
+
+
+proc rerender*(bw: ref BaseWidget) =
+  bw.clear()
+  bw.render()

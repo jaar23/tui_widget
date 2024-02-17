@@ -25,17 +25,16 @@ type
     width: int
     height: int
     maxColWidth: int
-    columns: seq[TableColumn]
-    onSpace: Option[SpaceEventProcedure]
-    onEnter: Option[EnterEventProcedure]
+    columns: seq[ref TableColumn]
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     visible: bool = true
     selected: bool = false
+    value: string = ""
 
   Table = object of BaseWidget
-    headers: Option[TableRow]
-    rows: seq[TableRow]
+    headers: Option[ref TableRow]
+    rows: seq[ref TableRow]
     cursor: int = 0
     rowCursor: int = 0
     colCursor: int = 0
@@ -44,13 +43,14 @@ type
     selectedRow: int = 0
     selectionStyle: SelectionStyle
     maxColWidth: int = 64
+    onEnter: Option[EnterEventProcedure]
 
 
 proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow: bool = false,
                      widget: Option[BaseWidget] = none(BaseWidget),
                      bgColor = bgNone, fgColor = fgWhite,
-                     align = Left, columnType = Column): TableColumn =
-  var tc = TableColumn(
+                     align = Left, columnType = Column): ref TableColumn =
+  var tc = (ref TableColumn)(
     index: index,
     width: max(width, text.len),
     height: height,
@@ -67,25 +67,19 @@ proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow:
 
 
 
-proc newTableRow*(width, height: int, columns: var seq[TableColumn], index = 0,
-                 onSpace: Option[SpaceEventProcedure] = none(
-                     SpaceEventProcedure),
-                 onEnter: Option[EnterEventProcedure] = none(
-                     EnterEventProcedure),
-                 bgColor = bgNone, fgColor = fgWhite,
-                     selected = false): TableRow =
+proc newTableRow*(width, height: int, columns: seq[ref TableColumn], index = 0,
+                     bgColor = bgNone, fgColor = fgWhite,
+                     selected = false): ref TableRow =
   var maxColWidth = 0
   for i in 0..<columns.len:
     columns[i].index = i
     maxColWidth = max(columns[i].width, maxColWidth)
 
-  var tr = TableRow(
+  var tr = (ref TableRow)(
     index: index,
     width: width,
     height: height,
     columns: columns,
-    onSpace: onSpace,
-    onEnter: onEnter,
     bgColor: bgColor,
     fgColor: fgColor,
     selected: selected,
@@ -94,12 +88,13 @@ proc newTableRow*(width, height: int, columns: var seq[TableColumn], index = 0,
   return tr
 
 
-proc newTable*(px, py, w, h: int, rows: var seq[TableRow], 
-               headers: Option[TableRow] = none(TableRow), 
+proc newTable*(px, py, w, h: int, rows: seq[ref TableRow], 
+               headers: Option[ref TableRow] = none(ref TableRow), 
                title: string = "", cursor = 0, rowCursor = 0, 
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle,
+               onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
@@ -132,7 +127,8 @@ proc newTable*(px, py, w, h: int, rows: var seq[TableRow],
     style: style,
     colCursor: 0,
     maxColWidth: w,
-    selectionStyle: selectionStyle
+    selectionStyle: selectionStyle,
+    onEnter: onEnter
   )
   if headers.isSome: 
     table.size -= 1
@@ -148,8 +144,9 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle = Highlight,
+               onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
-  var rows = newSeq[TableRow]()
+  var rows = newSeq[ref TableRow]()
   let padding = if border: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
@@ -166,7 +163,7 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     height: h,
     posX: px,
     posY: py,
-    headers: none(TableRow),
+    headers: none(ref TableRow),
     rows: rows,
     title: title,
     cursor: cursor,
@@ -175,7 +172,8 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     tb: tb,
     style: style,
     colCursor: 0,
-    selectionStyle: selectionStyle
+    selectionStyle: selectionStyle,
+    onEnter: onEnter
   )
   return table
 
@@ -190,7 +188,7 @@ proc rowMaxWidth(table: ref Table): int =
       result += col.width
 
 
-proc vrows(table: ref Table): seq[TableRow] = table.rows.filter(proc(r: TableRow): bool = r.visible)
+proc vrows(table: ref Table): seq[ref TableRow] = table.rows.filter(proc(r: ref TableRow): bool = r.visible)
 
 
 proc dtmColumnToDisplay(table: ref Table) =
@@ -277,7 +275,7 @@ proc calColWidth(table: ref Table, cindex: int, defaultWidth: int): int =
     result = defaultWidth
 
 
-proc renderTableRow(table: ref Table, row: TableRow, index: int) =
+proc renderTableRow(table: ref Table, row: ref TableRow, index: int) =
   var posX = table.paddingX1
   var borderX = if table.border: 1 else: 0
   for i in 0..<row.columns.len:
@@ -392,8 +390,6 @@ proc resetFilter(table: ref Table) =
   table.prevSelection()
 
 
-
-
 method onControl*(table: ref Table): void =
   table.focus = true
   while table.focus:
@@ -433,6 +429,10 @@ method onControl*(table: ref Table): void =
         table.mode = Normal
         table.resetFilter()
     of Key.Tab: table.focus = false
+    of Key.Enter:
+      if table.onEnter.isSome:
+        let fn = table.onEnter.get
+        fn(table.rows[table.cursor].value)
     else: discard
   table.render()
   sleep(20)
@@ -444,10 +444,13 @@ method wg*(table: ref Table): ref BaseWidget = table
 proc show*(table: ref Table) = table.render()
 
 
+proc hide*(table: ref Table) = table.clear()
+
+
 proc `-`*(table: ref Table) = table.show()
 
 
-proc addRow*(table: ref Table, tablerow: var TableRow, index: Option[int] = none(int)): void =
+proc addRow*(table: ref Table, tablerow: ref TableRow, index: Option[int] = none(int)): void =
   for i in 0..<tablerow.columns.len:
     if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:
       table.headers.get.columns[i].width = min(table.maxColWidth, 
@@ -460,11 +463,11 @@ proc addRow*(table: ref Table, tablerow: var TableRow, index: Option[int] = none
   table.rows.add(tablerow)
 
 
-proc removeRow*(table: ref Table, index: int): void =
-  return
+proc removeRow*(table: ref Table, index: int) =
+  table.rows.delete(index)
 
 
-proc selected*(table: ref Table): TableRow =
+proc selected*(table: ref Table): ref TableRow =
   return table.rows[table.cursor]
 
 
@@ -472,7 +475,7 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIn
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")
-    table.rows = newSeq[TableRow]()
+    table.rows = newSeq[ref TableRow]()
     var stream = newFileStream(filepath, fmRead)
     if stream == nil:
       raise newException(IOError, "Unable to open file")
@@ -480,7 +483,7 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIn
     open(csvparser, stream, filepath)
     var rindex = 0
     while readRow(csvparser):
-      var row = newSeq[TableColumn]()
+      var row = newSeq[ref TableColumn]()
       if rindex == 0:
         var headerWidth = 0
         if not withIndex:

@@ -98,11 +98,12 @@ proc completed*(pb: ref ProgressBar) =
   pb.render()
 
 
-proc show*(pb: ref ProgressBar): void =
-  pb.render()
+proc show*(pb: ref ProgressBar) = pb.render()
 
 
-proc `-`*(pb: ref ProgressBar): void =
-  pb.show()
+proc hide*(pb: ref ProgressBar) = pb.clear()
+
+
+proc `-`*(pb: ref ProgressBar) = pb.show()
 
 

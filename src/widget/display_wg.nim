@@ -100,6 +100,9 @@ method wg*(dp: ref Display): ref BaseWidget = dp
 proc show*(dp: ref Display) = dp.render()
 
 
+proc hide*(dp: ref Display) = dp.clear()
+
+
 proc text*(dp: ref Display, text: string) = dp.text = text
 
 

@@ -47,7 +47,9 @@ list.add(listRow)
 for key in keys:
   var listRow = newListRow(i, $key, $key)
   list.add(listRow)
-var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow)
+var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow, onEnter=some(enterEv))
+
+var label = newLabel(1, 50, 20, 52, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
 
 var app = newTerminalApp(title="octo")
 
@@ -59,6 +61,6 @@ app.addWidget(button)
 app.addWidget(table)
 app.addWidget(progress)
 app.addWidget(listView)
-
+app.addWidget(label)
 app.run()
 
