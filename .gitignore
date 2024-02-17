@@ -4,3 +4,4 @@ tui_app
 bin
 src/tui_app.nim
 src/layout
+tests/tui_test
