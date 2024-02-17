@@ -3,15 +3,12 @@ import nimclipboard/libclipboard
 
 type
   InputBox = object of BaseWidget
-    #row*: int = 1
     cursor: int = 0
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = "|"
-    #visualSkip: int = 2
     onEnter: Option[EnterEventProcedure]
-    #showSize: bool = false
 
   CursorDirection = enum
     Left, Right
@@ -102,10 +99,8 @@ proc clear(ib: ref InputBox) =
 method render*(ib: ref InputBox) =
   ib.clear()
   ib.renderBorder()
-  #ib.tb.drawRect(ib.width, ib.height, ib.posX, ib.posY, doubleStyle=ib.focus)
   if ib.title != "":
     ib.renderTitle()
-    #ib.tb.write(ib.posX + 2, ib.posY, ib.title)
   if ib.cursor < ib.value.len:
     ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
                 resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
@@ -142,9 +137,6 @@ proc overflowWidth(ib: ref InputBox, moved = 1) =
 proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
   case direction
   of Left:
-    # echo "\ncursor: " & $ib.cursor
-    # echo "vcursor:" & $ib.visualCursor
-    # echo "value len: " & $ib.value.len
     if ib.cursor >= 1:
       ib.cursor = ib.cursor - 1
     else:
@@ -152,11 +144,7 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
     let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
-    # echo "\n\n" & ib.visualVal
   of Right:
-    # echo "\ncursor: " & $ib.cursor
-    # echo "vcursor:" & $ib.visualCursor    
-    # echo "value len: " & $ib.value.len
     if ib.cursor < ib.value.len:
       ib.cursor = ib.cursor + 1
     else:
@@ -356,6 +344,9 @@ method onControl*(ib: ref InputBox, cb: Option[CallbackProcedure]): void =
   ib.onControl()
 
 
+method wg*(ib: ref InputBox): ref BaseWidget = ib
+
+
 proc value*(ib: ref InputBox, val: string) = ib.value = val
 
 
@@ -368,10 +359,6 @@ proc show*(ib: ref InputBox) =
 
 proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb
-
-
-proc merge*(ib: ref InputBox, wg: BaseWidget) =
-  ib.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, ib.posX, ib.posY, transparency=true)
 
 
 proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =

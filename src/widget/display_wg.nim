@@ -51,36 +51,19 @@ proc rowReCal(dp: ref Display): seq[string] =
 
 method render*(dp: ref Display) =
   dp.renderBorder()
-    # dp.tb.drawRect(dp.width, dp.height + dp.paddingY, dp.posX, dp.posY,
-    #     doubleStyle = dp.focus)
   if dp.title != "":
-    # dp.tb.write(dp.posX + dp.paddingX, dp.posY, dp.title)
     dp.renderTitle()
   var index = 1
   let rowStart = dp.rowCursor
   let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size - dp.statusbarSize)
-  # let rowEnd = if dp.rowCursor + dp.size >= dp.textRows.len: dp.textRows.len -
-  #     1 else: dp.rowCursor + dp.size - 1
   for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
-    # dp.tb.fill(dp.posX + dp.paddingX, dp.posY + index, dp.width - dp.paddingX, dp.height, " ")
     dp.renderCleanRow(index)
     dp.renderRow(row, index)
-    # dp.tb.write(dp.posX + dp.paddingX, dp.posY + index, resetStyle, row)
     inc index
   ## cursor pointer
-  #dp.renderCleanRow(index + 1)
   dp.renderCleanRect(dp.x1, dp.height, dp.x1 + 6, dp.height)
-  # dp.tb.fill(dp.posX + dp.style.paddingX1, 
-  #            dp.posY + dp.size + dp.style.paddingX1, 
-  #            dp.posX + dp.size,
-  #            dp.posY + dp.size + dp.style.paddingX2, 
-  #            "$")
   dp.tb.write(dp.x1, dp.height, fgYellow, "rows: ", $dp.rowCursor, resetStyle)
   dp.tb.display()
-  #dp.display() 
-  # dp.tb.write(dp.posX + dp.paddingX, dp.posY + dp.size + dp.paddingX, fgYellow,
-  #     "rows: ", $dp.rowCursor, resetStyle)
-  # dp.tb.display()
  
 
 method onControl*(dp: ref Display) =
@@ -111,6 +94,9 @@ method onControl*(dp: ref Display) =
   sleep(20)
  
 
+method wg*(dp: ref Display): ref BaseWidget = dp
+
+
 proc show*(dp: ref Display) = dp.render()
 
 
@@ -123,10 +109,6 @@ proc text*(dp: ref Display): string = dp.text
 proc terminalBuffer*(dp: ref Display): var TerminalBuffer =
   return dp.tb
 
-
-# proc merge*(dp: ref Display, wg: BaseWidget) =
-#   dp.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, wg.posX, wg.posY, transparency=true)
-#
 
 proc `-`*(dp: ref Display) = dp.show()
 

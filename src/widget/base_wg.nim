@@ -1,4 +1,4 @@
-import illwill, options, sequtils
+import illwill, options
 
 type
   Alignment* = enum
@@ -75,23 +75,12 @@ method onControl*(this: ref BaseWidget, cb: Option[CallbackProcedure]): void {.b
   echo ""
 
 
-# method onControl*(this: ref BaseWidget, cb: Option[EnterEventProcedure]): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-
-
 method render*(this: ref BaseWidget): void {.base.} = 
   echo ""
 
 
-# proc width*(bw: ref BaseWidget, w: int) = bw.width = w
-#
-# proc height*(bw: ref BaseWidget, h: int) = bw.height = h
-#
-# proc posX*(bw: ref BaseWidget, px: int) = bw.posX = px
-#
-# proc posY*(bw: ref BaseWidget, py: int) = bw.posY = py
-#
+method wg*(this: ref BaseWidget): ref BaseWidget {.base.} = this
+
 
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
   bw.style.bgColor = bgColor
@@ -113,6 +102,7 @@ proc border*(bw: ref BaseWidget, bordered: bool) =
 
 proc border*(bw: ref BaseWidget): bool = bw.style.border
 
+
 proc padding*(bw: ref BaseWidget, x1:int, x2: int, y1: int, y2: int) =
   bw.style.paddingX1 = x1
   bw.style.paddingX2 = x2
@@ -131,8 +121,14 @@ proc paddingY*(bw: ref BaseWidget, y1: int, y2: int) =
 
 
 proc paddingX1*(bw: ref BaseWidget): int = bw.style.paddingX1
+
+
 proc paddingX2*(bw: ref BaseWidget): int = bw.style.paddingX2
+
+
 proc paddingY1*(bw: ref BaseWidget): int = bw.style.paddingY1
+
+
 proc paddingY2*(bw: ref BaseWidget): int = bw.style.paddingY2
 
 ####################### w
@@ -185,9 +181,12 @@ proc offsetBottom*(bw: ref BaseWidget): int =
 
 proc x1*(bw: ref BaseWidget): int = bw.widthPaddLeft
 
+
 proc y1*(bw: ref BaseWidget): int = bw.heightPaddTop
 
+
 proc x2*(bw: ref BaseWidget): int = bw.widthPaddRight
+
 
 proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
 

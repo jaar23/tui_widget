@@ -1,10 +1,8 @@
 import tui_widget
-import illwill, os, strformat, options
-
-#var tb = newTerminalBuffer(terminalWidth(), terminalHeight())
+import illwill, options
 
 var inputBox = newInputBox(1, 1, consoleWidth(), 3, "tui widget", bgColor=bgBlue)
-#
+
 var display = newDisplay(1, 4, consoleWidth(), 16, "board") 
 
 var text = """
@@ -26,18 +24,19 @@ Ut feugiat rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla. Nu
 
 display.add(text & text & text & text & text & text & text & text & text)
 
-var button = newButton(1, 24, 20, 26, label="Confirm")
-var checkbox = newCheckbox(1, 20, 20, 22, title="done", label="yes", value="y")
+var button = newButton(1, 20, 20, 22, label="Confirm")
 
-var checkbox2 = newCheckbox(21, 20, 40, 22, title="accept", label="yes", value="y")
+var checkbox = newCheckbox(1, 17, 20, 19, title="done", label="yes", value="y")
 
-var table = newTable(1, 28, 45, 37, title="table", selectionStyle=Highlight)
+var checkbox2 = newCheckbox(21, 17, 40, 19, title="accept", label="yes", value="y", checkMark='*')
+
+var table = newTable(1, 23, consoleWidth(), 33, title="table", selectionStyle=Highlight)
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
-var progress = newProgressBar(1, 40, consoleWidth(), 42, percent=0.0)
-# progress.render()
+var progress = newProgressBar(1, 35, consoleWidth(), 37, percent=0.0)
+
 let enterEv: EnterEventProcedure = proc(arg: string) =
-  progress.move(5.0)
+  progress.update(5.0)
 button.onEnter(some(enterEv))
 
 var list = newSeq[ref ListRow]()
@@ -48,8 +47,7 @@ list.add(listRow)
 for key in keys:
   var listRow = newListRow(i, $key, $key)
   list.add(listRow)
-var listview = newListView(1, 46, 45, 52, rows=list, title="list", selectionStyle=Arrow)
-
+var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow)
 
 var app = newTerminalApp(title="octo")
 
@@ -61,60 +59,6 @@ app.addWidget(button)
 app.addWidget(table)
 app.addWidget(progress)
 app.addWidget(listView)
+
 app.run()
 
-#
-
-# var progress = newProgressBar(consoleWidth(), 42, 1, 40 , tb=tb, percent=0.0)
-# progress.render()
-#
-#
-
-# align components in sequence according to pos Y
-# proc mainPanel() =
-#   - display
-#   - inputBox
-#   # - checkbox
-  # - checkbox2
-  # - button
-  # - table
-  # - progress
-  # - listview
-
-# widget implements event needs to be ref
-#let spaceEv: SpaceEventProcedure = proc(arg: string, checked: bool) =
-  #echo &"\n\n\n\n\n\n\n\n\n\n\n{arg} {checked}"
-
-
-#inputBox.onEnter(some(enterEv))
-#checkbox.onSpace(some(spaceEv))
-#checkbox2.onSpace(some(spaceEv))
-#button.onEnter(some(enterEv))
-
-# var currFocus = 0
-# var components: seq[ref BaseWidget] = @[]
-#
-# components.add(display)
-# components.add(inputBox)
-# components.add(checkbox)
-# components.add(checkbox2)
-# components.add(button)
-# components.add(table)
-# components.add(listview)
-#
-# while true:
-#   mainPanel()
-#   var key = getKey()
-#   case key
-#   of Key.Tab, None:
-#     if currFocus > components.len - 1:
-#       currFocus = 0
-#     components[currFocus].onControl()
-#     currFocus = currFocus + 1
-#   else: discard
-#
-#   tb.display()
-#
-#   sleep(20)
-#   
-#

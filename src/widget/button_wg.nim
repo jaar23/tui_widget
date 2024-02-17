@@ -38,13 +38,9 @@ proc newButton*(px, py, w, h: int, label: string,
 method render*(bt: ref Button) =
   if bt.state == Pressed:
     bt.renderBorder()
-    # bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY,
-    #     doubleStyle = bt.focus)
     bt.tb.write(bt.x1, bt.y1, bt.bg, center(bt.label, bt.width - 2), resetStyle)
   else:
     bt.renderBorder()
-    # bt.tb.drawRect(bt.width, bt.height, bt.posX, bt.posY,
-    #     doubleStyle = bt.focus)
     bt.tb.write(bt.x1, bt.y1, bgBlue, fgBlack, 
                 center(bt.label, bt.width - 2), resetStyle)
   bt.tb.display()
@@ -75,8 +71,12 @@ method onControl*(bt: ref Button) =
   sleep(20)
 
 
+method wg*(bt: ref Button): ref BaseWidget = bt
+
+
 proc onEnter*(bt: ref Button, cb: Option[EnterEventProcedure]) =
   bt.onEnter = cb
+
 
 proc show*(bt: ref Button) = bt.render()
 

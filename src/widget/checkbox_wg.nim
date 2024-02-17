@@ -3,13 +3,13 @@ import illwill, base_wg, options, os
 type
   Checkbox = object of BaseWidget
     label: string = ""
-    value: string = ""
-    #visualSkip: int = 2
+    value: string= ""
+    checkMark: char = 'X'
     checked: bool
     onSpace: Option[SpaceEventProcedure]
 
 proc newCheckbox*(px, py, w, h: int, title = "", label = "", 
-                  value = "", checked = false,
+                  value = "", checked = false, checkMark = 'X',
                   fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Checkbox =
   let style = WidgetStyle(
@@ -32,20 +32,19 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
     value: value,
     tb: tb,
     checked: checked,
-    style: style
+    style: style,
+    checkMark: checkMark
   )
   return checkbox
 
 
 method render*(ch: ref Checkbox) =
   ch.renderBorder()
-  #ch.tb.drawRect(ch.width, ch.height, ch.posX, ch.posY, doubleStyle=ch.focus)
   if ch.title != "":
     ch.renderTitle()
-    #ch.tb.write(ch.posX + 2, ch.posY, ch.title)
   if ch.checked:
     ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
-    ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, "X")
+    ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, $ch.checkMark)
     ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
   else:
     ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
@@ -73,6 +72,10 @@ method onControl*(ch: ref Checkbox) =
   sleep(20)
 
 
+
+method wg*(ch: ref Checkbox): ref BaseWidget = ch
+
+
 proc show*(ch: ref Checkbox) = ch.render()
 
 
@@ -87,10 +90,6 @@ proc onSpace*(ch: ref Checkbox, cb: Option[SpaceEventProcedure]) =
 
 
 proc `-`*(ch: ref Checkbox) = ch.show()
-
-
-proc merge*(ch: ref Checkbox, wg: BaseWidget): void =
-  ch.tb.copyFrom(wg.tb, wg.posX, wg.posY, wg.width, wg.height, wg.posX, wg.posY, transparency=true)
 
 
 proc terminalBuffer*(ch: ref Checkbox): var TerminalBuffer =

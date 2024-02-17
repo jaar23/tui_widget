@@ -149,11 +149,8 @@ method render*(lv: ref ListView) =
   lv.renderClearRow(0, true)
   if lv.border:
     lv.renderBorder()
-    # lv.tb.drawRect(lv.width, lv.height + lv.paddingY,
-    #                lv.posX, lv.posY, doubleStyle = lv.focus)
   if lv.title != "":
     lv.renderTitle()
-    #lv.tb.write(lv.posX + lv.paddingX, lv.posY, lv.title)
   var index = 1
   let rows = lv.vrows()
   if rows.len > 0:
@@ -247,6 +244,9 @@ method onControl*(lv: ref ListView): void =
   sleep(20)
    
 
+method wg*(lv: ref ListView): ref BaseWidget = lv
+
+
 proc show*(lv: ref ListView) = lv.render()
 
 
@@ -259,4 +259,3 @@ proc selected*(lv: ref ListView): ref ListRow =
 
 ## TODO: preprocess rows text
 ## TODO: event handler
-## TODO: ui for selection

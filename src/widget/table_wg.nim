@@ -136,7 +136,7 @@ proc newTable*(px, py, w, h: int, rows: var seq[TableRow],
   )
   if headers.isSome: 
     table.size -= 1
-    var seqCol = newTableColumn(seqColWidth, 1, text = alignLeft("i", seqColWidth), key = "", index = 0)
+    let seqCol = newTableColumn(seqColWidth, 1, text = alignLeft("i", seqColWidth), key = "", index = 0)
     table.headers.get.columns.insert(seqCol, 0)
     table.height += table.style.paddingY1
   if table.rows.len > 0:
@@ -177,7 +177,6 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     colCursor: 0,
     selectionStyle: selectionStyle
   )
-  #table.height += table.style.paddingY1
   return table
 
 
@@ -198,7 +197,6 @@ proc dtmColumnToDisplay(table: ref Table) =
   var posX = table.paddingX1
   for i in table.colCursor..<table.headers.get.columns.len:
     if posX + table.headers.get.columns[i].width < table.width:
-    #if posX < table.width:
       table.headers.get.columns[i].visible = true
       posX += table.headers.get.columns[i].width
     else:
@@ -249,7 +247,7 @@ proc renderClearRow(table: ref Table, index: int, full = false) =
   if full:
     let totalWidth = table.rowMaxWidth()
     table.tb.fill(table.posX, table.posY,
-                  totalWidth, table.height + table.paddingY1, " ")
+                  totalWidth, table.height, " ")
   else:
     table.tb.fill(table.posX + table.paddingX1, table.posY + index,
                   table.width - table.paddingX1, table.posY + index, " ")
@@ -299,14 +297,6 @@ proc renderTableRow(table: ref Table, row: TableRow, index: int) =
         bgSelected = bgGreen
         table.tb.write(table.posX + posX, table.posY + index, resetStyle,
                        bgSelected, row.columns[i].fgColor, text, resetStyle)
-      # elif row.selected and table.selectionStyle == HighlightArrow:
-      #   table.tb.write(table.posX + 1, table.posY + index, resetStyle,
-      #                  fgGreen, ">",
-      #                  row.bgColor, row.columns[i].fgColor, text, resetStyle)
-      # elif row.selected and table.selectionStyle == Arrow:
-      #   table.tb.write(table.posX + posX, table.posY + index, resetStyle,
-      #                  fgGreen, ">",
-      #                  row.columns[i].fgColor, text, resetStyle)
       else:
         table.tb.write(table.posX + posX, table.posY + index, resetStyle,
                        bgSelected, row.columns[i].fgColor, text, resetStyle)
@@ -315,7 +305,7 @@ proc renderTableRow(table: ref Table, row: TableRow, index: int) =
 
 proc renderStatusBar(table: ref Table) =
   if table.statusbar:
-    table.tb.write(table.x1, table.height, fgYellow, "rows: ", 
+    table.tb.write(table.x1, table.height, fgYellow, "rows: ",
                    $table.vrows().len , " selected: ", $table.selectedRow, 
                    resetStyle)
 
@@ -324,11 +314,8 @@ method render*(table: ref Table): void =
   table.renderClearRow(0, true)
   if table.border:
     table.renderBorder()
-    # table.tb.drawRect(table.width, table.height + table.paddingY1 + 1,
-    #                   table.posX, table.posY, doubleStyle = table.focus)
   if table.title != "":
     table.renderTitle()
-    # table.tb.write(table.posX + table.paddingX1, table.posY, table.title)
   var index = table.renderTableHeader()
   let rows = table.vrows()
   if rows.len > 0:
@@ -385,6 +372,7 @@ proc onFilter(table: ref Table) =
     input.remove()
   # passing enter event as a callback
   procCall input.onControl(some(enterEv))
+  
   # passing enter event to onEnter method
   #input.onEnter(some(enterEv))
   # let filterStr = input.value()
@@ -397,7 +385,6 @@ proc resetFilter(table: ref Table) =
   for r in 0..<table.rows.len:
     table.rows[r].visible = true
   table.size = table.height - table.posY - table.paddingY1 - table.paddingY2
-  #if table.headers.isSome: table.size -= 1
   table.rowCursor = 0
   table.cursor = 0
   table.colCursor = 0
@@ -449,6 +436,9 @@ method onControl*(table: ref Table): void =
     else: discard
   table.render()
   sleep(20)
+
+
+method wg*(table: ref Table): ref BaseWidget = table
 
 
 proc show*(table: ref Table) = table.render()

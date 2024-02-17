@@ -67,13 +67,15 @@ method render*(pb: ref ProgressBar) =
     else:
       progressLoading &= pb.loadingBlock
   let percentage = fmt"{(pc / fullProgress.toFloat()) * 100.0:>3.2f}"
-  #echo "\n\n\n" & percentage
   pb.tb.drawRect(progressBarWidth, pb.height, pb.posX, pb.posY)
   pb.tb.write(pb.posX + 1, pb.height - 1, pb.bg, pb.fgLoaded, progressLoaded, resetStyle,
               pb.bg, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
 
 
-proc move*(pb: ref ProgressBar, point: float) =
+method wg*(pb: ref ProgressBar): ref BaseWidget = pb
+
+
+proc update*(pb: ref ProgressBar, point: float) =
   if pb.percent + point >= 100.0:
     pb.percent = 100.0
   else:
@@ -81,7 +83,7 @@ proc move*(pb: ref ProgressBar, point: float) =
   pb.render()
 
 
-proc update*(pb: ref ProgressBar, point: float) =
+proc set*(pb: ref ProgressBar, point: float) =
   if point >= 100.0:
     pb.percent = 100.0
   elif point <= 0.0:
