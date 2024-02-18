@@ -1,10 +1,11 @@
-import widget/base_wg, illwill, os
-
+import widget/base_wg, illwill, os, strutils
+import std/terminal
 type
   TerminalApp* = object
     title: string
     cursor: int = 0
     fullscreen: bool = true
+    autoResize: bool = false
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
     
@@ -31,7 +32,20 @@ proc widget*(app: var TerminalApp): seq[ref BaseWidget] = app.widgets
 
 proc render*(app: var TerminalApp) =
   for w in app.widgets:
+    w.clear()
     w.render()
+
+
+proc requiredSize*(app: var TerminalApp): (int, int, int) = 
+  var w,h: int = 0
+  for wg in app.widgets:
+    if wg.width > w: 
+      w = wg.width
+    if wg.height > h:
+      h = wg.height
+  return (w, h, w * h)
+
+#proc resize*(app: var TerminalApp) =
 
 
 proc run*(app: var TerminalApp) =
@@ -44,6 +58,13 @@ proc run*(app: var TerminalApp) =
   illwillInit(fullscreen=true)
   setControlCHook(exitProc)
   hideCursor()
+  let (w, h, requiredSize) = app.requiredSize()
+  if requiredSize > (terminalWidth() * terminalHeight()):
+    stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed, 
+                           center("terminal width and height cannot fit application.", terminalWidth()))
+    stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed, 
+                           center("width: " & $w & " height: " & $h, terminalWidth()))
+    quit(0)
   
   while true:
     app.render()

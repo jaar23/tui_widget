@@ -19,8 +19,6 @@ Widgets:
 
 - list view (y)
 
-- select
-
 - table (y)
 
 - checkbox (y)
@@ -30,3 +28,15 @@ Widgets:
 - label (y)
 
 - radio button
+
+- select
+
+### Usage
+
+```shell
+git clone https://github.com/jaar23/tui_widget.git
+
+cd tui_widget && nimble install
+```
+
+### Doc (WIP)
