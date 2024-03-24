@@ -31,6 +31,8 @@ Widgets:
 
 - select
 
+- charts (wip)
+
 ### Usage
 
 ```shell
