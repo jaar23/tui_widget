@@ -41,6 +41,10 @@ Basic chart feature is supported, it has a limitation.
 
   - since illwill is running on text based buffer, it will be very difficult to connect the dot with line, so it's not implemented.
 
+  - still very buggy, render error when y-axis data is more than `py` size. 
+
+  - currently, work best below chart with only 30 x 30 only. (maximum 60 x 60)
+
 ![chart](./chart_test.png)
 
 ### Usage

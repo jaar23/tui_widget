@@ -30,8 +30,6 @@ type
 
 
 proc newBoard*(c, r: int, xaxis: seq[string], yaxis: seq[float64], reverse: bool = false): ref Board =
-  #echo $c & ":" & $xaxis.len()
-  #var r = yaxis.len()
   if c != xaxis.len():
     raise newException(ValueError, "column size should be equal to x-axis")
   var rows = newSeq[Columns]()
@@ -39,8 +37,9 @@ proc newBoard*(c, r: int, xaxis: seq[string], yaxis: seq[float64], reverse: bool
   # let maxY = yaxis[yaxis.len() - 1]
   # find out the size in between each level
   # let size = maxY / r.toFloat()
+  # -------------------------------
+  # default to 1 as of now, for allowing y axis to have more data tick.
   let size = 1.toFloat()
-  #echo "size: ", size
   if not reverse:
     var min = if yaxis.len() > 0: yaxis[0] else: 0.0
     var max = 0.0
@@ -60,11 +59,11 @@ proc newBoard*(c, r: int, xaxis: seq[string], yaxis: seq[float64], reverse: bool
           max: max,
           header: xaxis[x]
         )
-        # var coord = (x: x, y: y)
         col.add(column)
       min = max
       rows.add(col)
   else:
+    # reverse is not using, remove soon..
     var min = 0.0
     var max = 0.0
     for y in countdown(r - 1, 0):
@@ -80,7 +79,6 @@ proc newBoard*(c, r: int, xaxis: seq[string], yaxis: seq[float64], reverse: bool
           max: max,
           header: xaxis[x]
         )
-        #var coord = (x: x, y: y)
         col.add(column)
       rows.add(col)
   result = (ref Board)(
@@ -94,12 +92,6 @@ proc `[]`*(b: ref Board, r: string, c: float64, reverse: bool = true): Coordinat
       if (col.min >= c and c <= col.max) and r == col.header:
         return col.coordinate
       
-  # if reverse:
-  #   let row = max(-1 * (r - (b.rows.len - 1)), 0)
-  #   b.rows[row][c].coordinate
-  # else:
-  #   b.rows[r][c].coordinate
-
 
 proc print*(b: ref Board): string = 
   for row in b.rows:

@@ -25,9 +25,6 @@ proc newAxis*(lb, ub: float64 = 0.0, title: string = "",
               header: seq[string] = newSeq[string](), 
               data: seq[float64] = newSeq[float64]()): ref Axis =
   var padding = 0
-  # for i in header:
-  #   if len($i) > padding:
-  #     padding = len($(i.toFloat()))
   var lowerbound = if data.len() > 0: data[0] else: 0.0
   var upperbound = 0.0
   for d in data:
@@ -37,8 +34,6 @@ proc newAxis*(lb, ub: float64 = 0.0, title: string = "",
       upperbound = d
     if len($d) > padding:
       padding = len($d)
-  # let lowerbound = if lb == 0.0: data[0] - 2 else: lb
-  # let upperbound = if ub == 0.0: data[data.len() - 1] + 2 else: ub
   result = (ref Axis)(
     lowerBound: floor(lowerbound),
     upperBound: ceil(upperbound),
@@ -71,7 +66,7 @@ proc newChart*(px, py, w, h: int,
     width: w,
     height: if h > yAxis.data.len() + 8: h else: yAxis.data.len() + 8,
     posX: px,
-    posY: if py mod 2  >= 2: yAxis.data.len() * 2 else: py,
+    posY: if py mod 2  >= 2: min(yAxis.data.len() * 2, consoleHeight()) else: min(py, consoleHeight()),
     tb: tb,
     style: style,
     marker: marker,
@@ -89,14 +84,11 @@ proc newChart*(px, py, w, h: int,
 proc renderXAxis(c: ref Chart) =
   if c.xAxis.header.len == 0:
     return
-  #let xspaces = c.x2 - c.x1
-  #let header = if c.xAxis.header.len > xspaces: newSeq[string]() else: c.xAxis.header
   var start = c.x1 + c.yAxis.padding + 1
   let (gap, rem) = divmod(c.x2 - c.x1 - c.xAxis.padding, c.xAxis.header.len())
   let size = max(gap, 1)
   for i, x in enumerate(c.xAxis.header):
     c.tb.write(start + 1, c.y2, x)
-    #start += len($x) + size
     start += size
   
 
@@ -105,16 +97,16 @@ proc renderYAxis(c: ref Chart) =
     return
   let yspaces = c.y2 - c.y1
   let between = c.yAxis.upperBound - c.yAxis.lowerBound
-  #let header = if c.yAxis.header.len > yspaces: newSeq[string]() else: c.yAxis.header
   var header = newSeq[string]()
   let (gap, rem) = divmod(ceil(between).toInt(), c.y2 - c.y1 - c.yAxis.padding)
   for i in c.yAxis.lowerBound.toInt() .. c.yAxis.upperBound.toInt():
     header.add($(i.toFloat() + gap.toFloat()))
   let size = max(gap, 1)
+  # start drawing from bottom
+  # minus 1 due to vertical line draw for chart
   var start = c.y2 - 1
   for i, y in enumerate(header):
-    c.tb.write(c.x1, start - size, align(y, c.yAxis.padding))
-    #dec start
+    c.tb.write(c.x1, start - size, align(y, max(c.yAxis.padding, 0)))
     start -= size
 
 
@@ -129,14 +121,15 @@ proc renderData(c: ref Chart) =
     c.tb.write(c.x1 + 2, c.y2 - 2, "x and y is not align, ensure the both have equaivalent length of data")
   let (gap, rem) = divmod(c.x2 - c.x1 - c.xAxis.padding, c.xAxis.header.len())
   let size = max(gap - 1, 1)
+  # minus 1 due to chart's vertical line
   var xstart = c.x1 + 1 + c.yAxis.padding
+  # start drawing from bottom
+  # minus 2 due to chart's horizontal line and x axis
   var ystart = c.y2 - 2
   for i, x in enumerate(c.xAxis.header):
     let pos = c.board[x, c.yAxis.data[i]]
-    #echo "\n\n\n\n\n\n\n\n\n\n\nposition: ", pos
     c.tb.write(xstart + pos.x + 1, ystart - pos.y, $c.marker)
     xstart += size
-   #ystart -= 1
 
 
 method render*(c: ref Chart) =
