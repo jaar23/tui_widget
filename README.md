@@ -31,9 +31,11 @@ Widgets:
 
 - select
 
+- gauge (wip)
+
 - charts (y)
 
-Basic chart feature is supported, it has a limitation. 
+Basic chart feature is supported, it has some limitation. 
 
   - it do not aggregate the data when display.
 
