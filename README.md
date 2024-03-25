@@ -31,7 +31,17 @@ Widgets:
 
 - select
 
-- charts (wip)
+- charts (y)
+
+Basic chart feature is supported, it has a limitation. 
+
+  - it do not aggregate the data when display.
+
+  - support basic x and y axis display only. (maximum x-axis and y-axis based on width and height defined.)
+
+  - since illwill is running on text based buffer, it will be very difficult to connect the dot with line, so it's not implemented.
+
+![chart](./chart_test.png)
 
 ### Usage
 
@@ -42,3 +52,10 @@ cd tui_widget && nimble install
 ```
 
 ### Doc (WIP)
+
+Refers to tests folder for example.
+
+- basic [example](./tests/tui_test.nim)
+
+- chart [example](./tests/chart_test.nim)
+

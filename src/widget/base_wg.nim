@@ -132,6 +132,7 @@ proc paddingY1*(bw: ref BaseWidget): int = bw.style.paddingY1
 
 proc paddingY2*(bw: ref BaseWidget): int = bw.style.paddingY2
 
+
 ####################### w
 # x1,y1-------------x2,y1
 # |                 |

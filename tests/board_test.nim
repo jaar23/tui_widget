@@ -1,9 +1,15 @@
 import tui_widget
 
-var b = newBoard(30, 15, reverse=false)
+let xs = @["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"]
+let ys = @["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14"]
+let xdata = @[2.0, 3.0, 1.0, 4.0, 6.0, 3.0, 5.0, 7.0, 9.0, 8.0]
+let ydata = @[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0]
+
+
+var b = newBoard(xs.len(), 20, xs, ydata)
 
 echo b.size()
 echo b.print()
 
-echo b[0, 1, true]
+echo b["1", 1.0]
 #b.printBoard()
