@@ -28,7 +28,7 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   app.widgets.add(widget)
 
 
-proc widget*(app: var TerminalApp): seq[ref BaseWidget] = 
+proc widgets*(app: var TerminalApp): seq[ref BaseWidget] = 
   app.widgets
 
 

@@ -2,6 +2,8 @@
 
 Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/master])
 
+These widget is <b>under development</b>, things might change or break!
+
 A quick preview
 
 ![preview](./tui_widget.gif)
@@ -31,7 +33,7 @@ Widgets:
 
 - select
 
-- gauge (wip)
+- gauge (y)
 
 - charts (y)
 
@@ -45,7 +47,7 @@ Basic chart feature is supported, it has some limitation.
 
   - still very buggy, render error when y-axis data is more than `py` size. 
 
-  - currently, work best below chart with only 30 x 30 only. (maximum 60 x 60)
+  - currently, it is able to display 20 x 20, 30 x 30, 40 x 40, 50 x 50. Depends on your screen size, it can display up to 60 x 60.
 
 ![chart](./chart_test.png)
 
@@ -64,4 +66,8 @@ Refers to tests folder for example.
 - basic [example](./tests/tui_test.nim)
 
 - chart [example](./tests/chart_test.nim)
+
+- gauge [example](./tests/gauge_test.nim)
+
+
 

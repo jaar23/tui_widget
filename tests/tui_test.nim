@@ -47,9 +47,15 @@ list.add(listRow)
 for key in keys:
   var listRow = newListRow(i, $key, $key)
   list.add(listRow)
-var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow, onEnter=some(enterEv))
 
 var label = newLabel(1, 50, 20, 52, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
+
+let selectEv: EnterEventProcedure = proc(arg: string) =
+  label.text(arg)
+
+
+var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow, onEnter=some(selectEv))
+
 
 var app = newTerminalApp(title="octo")
 
