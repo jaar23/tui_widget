@@ -54,7 +54,7 @@ let selectEv: EnterEventProcedure = proc(arg: string) =
   label.text(arg)
 
 
-var listview = newListView(1, 38, 60, 48, rows=list, title="list", selectionStyle=Arrow, onEnter=some(selectEv))
+var listview = newListView(1, 38, 60, 48, rows=list, title="list", bgColor=bgBlue, selectionStyle=HighlightArrow, onEnter=some(selectEv))
 
 
 var app = newTerminalApp(title="octo")

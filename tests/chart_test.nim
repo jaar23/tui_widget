@@ -18,7 +18,7 @@ let ydata2 = @[13.0, 2.0, 6.0, 10.0, 15.0, 8.0, 17.0, 19.0, 16.0, 11.0, 18.0, 12
 let xaxis2 = newAxis(title = "x number", header=xs)
 let yaxis2 = newAxis(title="y number", data=ydata2)
 
-var chart2 = newChart(1, 26, 100, 52, border=true, xAxis=xaxis2, yAxis=yaxis2)
+var chart2 = newChart(1, 26, 100, 52, border=true, title="metrics", xAxis=xaxis2, yAxis=yaxis2)
 
 var app = newTerminalApp(title = "ktop")
 

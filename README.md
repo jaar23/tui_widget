@@ -1,6 +1,6 @@
 # tui_widget
 
-Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/master])
+Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/master)
 
 These widget is <b>under development</b>, things might change or break!
 
@@ -37,17 +37,12 @@ Widgets:
 
 - charts (y)
 
-Basic chart feature is supported, it has some limitation. 
+After checkout on [asciigraph](https://github.com/Yardanico/asciigraph/tree/master), switch to implement chart with this library instead. It is an awesomeeeeeee library! 
+
+Now it support basic chart feature better, although it still has some limitation. 
 
   - it do not aggregate the data when display.
-
-  - support basic x and y axis display only. (maximum x-axis and y-axis based on width and height defined.)
-
-  - since illwill is running on text based buffer, it will be very difficult to connect the dot with line, so it's not implemented.
-
-  - still very buggy, render error when y-axis data is more than `py` size. 
-
-  - currently, it is able to display 20 x 20, 30 x 30, 40 x 40, 50 x 50. Depends on your screen size, it can display up to 60 x 60.
+  
 
 ![chart](./chart_test.png)
 
