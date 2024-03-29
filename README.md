@@ -66,6 +66,6 @@ Refers to tests folder for example.
 
 - gauge [example](./tests/gauge_test.nim)
 
-- display [example](./test/display_test.nim)
+- display [example](./tests/display_test.nim)
 
 
