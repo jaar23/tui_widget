@@ -8,9 +8,11 @@ A quick preview
 
 ![preview](./tui_widget.gif)
 
-The widgets used to work as a standalone widget and on a combinations uses of multiple widgets navigate via `[tab]` button. 
+It feels like an old school software, it is minimize the use of mouse of the command, it is navigate by `[tab]` button between widgets.
 
-Refers to tui_app.nim for example.
+You can use the widget with illwill or bootstrap with `TerminalApp`.
+
+Refers to `tests/tui_test.nim` for example.
 
 Widgets:
 - input box (y)
@@ -64,5 +66,6 @@ Refers to tests folder for example.
 
 - gauge [example](./tests/gauge_test.nim)
 
+- display [example](./test/display_test.nim)
 
 
