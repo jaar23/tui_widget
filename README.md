@@ -8,7 +8,7 @@ A quick preview
 
 ![preview](./tui_widget.gif)
 
-It feels like an old school software, it is minimize the use of mouse of the command, it is navigate by `[tab]` button between widgets.
+It feels like an old school software, let's stick with the keyboard :D, it is navigate by `[tab]` button between widgets.
 
 You can use the widget with illwill or bootstrap with `TerminalApp`.
 
