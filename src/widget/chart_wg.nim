@@ -162,7 +162,7 @@ method wg*(c: ref Chart): ref BaseWidget = c
 
 
 method onControl*(c: ref Chart) =
-  c.focus = true
+  #c.focus = true     
   c.render()
   sleep(20)
 
