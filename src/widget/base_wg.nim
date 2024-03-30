@@ -108,7 +108,7 @@ proc padding*(bw: ref BaseWidget, x1:int, x2: int, y1: int, y2: int) =
   bw.style.paddingX1 = x1
   bw.style.paddingX2 = x2
   bw.style.paddingY1 = y1
-  bw.style.paddingY2 = y2
+  bw.style.paddingY2 = y2 
 
 
 proc paddingX*(bw: ref BaseWidget, x1:int, x2: int) =

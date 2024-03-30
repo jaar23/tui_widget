@@ -1,5 +1,6 @@
 import widget/base_wg, illwill, os, strutils
 import std/terminal
+
 type
   TerminalApp* = object
     title: string
@@ -68,6 +69,8 @@ proc run*(app: var TerminalApp) =
     quit(0)
 
   while true:
+    app.tb.drawRect(0, 0, w + 1, h + 1)
+    app.tb.write(2, 0, app.title)
     app.render()
     var key = getKey()
     case key
@@ -77,6 +80,6 @@ proc run*(app: var TerminalApp) =
       inc app.cursor
     else: discard
 
-    app.terminalBuffer.display()
+    app.tb.display()
     sleep(20)
 
