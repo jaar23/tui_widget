@@ -1,22 +1,31 @@
-import widget/[base_wg, display_wg, input_box_wg, button_wg, checkbox_wg,
-               table_wg, progress_wg, listview_wg, label_wg, chart_wg, gauge_wg]
-import illwill
-import os, strutils
-import std/terminal
+import illwill, os, strutils, std/terminal
+import 
+  widget/base_wg,
+  widget/display_wg,
+  widget/input_box_wg,
+  widget/button_wg,
+  widget/checkbox_wg,
+  widget/table_wg,
+  widget/progress_wg,
+  widget/listview_wg,
+  widget/label_wg,
+  widget/chart_wg,
+  widget/gauge_wg
 
-export display_wg
-export input_box_wg
-export base_wg
-export checkbox_wg
-export button_wg
-export table_wg
-export progress_wg
-export listview_wg
-export label_wg
-export chart_wg
-export gauge_wg
-export illwill
 
+export
+  base_wg,
+  display_wg,
+  input_box_wg,
+  button_wg,
+  checkbox_wg,
+  table_wg,
+  progress_wg,
+  listview_wg,
+  label_wg,
+  chart_wg,
+  gauge_wg,
+  illwill
 
 type
   TerminalApp* = object
@@ -37,7 +46,7 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
   )
 
 
-proc terminalBuffer*(app: var TerminalApp): var TerminalBuffer = 
+proc terminalBuffer*(app: var TerminalApp): var TerminalBuffer =
   app.tb
 
 
@@ -46,13 +55,14 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   app.widgets.add(widget)
 
 
-proc widgets*(app: var TerminalApp): seq[ref BaseWidget] = 
+proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
   app.widgets
 
 
 proc render*(app: var TerminalApp) =
   for w in app.widgets:
-    w.rerender()
+    if w.visibility:
+      w.rerender()
 
 
 proc requiredSize*(app: var TerminalApp): (int, int, int) =
@@ -84,6 +94,7 @@ proc run*(app: var TerminalApp) =
     quit(0)
 
   while true:
+    app.tb.clear()
     app.tb.drawRect(0, 0, w + 1, h + 1)
     app.tb.write(2, 0, app.title)
     app.render()

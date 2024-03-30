@@ -75,25 +75,14 @@ method onControl*(ch: ref Checkbox) =
 
 method wg*(ch: ref Checkbox): ref BaseWidget = ch
 
-
-proc show*(ch: ref Checkbox) = ch.render()
-
-
-proc hide*(ch: ref Checkbox) = ch.clear()
-
-
 proc checked*(ch: ref Checkbox): bool = ch.checked
-
 
 proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
 
-
-proc onSpace*(ch: ref Checkbox, cb: Option[SpaceEventProcedure]) =
-  ch.onSpace = cb
-
+proc `onSpace=`*(ch: ref Checkbox, cb: SpaceEventProcedure) =
+  ch.onSpace = some(cb)
 
 proc `-`*(ch: ref Checkbox) = ch.show()
-
 
 proc terminalBuffer*(ch: ref Checkbox): var TerminalBuffer =
   ch.tb

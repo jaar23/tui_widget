@@ -40,7 +40,10 @@ type
     tb*: TerminalBuffer
     style*: WidgetStyle
     statusbar*: bool = true
+    statusbarText*: string = ""
     statusbarSize*: int = 0
+    visibility*: bool = true
+    debug*: bool = false
 
   CallbackProcedure* = proc(x: string): void
 
@@ -66,12 +69,12 @@ method onControl*(this: ref BaseWidget, cb: proc(args: varargs[string])): void {
   echo ""
 
 
-method onControl*(this: ref BaseWidget, cb: proc(args: string)): void {.base.} =
+method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} =
   #child needs to implement this!
   echo ""
 
 
-method onControl*(this: ref BaseWidget, cb: Option[CallbackProcedure]): void {.base.} =
+method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
   #child needs to implement this!
   echo ""
 
@@ -221,3 +224,19 @@ proc clear*(bw: ref BaseWidget) =
 proc rerender*(bw: ref BaseWidget) =
   bw.clear()
   bw.render()
+
+
+proc show*(bw: ref BaseWidget) = 
+  bw.visibility = true
+  bw.render()
+
+proc hide*(bw: ref BaseWidget) = 
+  bw.visibility = false
+  bw.clear()
+
+# proc renderStatusBar*(bw: ref BaseWidget) =
+#   if bw.statusbar:
+#     let status = "x: " & $bw.tb.getCursorXPos & " y:" & $bw.tb.getCursorYPos
+#     bw.renderCleanRect(bw.x1, bw.height, len(status), bw.height)
+#     bw.tb.write(bw.x1 + 1, bw.height, fgYellow, status, resetStyle)
+

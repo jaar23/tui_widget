@@ -1,5 +1,4 @@
 import tui_widget
-import illwill
 import std/random
 
 var ydata = newSeq[float64]()
@@ -10,13 +9,13 @@ for i in 0..50:
   xs.add($i)
 
 
-let xaxis2 = newAxis(title = "Thread", header=xs)
-let yaxis2 = newAxis(title="y in mil", data=ydata)
+let yaxis = newAxis(title="y in mil", data=ydata)
 
-var chart = newChart(1, 1, consoleWidth(), consoleHeight(), title="metrics", border=true, xAxis=xaxis2, yAxis=yaxis2)
+var chart = newChart(1, 1, consoleWidth(), consoleHeight(), title="metrics", border=true, axis=yaxis)
 
 var app = newTerminalApp(title = "ktop")
 
 app.addWidget(chart)
 
 app.run()
+

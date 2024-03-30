@@ -6,7 +6,7 @@ These widget is <b>under development</b>, things might change or break!
 
 A quick preview
 
-![preview](./tui_widget.gif)
+![preview](./docs/images/tui_widget.gif)
 
 It feels like an old school software, let's stick with the keyboard :D, it is navigate by `[tab]` button between widgets.
 
@@ -46,7 +46,7 @@ Now it support basic chart feature better, although it still has some limitation
   - it do not aggregate the data when display.
   
 
-![chart](./chart_test.png)
+![chart](./docs/images/chart_test.png)
 
 ### Usage
 

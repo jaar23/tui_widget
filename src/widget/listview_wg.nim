@@ -39,12 +39,12 @@ proc newListRow*(index: int, text: string, value: string, align = Center,
 
 proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow](),
                   title = "", border = true, statusbar = true,
+                  statusbarText = "<!> Enter to select",
                   fgColor = fgWhite, bgColor = bgNone,
                   selectionStyle: SelectionStyle = Highlight,
                   onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
-  let padding = if border: 2 else: 1
-  let statusbarSize = if statusbar: 1 else: 0
+  let padding = if border: 1 else: 0
 
   let style = WidgetStyle(
     paddingX1: padding,
@@ -72,14 +72,15 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     title: title,
     cursor: 0,
     rowCursor: 0,
-    size: h - py - style.paddingY1 - style.paddingY2,
+    size: h - py - style.paddingY2 - style.paddingY1,
     tb: tb,
     style: style,
     statusbar: statusbar,
-    statusbarSize: statusbarSize,
     selectionStyle: selectionStyle,
     colCursor: 0,
-    onEnter: onEnter
+    onEnter: onEnter,
+    statusbarText: statusbarText,
+    statusbarSize: statusbarText.len()
   )
 
 
@@ -104,14 +105,20 @@ proc emptyRows(lv: ref ListView, emptyMessage = "No records") =
 
 
 proc scrollRow(lv: ref ListView, startIndex: int): string =
-  var actualStartIndex = max(0, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
+  let selected = lv.selectedRow
+  #echo lv.rows[selected].text.len
+  # testing
+  # previously using lv.cursor
+  var actualStartIndex = max(0, lv.rows[selected].text.len - (lv.width - (lv.paddingX1 +
       lv.paddingX2)))
   actualStartIndex = min(actualStartIndex, startIndex)
   if actualStartIndex < 0:
     actualStartIndex = 0
+  # previously using lv.cursor
   let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 + lv.paddingX2), lv.rows[
-      lv.cursor].text.len)
-  return lv.rows[lv.cursor].text[actualStartIndex ..< min(lv.rows[lv.cursor].text.len, endIndex)]
+      selected].text.len)
+  # previously using lv.cursor
+  return lv.rows[selected].text[actualStartIndex ..< min(lv.rows[selected].text.len, endIndex)]
 
 
 proc renderClearRow(lv: ref ListView, index: int, full = false) =
@@ -125,8 +132,12 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
 
 
 proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
-  var posX = lv.paddingX1
+  var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
   var borderX = if lv.border: 1 else: 0
+  if lv.rows.len <= lv.selectedRow: 
+    lv.selectedRow = 0
+    lv.cursor = 0
+    # should raise warning
   var text = if row.selected: lv.scrollRow(lv.colCursor)
     else: row.text[0..min(row.text.len - 1, lv.width - lv.posX - posX - borderX)]
 
@@ -154,17 +165,18 @@ proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
 
 
 
-proc renderStatusBar(lv: ref ListView) =
-  lv.tb.write(lv.x1, lv.height, fgYellow, "rows: ", $lv.vrows().len,
-              " selected: ", $lv.selectedRow, resetStyle)
+proc renderStatusBar(lv: ref ListView, text: string = "") =
+  let statusText = if text.len == 0: lv.statusbarText else: text
+  lv.statusbarSize = statusText.len()
+  lv.renderCleanRect(lv.x1, lv.height, lv.statusbarSize, lv.height)
+  lv.tb.write(lv.x1, lv.height, fgCyan, statusText, resetStyle)
 
 
 method render*(lv: ref ListView) =
   lv.renderClearRow(0, true)
-  if lv.border:
-    lv.renderBorder()
-  if lv.title != "":
-    lv.renderTitle()
+  lv.renderBorder()
+  lv.renderTitle()
+  if lv.rows.len == 0: return
   var index = 1
   let rows = lv.vrows()
   if rows.len > 0:
@@ -175,7 +187,7 @@ method render*(lv: ref ListView) =
     var rowEnd = rowStart + lv.filteredSize
     if rowEnd > lv.filteredSize:
       rowStart = max(0, lv.rowCursor - lv.filteredSize)
-      rowEnd = max(lv.rowCursor + 1, lv.filteredSize)
+      rowEnd = max(lv.rowCursor + 1 , lv.filteredSize)
 
     ##########################################
     # highlight at top while cursor moving
@@ -187,7 +199,10 @@ method render*(lv: ref ListView) =
       lv.renderClearRow(index)
       lv.renderListRow(row, index)
       index += 1
-    lv.renderStatusBar()
+    if lv.mode == Filter:
+      lv.renderStatusBar("Mode: " & $lv.mode & "|" & $lv.cursor)
+    else:
+      lv.renderStatusBar($lv.cursor & "|" & $lv.selectedRow)
     lv.tb.display()
   else:
     lv.emptyRows()
@@ -226,7 +241,39 @@ proc nextSelection(lv: ref ListView) =
         lv.rows[r].selected = false
 
 
+proc selected*(lv: ref ListView): ref ListRow =
+  # previously using lv.cursor
+  return lv.rows[lv.selectedRow]
+
+
+proc `selectedRow=`*(lv: ref ListView, i: int) =
+  lv.selectedRow = i
+
+
+proc resetCursor*(lv: ref ListView) =
+  lv.selectedRow = 0 
+  lv.rowCursor = 0
+  lv.colCursor = 0
+  lv.cursor = 0
+  for r in 0 ..< lv.rows.len:
+    if r == 0:
+      lv.rows[r].selected = true
+    else:
+      lv.rows[r].selected = false
+      lv.rows[r].visible = true
+
+
 method onControl*(lv: ref ListView): void =
+  if lv.visibility == false: 
+    lv.cursor = 0
+    lv.rowCursor = 0
+    lv.colCursor = 0
+    return
+  
+  # catch changes from ref component
+  if lv.rows.len != lv.vrows().len:
+    lv.mode = Filter
+
   lv.focus = true
   while lv.focus:
     var key = getKey()
@@ -255,7 +302,7 @@ method onControl*(lv: ref ListView): void =
     of Key.Enter:
       if lv.onEnter.isSome:
         let fn = lv.onEnter.get
-        fn(lv.rows[lv.cursor].value)
+        fn(lv.selected.value)
     of Tab: lv.focus = false
     else: discard
   lv.render()
@@ -264,23 +311,52 @@ method onControl*(lv: ref ListView): void =
 
 method wg*(lv: ref ListView): ref BaseWidget = lv
 
-
-proc show*(lv: ref ListView) = lv.render()
-
-
-proc hide*(lv: ref ListView) = lv.clear()
-
-
-proc `-`*(lv: ref ListView) = lv.show()
-
-
 proc `onEnter=`*(lv: ref ListView, cb: EnterEventProcedure) =
   lv.onEnter = some(cb)
 
+proc rows*(lv: ref ListView): seq[ref ListRow] =
+  return lv.rows
 
-proc selected*(lv: ref ListView): ref ListRow =
-  return lv.rows[lv.cursor]
+
+# ListRow attributes
+#
+proc index*(lr: ref ListRow): int = lr.index
+
+proc text*(lr: ref ListRow): string = lr.text
+
+proc value*(lr: ref ListRow): string = lr.value
+
+proc bgColor*(lr: ref ListRow): BackgroundColor = lr.bgColor
+
+proc fgColor*(lr: ref ListRow): ForegroundColor = lr.fgColor  
+
+proc visible*(lr: ref ListRow): bool = lr.visible
+
+proc selected*(lr: ref ListRow): bool = lr.selected
+
+proc align*(lr: ref ListRow): Alignment = lr.align
+
+proc `text=`*(lr: ref ListRow, text: string) = 
+  lr.text = text
+
+proc `value=`*(lr: ref ListRow, value: string) =
+  lr.value = value
+
+proc `bgColor=`*(lr: ref ListRow, bgColor: BackgroundColor)= 
+  lr.bgColor = bgColor
+
+proc `fgColor=`*(lr: ref ListRow, fgColor: ForegroundColor) = 
+  lr.fgColor = fgColor
+
+proc `visible=`*(lr: ref ListRow, visible: bool) = 
+  lr.visible = visible
+
+proc `selected=`*(lr: ref ListRow, selected: bool) =
+  lr.selected = selected
+
+proc `align=`*(lr: ref ListRow, align: Alignment) = 
+  lr.align = align
 
 
-## TODO: preprocess rows text
-## TODO: event handler
+
+

@@ -4,7 +4,7 @@ type
   ButtonState = enum
     Pressed, Unpressed
 
-  Button = object of BaseWidget
+  Button* = object of BaseWidget
     label: string = ""
     disabled: bool = false
     onEnter: Option[EnterEventProcedure]
