@@ -1,5 +1,9 @@
-import illwill, base_wg, os, std/wordwrap, strutils
+import illwill, base_wg, os, std/wordwrap, strutils, std/unicode
 
+
+# Doesn't work nice when rendering a lot of character rather than 
+# alphanumeric text.
+# Try to convert the source text to alphanumeric text before run it
 type
   Display* = object of BaseWidget
     text: string = ""
@@ -110,9 +114,9 @@ method render*(dp: ref Display) =
       inc index
     ## cursor pointer
   if dp.statusbar:
-    dp.renderCleanRect(dp.x1, dp.height, dp.x1 + 6, dp.height)
-    dp.tb.write(dp.x1, dp.height, fgCyan, "size: ", $(dp.text.len /
-        1024).toInt(), "kb", resetStyle)
+    let statusbarText = "size: " & $(dp.text.len/1024).toInt() & "kb"
+    dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
+    dp.tb.write(dp.x1, dp.height, fgCyan, statusbarText, resetStyle)
   dp.tb.display()
 
 
@@ -150,7 +154,7 @@ method onControl*(dp: ref Display) =
       dp.focus = false
     else: discard
   dp.render()
-  sleep(20)
+  sleep(dp.refreshWaitTime)
 
 
 method wg*(dp: ref Display): ref BaseWidget = dp
@@ -166,7 +170,10 @@ proc add*(dp: ref Display, text: string) =
 
 proc `text=`*(dp: ref Display, text: string) =
   dp.clear()
-  dp.text = text
+  var t = ""
+  for r in text.toRunes():
+    t &= r.toUTF8()
+  dp.text = t
   dp.rowReCal()
   dp.render()
 

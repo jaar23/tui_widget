@@ -44,6 +44,7 @@ type
     statusbarSize*: int = 0
     visibility*: bool = true
     debug*: bool = false
+    refreshWaitTime*: int = 50
 
   CallbackProcedure* = proc(x: string): void
 

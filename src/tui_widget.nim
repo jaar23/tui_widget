@@ -1,4 +1,4 @@
-import illwill, os, strutils, std/terminal
+import illwill, os, strutils, std/terminal, std/colors
 import 
   widget/base_wg,
   widget/display_wg,
@@ -32,15 +32,20 @@ type
     title: string
     cursor: int = 0
     fullscreen: bool = true
-    autoResize: bool = false
+    border: bool = true
+    autoResize: bool = false # not implement yet
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
+    refreshWaitTime: int = 50
 
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
-                    terminalHeight()), title: string = ""): TerminalApp =
+                     terminalHeight()), title: string = "", border: bool = true,
+                     refreshWaitTime: int = 50): TerminalApp =
   result = TerminalApp(
     title: title,
+    border: border,
+    refreshWaitTime: refreshWaitTime,
     widgets: newSeq[ref BaseWidget](),
     tb: tb
   )
@@ -95,8 +100,12 @@ proc run*(app: var TerminalApp) =
 
   while true:
     app.tb.clear()
-    app.tb.drawRect(0, 0, w + 1, h + 1)
-    app.tb.write(2, 0, app.title)
+    sleep(100)
+    #app.tb.setForegroundColor(fgRed)
+    #app.tb.setBackgroundColor(bgWhite)
+    if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
+    let title: string = ansiStyleCode(styleBright) & app.title
+    if app.title != "": app.tb.write(2, 0, title)
     app.render()
     var key = getKey()
     case key
@@ -106,7 +115,7 @@ proc run*(app: var TerminalApp) =
       inc app.cursor
     else: discard
 
-    app.tb.display()
-    sleep(20)
+    #app.tb.display()
+    sleep(app.refreshWaitTime)
 
 

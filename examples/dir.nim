@@ -1,4 +1,4 @@
-import os, ../src/tui_widget, strutils, marshal, strformat, times,  std/paths
+import os, ../src/tui_widget, strutils, marshal, strformat, times, sequtils
 
 type
   File = object
@@ -19,7 +19,7 @@ proc folder(path: string): seq[File] =
   result = newSeq[File]()
   for f in walkDir(path):
     try:
-      let filename = f.path.replace(path, "")
+      let filename = f.path.replace(path, "").replace("/", "")
       let fileInfo = getFileInfo(f.path)
       let hidden = if filename.startsWith("."): true else: false
       result.add(File(name: filename, info: fileInfo, hidden: hidden, path: f.path))
@@ -41,40 +41,48 @@ proc permissionStr(permissions: set[FilePermission]): string =
   if permissions.contains(fpOthersExec): result &= "x" else: result &= "-"
 
 
-proc createList(path: string): seq[ref ListRow] =
+proc createList(path: string, hide: bool = false): seq[ref ListRow] =
   result = newSeq[ref ListRow]()
-  result.add(newListRow(0, "..", ".."))
   for d in folder(path):
-    var lr = newListRow(0, d.name, $$d)
+    let visible = if d.hidden and hide: false else: true
+    var lr = newListRow(0, d.name, $$d, visible=visible)
     result.add(lr)
+  result.insert(newListRow(0, "..", ".."), 0)
 
 var rows = createList(home)
 
-var metadataDisplay = newDisplay(31, 1, 100, 10, title = "File Info", statusbar=false)
+var metadataDisplay = newDisplay(31, 1, consoleWidth(), 10, title = "File Info", statusbar=false)
 
-var contentDisplay = newDisplay(31, 11, 100, 30, title = "Content")
+var contentDisplay = newDisplay(31, 11, consoleWidth(), consoleHeight(), title = "Content")
 
-var dirView = newListView(1, 4, 30, 30, title=home, rows = rows, bgColor = bgBlue, selectionStyle=HighlightArrow)
+var dirView = newListView(1, 4, 30, consoleHeight(), title=home, rows = rows, bgColor = bgBlue, selectionStyle=HighlightArrow)
 
-var filterCb = newCheckbox(1, 1, 30, 3, label="show hidden")
+var filterCb = newCheckbox(1, 1, 30, 3, label="hide hidden files")
 
 
 filterCb.onSpace = proc(val: string, checked: bool) =
-    for r in dirView.rows():
-      if checked and r.text.startsWith("."):
-          r.visible = false
-      else:
-        r.visible = true
-    dirView.render()
+  var i = 0
+  for r in dirView.rows():
+    if r.value == "..": continue 
+    let val = to[File](r.value)
+    if checked and val.hidden:
+      r.visible = false
+      inc i
+    else:
+      r.visible = true
+  dirView.rows[0].visible = true
+  dirView.resetCursor()
+  dirView.render()
 
 
 dirView.onEnter = proc (val: string) =
   if val == "..":
     currDir = parentDir(currDir)
-    var crows = createList(currDir)
+    var crows = createList(currDir, filterCb.checked)
     dirView.rows = crows
     dirView.resetCursor()
     dirView.render()
+    dirView.title = currDir
     return
 
   let file = to[File](val)
@@ -89,9 +97,10 @@ dirView.onEnter = proc (val: string) =
   """.dedent()
   metadataDisplay.text = metadata
   if file.info.kind == pcDir:
-    var crows = createList(file.path)
+    var crows = createList(file.path, filterCb.checked)
     dirView.rows = crows
     currDir = file.path
+    dirView.title = currDir
     dirView.resetCursor()
     dirView.render()
   else:
@@ -103,7 +112,7 @@ dirView.onEnter = proc (val: string) =
       contentDisplay.hide()
 
 
-var tuiapp = newTerminalApp(title = "dir")
+var tuiapp = newTerminalApp(title = "DIR", border=false)
 
 tuiapp.addWidget(filterCb)
 

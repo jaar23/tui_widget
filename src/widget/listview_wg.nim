@@ -134,9 +134,9 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
 proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
   var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
   var borderX = if lv.border: 1 else: 0
-  if lv.rows.len <= lv.selectedRow: 
-    lv.selectedRow = 0
-    lv.cursor = 0
+  # if lv.rows.len <= lv.selectedRow: 
+  #   lv.selectedRow = 0
+  #   lv.cursor = 0
     # should raise warning
   var text = if row.selected: lv.scrollRow(lv.colCursor)
     else: row.text[0..min(row.text.len - 1, lv.width - lv.posX - posX - borderX)]
@@ -202,7 +202,8 @@ method render*(lv: ref ListView) =
     if lv.mode == Filter:
       lv.renderStatusBar("Mode: " & $lv.mode & "|" & $lv.cursor)
     else:
-      lv.renderStatusBar($lv.cursor & "|" & $lv.selectedRow)
+      #lv.renderStatusBar($lv.cursor & "|" & $lv.selectedRow)
+      lv.renderStatusBar()
     lv.tb.display()
   else:
     lv.emptyRows()
@@ -260,7 +261,7 @@ proc resetCursor*(lv: ref ListView) =
       lv.rows[r].selected = true
     else:
       lv.rows[r].selected = false
-      lv.rows[r].visible = true
+      #lv.rows[r].visible = true
 
 
 method onControl*(lv: ref ListView): void =
@@ -306,7 +307,7 @@ method onControl*(lv: ref ListView): void =
     of Tab: lv.focus = false
     else: discard
   lv.render()
-  sleep(20)
+  sleep(lv.refreshWaitTime)
 
 
 method wg*(lv: ref ListView): ref BaseWidget = lv

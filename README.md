@@ -68,4 +68,8 @@ Refers to tests folder for example.
 
 - display [example](./tests/display_test.nim)
 
+- terminal app and widgets [example](./examples/dir.nim)
+  
+  ![dir](./examples/dir_demo.png)
+  
 

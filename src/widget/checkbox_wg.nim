@@ -69,7 +69,7 @@ method onControl*(ch: ref Checkbox) =
       ch.render()
     else: discard
   ch.render()
-  sleep(20)
+  sleep(ch.refreshWaitTime)
 
 
 
