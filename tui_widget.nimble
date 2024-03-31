@@ -10,6 +10,6 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.0.0"
-requires "illwill >= 0.3.1"
+requires "illwill >= 0.4.0"
 requires "nimclipboard >= 0.1.2"
 requires "asciigraph >= 0.1.2"
