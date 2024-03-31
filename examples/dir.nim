@@ -1,4 +1,4 @@
-import os, ../src/tui_widget, strutils, marshal, strformat, times, sequtils
+import os, ../src/tui_widget, strutils, marshal, strformat, times
 
 type
   File = object
@@ -51,11 +51,11 @@ proc createList(path: string, hide: bool = false): seq[ref ListRow] =
 
 var rows = createList(home)
 
-var metadataDisplay = newDisplay(31, 1, consoleWidth(), 10, title = "File Info", statusbar=false)
+var metadataDisplay = newDisplay(31, 1, consoleWidth(), 9, title = "File Info", statusbar=false)
 
-var contentDisplay = newDisplay(31, 11, consoleWidth(), consoleHeight(), title = "Content")
+var contentDisplay = newDisplay(31, 10, consoleWidth(), consoleHeight(), title = "Content")
 
-var dirView = newListView(1, 4, 30, consoleHeight(), title=home, rows = rows, bgColor = bgBlue, selectionStyle=HighlightArrow)
+var dirView = newListView(1, 4, 30, consoleHeight(), title=home, rows = rows, bgColor = bgBlue, selectionStyle=Highlight)
 
 var filterCb = newCheckbox(1, 1, 30, 3, label="hide hidden files")
 

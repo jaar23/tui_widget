@@ -1,4 +1,4 @@
-import illwill, base_wg, os, std/wordwrap, strutils, std/unicode
+import illwill, base_wg, os, std/wordwrap, strutils
 
 
 # Doesn't work nice when rendering a lot of character rather than 
@@ -82,6 +82,7 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
         formattedText.add(visibleText[0..width-1]) 
         visibleText = ""
         continue
+    visibleText = alignLeft(visibleText, max(width, visibleText.len), ' ')
     if visibleText.len > 0:
       formattedText.add(visibleText[0..^1])
     else:
@@ -109,7 +110,7 @@ method render*(dp: ref Display) =
     let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size -
         dp.statusbarSize)
     for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
-      dp.renderCleanRow(index)
+      #dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
     ## cursor pointer
@@ -127,11 +128,11 @@ method onControl*(dp: ref Display) =
     return
   dp.focus = true
   dp.rowReCal()
+  dp.clear()
   while dp.focus:
     var key = getKey()
     case key
-    of Key.None:
-      dp.render()
+    of Key.None: dp.render()
     of Key.Up:
       dp.rowCursor = max(0, dp.rowCursor - 1)
     of Key.Down:
@@ -142,6 +143,7 @@ method onControl*(dp: ref Display) =
         dp.cursor = dp.x2 - dp.x1 - 1
     of Key.Left:
       dp.cursor = max(0, (dp.cursor - 1))
+    # TODO: clear buffer when rendering large content
     of Key.PageUp:
       dp.rowCursor = max(0, dp.rowCursor - dp.size)
     of Key.PageDown:
@@ -152,6 +154,8 @@ method onControl*(dp: ref Display) =
       dp.rowCursor = max(dp.textRows.len - dp.size, 0)
     of Key.Escape, Key.Tab:
       dp.focus = false
+    of Key.ShiftW:
+      dp.wordwrap = not dp.wordwrap
     else: discard
   dp.render()
   sleep(dp.refreshWaitTime)
@@ -170,10 +174,7 @@ proc add*(dp: ref Display, text: string) =
 
 proc `text=`*(dp: ref Display, text: string) =
   dp.clear()
-  var t = ""
-  for r in text.toRunes():
-    t &= r.toUTF8()
-  dp.text = t
+  dp.text = text
   dp.rowReCal()
   dp.render()
 
