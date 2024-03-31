@@ -369,7 +369,7 @@ proc onFilter(table: ref Table) =
     input.focus = false
     input.remove()
   # passing enter event as a callback
-  procCall input.onControl(some(enterEv))
+  procCall input.onControl(enterEv)
   
   # passing enter event to onEnter method
   #input.onEnter(some(enterEv))
@@ -435,7 +435,7 @@ method onControl*(table: ref Table): void =
         fn(table.rows[table.cursor].value)
     else: discard
   table.render()
-  sleep(20)
+  sleep(table.refreshWaitTime)
 
 
 method wg*(table: ref Table): ref BaseWidget = table

@@ -106,6 +106,8 @@ proc emptyRows(lv: ref ListView, emptyMessage = "No records") =
 
 proc scrollRow(lv: ref ListView, startIndex: int): string =
   let selected = lv.selectedRow
+  var extraPadd = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: 1 else: 0
+  #if lv.border: extraPadd += 2
   #echo lv.rows[selected].text.len
   # testing
   # previously using lv.cursor
@@ -118,7 +120,7 @@ proc scrollRow(lv: ref ListView, startIndex: int): string =
   let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 + lv.paddingX2), lv.rows[
       selected].text.len)
   # previously using lv.cursor
-  return lv.rows[selected].text[actualStartIndex ..< min(lv.rows[selected].text.len, endIndex)]
+  return lv.rows[selected].text[actualStartIndex ..< min(lv.rows[selected].text.len, endIndex - extraPadd)]
 
 
 proc renderClearRow(lv: ref ListView, index: int, full = false) =
@@ -133,13 +135,13 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
 
 proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
   var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
-  var borderX = if lv.border: 1 else: 0
+  var borderX = if lv.border: 0 else: 0
   # if lv.rows.len <= lv.selectedRow: 
   #   lv.selectedRow = 0
   #   lv.cursor = 0
     # should raise warning
   var text = if row.selected: lv.scrollRow(lv.colCursor)
-    else: row.text[0..min(row.text.len - 1, lv.width - lv.posX - posX - borderX)]
+    else: row.text[0..min(row.text.len - 1, lv.width - lv.x1 - posX - borderX)]
 
   if row.align == Left:
     text = alignLeft(text, min(lv.width, lv.width - lv.posX - posX - borderX))

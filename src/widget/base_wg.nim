@@ -1,4 +1,4 @@
-import illwill, options
+import illwill
 
 type
   Alignment* = enum
@@ -215,11 +215,12 @@ proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
 
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
-  bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
+  bw.tb.write(bw.x1, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
 
 
 proc clear*(bw: ref BaseWidget) =
   bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, " ")
+  #bw.tb.fill(bw.x1, bw.y1, bw.tb.width - 1, bw.tb.height - 1, "*")
 
 
 proc rerender*(bw: ref BaseWidget) =

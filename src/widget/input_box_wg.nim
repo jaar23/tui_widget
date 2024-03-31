@@ -336,11 +336,11 @@ method onControl*(ib: ref InputBox) =
       ib.visualCursor = cursorPos 
 
     ib.render()
-    sleep(20)
+    sleep(ib.refreshWaitTime)
 
 
-method onControl*(ib: ref InputBox, cb: Option[CallbackProcedure]): void =
-  ib.onEnter = cb
+method onControl*(ib: ref InputBox, cb: CallbackProcedure): void =
+  ib.onEnter = some(cb)
   ib.onControl()
 
 

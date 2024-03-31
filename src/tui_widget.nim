@@ -1,4 +1,4 @@
-import illwill, os, strutils, std/terminal, std/colors
+import illwill, os, strutils, std/terminal
 import 
   widget/base_wg,
   widget/display_wg,

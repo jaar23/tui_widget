@@ -91,11 +91,11 @@ method wg*(c: ref Chart): ref BaseWidget = c
 method onControl*(c: ref Chart) =
   #c.focus = true     
   c.render()
-  sleep(20)
+  sleep(c.refreshWaitTime)
 
 
-method onControl*(c: ref Chart, cb: Option[CallbackProcedure]) =
-  c.onEnter = cb
+method onControl*(c: ref Chart, cb: CallbackProcedure) =
+  c.onEnter = some(cb)
 
 
 proc terminalBuffer*(c: ref Chart): var TerminalBuffer =

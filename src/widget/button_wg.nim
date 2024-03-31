@@ -68,7 +68,7 @@ method onControl*(bt: ref Button) =
       bt.state = Unpressed
       delay = 100
   bt.render()
-  sleep(20)
+  sleep(bt.refreshWaitTime)
 
 
 method wg*(bt: ref Button): ref BaseWidget = bt
