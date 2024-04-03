@@ -107,7 +107,7 @@ dirView.onEnter = proc (val: string) =
     try:
       let content = readFile(file.path)
       contentDisplay.text = content
-      contentDisplay.show()
+      contentDisplay.show(resetCursor=true)
     except:
       contentDisplay.hide()
 
