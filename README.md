@@ -18,6 +18,8 @@ Widgets:
 - input box (y)
 
 - display panel (y)
+  
+  - some text content does not work well with the default text split, you can define custom text rows split and re-cal on your own
 
 - button (y)
 
