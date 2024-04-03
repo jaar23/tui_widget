@@ -9,7 +9,6 @@ type
     data: seq[float64]
 
   Chart = object of BaseWidget
-    cursor: int = 0
     marker: char = '*'
     axis*: ref Axis
     onEnter: Option[CallbackProcedure]

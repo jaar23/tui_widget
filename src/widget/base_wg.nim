@@ -1,4 +1,4 @@
-import illwill
+import illwill, unicode
 
 type
   Alignment* = enum
@@ -39,6 +39,9 @@ type
     focus*: bool = false
     tb*: TerminalBuffer
     style*: WidgetStyle
+    cursor*: int = 0
+    rowCursor*: int = 0
+    colCursor*: int = 0
     statusbar*: bool = true
     statusbarText*: string = ""
     statusbarSize*: int = 0
@@ -208,7 +211,10 @@ proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
 
 proc renderCleanRow*(bw: ref BaseWidget, index = 0) =
   bw.tb.fill(bw.x1, bw.posY + index, bw.x2, bw.posY + index, " ")
-
+  # for y in bw.posY + index..bw.posY + index:
+  #   for x in bw.x1..bw.x2:
+  #     bw.tb[x, y] = TerminalChar(ch: " ".runeAt(0), fg: bw.tb.getForegroundColor, bg: bw.tb.getBackgroundColor, style: bw.tb.getStyle)
+  #stdout.flushFile()
 
 proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
   bw.tb.fill(x1, y1, x2, y2, " ")
@@ -216,6 +222,7 @@ proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
   bw.tb.write(bw.x1, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
+  stdout.flushFile()
 
 
 proc clear*(bw: ref BaseWidget) =
@@ -228,9 +235,18 @@ proc rerender*(bw: ref BaseWidget) =
   bw.render()
 
 
-proc show*(bw: ref BaseWidget) = 
+method resetCursor*(bw: ref BaseWidget): void {.base.} =
+  bw.cursor = 0
+  bw.rowCursor = 0
+  bw.colCursor = 0
+
+
+proc show*(bw: ref BaseWidget, resetCursor = false) = 
+  if resetCursor: bw.resetCursor()
   bw.visibility = true
+  bw.clear()
   bw.render()
+
 
 proc hide*(bw: ref BaseWidget) = 
   bw.visibility = false

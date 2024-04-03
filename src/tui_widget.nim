@@ -36,7 +36,7 @@ type
     autoResize: bool = false # not implement yet
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
-    refreshWaitTime: int = 50
+    refreshWaitTime: int = 20
 
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
@@ -57,6 +57,7 @@ proc terminalBuffer*(app: var TerminalApp): var TerminalBuffer =
 
 proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   widget.tb = app.terminalBuffer
+  widget.refreshWaitTime = app.refreshWaitTime
   app.widgets.add(widget)
 
 
@@ -100,7 +101,6 @@ proc run*(app: var TerminalApp) =
 
   while true:
     app.tb.clear()
-    sleep(100)
     #app.tb.setForegroundColor(fgRed)
     #app.tb.setBackgroundColor(bgWhite)
     if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
@@ -113,6 +113,9 @@ proc run*(app: var TerminalApp) =
       if app.cursor > app.widgets.len - 1: app.cursor = 0
       app.widgets[app.cursor].onControl()
       inc app.cursor
+    of Key.ShiftR:
+      app.tb.clear()
+      app.tb.display()
     else: discard
 
     #app.tb.display()

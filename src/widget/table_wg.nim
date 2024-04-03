@@ -35,9 +35,6 @@ type
   Table = object of BaseWidget
     headers: Option[ref TableRow]
     rows: seq[ref TableRow]
-    cursor: int = 0
-    rowCursor: int = 0
-    colCursor: int = 0
     mode: Mode = Normal
     filteredSize: int = 0
     selectedRow: int = 0

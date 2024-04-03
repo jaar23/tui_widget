@@ -1,16 +1,17 @@
-import illwill, base_wg, os, std/wordwrap, strutils
-
+import illwill, base_wg, os, std/wordwrap, strutils, options
 
 # Doesn't work nice when rendering a lot of character rather than 
 # alphanumeric text.
 # Try to convert the source text to alphanumeric text before run it
 type
+  CustomRowRecal* = proc(text: string, dp: ref Display): seq[string]
+
   Display* = object of BaseWidget
     text: string = ""
     textRows: seq[string] = newSeq[string]()
-    rowCursor: int = 0
-    cursor: int = 0
     wordwrap*: bool = false
+    useCustomTextRow* = false
+    customRowRecal: Option[CustomRowRecal]
 
 
 proc newDisplay*(px, py, w, h: int,
@@ -18,6 +19,7 @@ proc newDisplay*(px, py, w, h: int,
                  statusbar = true, wordwrap = false,
                  fgColor: ForegroundColor = fgWhite,
                  bgColor: BackgroundColor = bgNone,
+                 customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Display =
   let padding = if border: 1 else: 0
   let statusbarSize = if statusbar: 1 else: 0
@@ -42,7 +44,9 @@ proc newDisplay*(px, py, w, h: int,
     statusbar: statusbar,
     tb: tb,
     style: style,
-    wordwrap: wordwrap
+    wordwrap: wordwrap,
+    customRowRecal: customRowRecal,
+    useCustomTextRow: if customRowRecal.isSome: true else: false
   )
 
 
@@ -100,7 +104,11 @@ proc rowReCal(dp: ref Display) =
 
 
 method render*(dp: ref Display) =
-  dp.rowReCal()
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal() 
   dp.clear()
   dp.renderBorder()
   dp.renderTitle()
@@ -109,8 +117,10 @@ method render*(dp: ref Display) =
     let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
     let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size -
         dp.statusbarSize)
+    setDoubleBuffering(false)
     for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
-      #dp.renderCleanRow(index)
+      dp.renderCleanRow(index)
+      sleep(5)
       dp.renderRow(row, index)
       inc index
     ## cursor pointer
@@ -119,6 +129,12 @@ method render*(dp: ref Display) =
     dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
     dp.tb.write(dp.x1, dp.height, fgCyan, statusbarText, resetStyle)
   dp.tb.display()
+  setDoubleBuffering(true)
+
+
+proc resetCursor*(dp: ref Display) =
+  dp.rowCursor = 0
+  dp.cursor = 0
 
 
 method onControl*(dp: ref Display) =
@@ -127,7 +143,11 @@ method onControl*(dp: ref Display) =
     dp.rowCursor = 0
     return
   dp.focus = true
-  dp.rowReCal()
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal() 
   dp.clear()
   while dp.focus:
     var key = getKey()
@@ -143,7 +163,6 @@ method onControl*(dp: ref Display) =
         dp.cursor = dp.x2 - dp.x1 - 1
     of Key.Left:
       dp.cursor = max(0, (dp.cursor - 1))
-    # TODO: clear buffer when rendering large content
     of Key.PageUp:
       dp.rowCursor = max(0, dp.rowCursor - dp.size)
     of Key.PageDown:
@@ -170,15 +189,33 @@ proc terminalBuffer*(dp: ref Display): var TerminalBuffer =
 
 proc add*(dp: ref Display, text: string) =
   dp.text = dp.text & text
-  dp.rowReCal()
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal() 
+
 
 proc `text=`*(dp: ref Display, text: string) =
   dp.clear()
   dp.text = text
-  dp.rowReCal()
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal()
+  dp.render()
+
+proc `text=`*(dp: ref Display, text: string, customRowRecal: proc(text: string, dp: ref Display): seq[string]) =
+  dp.clear()
+  dp.text = text
+  dp.textRows = customRowRecal(text, dp)
+  dp.useCustomTextRow = true
   dp.render()
 
 proc `wordwrap=`*(dp: ref Display, wrap: bool) =
   if dp.visibility:
     dp.wordwrap = wrap
     dp.render()
+
+

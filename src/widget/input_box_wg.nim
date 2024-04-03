@@ -3,7 +3,6 @@ import nimclipboard/libclipboard
 
 type
   InputBox = object of BaseWidget
-    cursor: int = 0
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
