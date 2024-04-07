@@ -1,4 +1,4 @@
-import illwill, unicode
+import illwill
 
 type
   Alignment* = enum
@@ -46,6 +46,7 @@ type
     statusbarText*: string = ""
     statusbarSize*: int = 0
     visibility*: bool = true
+    groups*: bool = false
     debug*: bool = false
     refreshWaitTime*: int = 50
 
@@ -54,6 +55,10 @@ type
   EnterEventProcedure* = proc(x: string): void
 
   SpaceEventProcedure* = proc(x: string, b: bool): void
+
+  UpEventProcedure* = proc(bw: ref BaseWidget): void
+
+  DownEventProcedure* = proc(bw: ref BaseWidget): void
   
 
 proc consoleWidth*(): int =
@@ -89,6 +94,10 @@ method render*(this: ref BaseWidget): void {.base.} =
 
 method wg*(this: ref BaseWidget): ref BaseWidget {.base.} = this
 
+
+method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
+  #child needs to implement this!
+  echo ""
 
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
   bw.style.bgColor = bgColor

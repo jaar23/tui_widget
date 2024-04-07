@@ -120,7 +120,6 @@ method render*(dp: ref Display) =
     setDoubleBuffering(false)
     for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
       dp.renderCleanRow(index)
-      sleep(5)
       dp.renderRow(row, index)
       inc index
     ## cursor pointer

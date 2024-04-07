@@ -10,7 +10,8 @@ import
   widget/listview_wg,
   widget/label_wg,
   widget/chart_wg,
-  widget/gauge_wg
+  widget/gauge_wg,
+  widget/textarea_wg
 
 
 export
@@ -25,6 +26,7 @@ export
   label_wg,
   chart_wg,
   gauge_wg,
+  textarea_wg,
   illwill
 
 type
@@ -57,6 +59,8 @@ proc terminalBuffer*(app: var TerminalApp): var TerminalBuffer =
 
 proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   widget.tb = app.terminalBuffer
+  if widget.groups:
+    widget.setChildTb(app.terminalBuffer)
   widget.refreshWaitTime = app.refreshWaitTime
   app.widgets.add(widget)
 

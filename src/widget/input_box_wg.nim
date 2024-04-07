@@ -2,12 +2,14 @@ import illwill, os, strutils, base_wg, options, sequtils, encodings
 import nimclipboard/libclipboard
 
 type
-  InputBox = object of BaseWidget
+  InputBox* = object of BaseWidget
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = "|"
     onEnter: Option[EnterEventProcedure]
+    onUp: Option[UpEventProcedure]
+    onDown: Option[DownEventProcedure]
 
   CursorDirection = enum
     Left, Right
@@ -22,7 +24,8 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
                   modeChar: char = '|', border: bool = true, statusbar: bool = false,
                   fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
-  let padding = if border: 2 else: 1
+  var padding = if border: 1 else: 0
+  padding = if modeChar != ' ': padding + 1 else: padding + 0
   let statusbarSize = if statusbar: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
@@ -98,8 +101,7 @@ proc clear(ib: ref InputBox) =
 method render*(ib: ref InputBox) =
   ib.clear()
   ib.renderBorder()
-  if ib.title != "":
-    ib.renderTitle()
+  ib.renderTitle()
   if ib.cursor < ib.value.len:
     ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
                 resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
@@ -304,8 +306,14 @@ method onControl*(ib: ref InputBox) =
     of Key.Right: 
       ib.cursorMove(Right)
       ib.rerender()
-    of Key.Up, Key.Down:
-      discard
+    of Key.Up: 
+      if ib.onUp.isSome:
+        let fn = ib.onUp.get
+        fn(ib)
+    of Key.Down:
+      if ib.onDown.isSome:
+        let fn = ib.onDown.get
+        fn(ib)
     of Key.CtrlV:
       let copiedText = $cb.clipboard_text()
       ib.value.insert(formatText(copiedText), ib.cursor)
@@ -352,11 +360,11 @@ proc value*(ib: ref InputBox, val: string) = ib.value = val
 proc value*(ib: ref InputBox): string = ib.value
 
 
-proc show*(ib: ref InputBox) = ib.render()
-
-
-proc hide*(ib: ref InputBox) = ib.clear
-
+# proc show*(ib: ref InputBox) = ib.render()
+#
+#
+# proc hide*(ib: ref InputBox) = ib.clear
+#
 proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb
 
@@ -365,7 +373,18 @@ proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =
   ib.onEnter = cb
 
 
-proc `- `*(ib: ref InputBox) = ib.show()
+proc `onEnter=`*(ib: ref InputBox, cb: EnterEventProcedure) =
+  ib.onEnter = some(cb)
+
+
+proc `onUp=`*(ib: ref InputBox, ev: UpEventProcedure) =
+  ib.onUp = some(ev)
+
+
+proc `onDown=`*(ib: ref InputBox, ev: DownEventProcedure) =
+  ib.onDown = some(ev)
+
+# proc `- `*(ib: ref InputBox) = ib.show()
 
 
 proc showStatusBar*(ib: ref InputBox): void = ib.statusbar = true
