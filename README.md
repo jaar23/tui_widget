@@ -21,6 +21,8 @@ Widgets:
   
   - some text content does not work well with the default text split, you can define custom text rows split and re-cal on your own
 
+- textarea (y)
+
 - button (y)
 
 - list view (y)
@@ -35,13 +37,13 @@ Widgets:
 
 - radio button
 
-- select
+- select (y), listview with onEnter action can be achieve the same select widget
 
 - gauge (y)
 
 - charts (y)
 
-After checkout on [asciigraph](https://github.com/Yardanico/asciigraph/tree/master), switch to implement chart with this library instead. It is an awesomeeeeeee library! 
+After checkout on [asciigraph](https://github.com/Yardanico/asciigraph/tree/master), switch to implement chart with this library instead. It is an awesomeeeeeee library
 
 Now it support basic chart feature better, although it still has some limitation. 
 
