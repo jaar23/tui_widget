@@ -1,9 +1,11 @@
 ### TODO: 
 
-[ ] hide widget
+[x] hide widget
 
 [ ] documentation
 
 [ ] examples
 
 [ ] error handling
+
+[ ] event handling

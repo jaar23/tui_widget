@@ -4,7 +4,7 @@ Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/
 
 These widget is <b>under development</b>, things might change or break!
 
-A quick preview
+### Quick preview
 
 ![preview](./docs/images/tui_widget.gif)
 
@@ -14,7 +14,7 @@ You can use the widget with illwill or bootstrap with `TerminalApp`.
 
 Refers to `tests/tui_test.nim` for example.
 
-Widgets:
+### Widgets:
 - input box (y)
 
 - display panel (y)
@@ -37,20 +37,14 @@ Widgets:
 
 - radio button
 
-- select (y), listview with onEnter action can be achieve the same select widget
+- select (y), listview with onEnter can be used for select widget.
 
 - gauge (y)
 
-- charts (y)
+- charts (y), powered by [asciigraph](https://github.com/Yardanico/asciigraph/tree/master). It is an awesomeeeeeee library
 
-After checkout on [asciigraph](https://github.com/Yardanico/asciigraph/tree/master), switch to implement chart with this library instead. It is an awesomeeeeeee library
+  - chart have some limitation, it do not aggregate the data when display.
 
-Now it support basic chart feature better, although it still has some limitation. 
-
-  - it do not aggregate the data when display.
-  
-
-![chart](./docs/images/chart_test.png)
 
 ### Usage
 
@@ -67,6 +61,8 @@ Refers to tests folder for example.
 - basic [example](./tests/tui_test.nim)
 
 - chart [example](./tests/chart_test.nim)
+  
+  ![chart](./docs/images/chart_test.png)
 
 - gauge [example](./tests/gauge_test.nim)
 
