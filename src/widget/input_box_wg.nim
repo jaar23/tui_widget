@@ -360,11 +360,6 @@ proc value*(ib: ref InputBox, val: string) = ib.value = val
 proc value*(ib: ref InputBox): string = ib.value
 
 
-# proc show*(ib: ref InputBox) = ib.render()
-#
-#
-# proc hide*(ib: ref InputBox) = ib.clear
-#
 proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
   return ib.tb
 
@@ -384,11 +379,4 @@ proc `onUp=`*(ib: ref InputBox, ev: UpEventProcedure) =
 proc `onDown=`*(ib: ref InputBox, ev: DownEventProcedure) =
   ib.onDown = some(ev)
 
-# proc `- `*(ib: ref InputBox) = ib.show()
-
-
-proc showStatusBar*(ib: ref InputBox): void = ib.statusbar = true
-
-
-proc hideSize*(ib: ref InputBox): void = ib.statusbar = false
 

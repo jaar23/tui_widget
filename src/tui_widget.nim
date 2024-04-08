@@ -72,7 +72,10 @@ proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
 proc render*(app: var TerminalApp) =
   for w in app.widgets:
     if w.visibility:
-      w.rerender()
+      try:
+        w.rerender()
+      except:
+        w.onError("E01")
 
 
 proc requiredSize*(app: var TerminalApp): (int, int, int) =
@@ -101,28 +104,31 @@ proc run*(app: var TerminalApp) =
                                terminalWidth()))
     stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed,
                            center("width: " & $w & " height: " & $h, terminalWidth()))
+    stdout.resetAttributes()
+    stdout.flushFile()
     quit(0)
-
+  
   while true:
     app.tb.clear()
-    #app.tb.setForegroundColor(fgRed)
-    #app.tb.setBackgroundColor(bgWhite)
     if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
     let title: string = ansiStyleCode(styleBright) & app.title
     if app.title != "": app.tb.write(2, 0, title)
+    #app.tb.display()
     app.render()
     var key = getKey()
     case key
     of Key.Tab, Key.None:
-      if app.cursor > app.widgets.len - 1: app.cursor = 0
-      app.widgets[app.cursor].onControl()
+      try:
+        if app.cursor > app.widgets.len - 1: app.cursor = 0
+        app.widgets[app.cursor].onControl()
+      except:
+        app.widgets[app.cursor].onError("E01")
       inc app.cursor
     of Key.ShiftR:
       app.tb.clear()
       app.tb.display()
     else: discard
-
-    #app.tb.display()
+    
     sleep(app.refreshWaitTime)
 
 

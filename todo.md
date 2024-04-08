@@ -6,3 +6,4 @@
 
 [ ] examples
 
+[ ] error handling

@@ -99,6 +99,12 @@ method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
   #child needs to implement this!
   echo ""
 
+
+method onError*(this: ref BaseWidget, errorCode: string) {.base.} =
+  this.tb.fill(this.posX, this.posY, this.width, this.height, " ")
+  this.tb.write(this.posX +  1, this.posY, fgRed, bgWhite, "[!] " & errorCode, resetStyle)
+
+
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
   bw.style.bgColor = bgColor
 
@@ -231,7 +237,7 @@ proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
   bw.tb.write(bw.x1, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
-  stdout.flushFile()
+  #stdout.flushFile()
 
 
 proc clear*(bw: ref BaseWidget) =

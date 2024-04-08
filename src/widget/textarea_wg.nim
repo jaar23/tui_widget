@@ -1,29 +1,21 @@
-import illwill, base_wg, input_box_wg, os, math, sequtils, strutils
+import illwill, base_wg, os, sequtils, strutils
 import std/wordwrap, std/enumerate
+import nimclipboard/libclipboard
 
 
 type
-  RowTup = tuple
-    min: int
-    max: int
-    val: string
-
   TextArea* = object of BaseWidget
     textRows: seq[string] = newSeq[string]()
-    textBuffer: seq[string]
     value: string = ""
-    rows: int
-    cols: int
+    rows: int = 0
+    cols: int = 0
 
 
-# proc initTextBuffer(rows, cols: int): seq[string] =
-#   var buff = newSeq[string]()
-#   for i in 0..< rows:
-#     buff.add(repeat('*', cols))
-#   return buff
-#
+var cb = clipboard_new(nil)
 
-proc newTextArea*(px, py, w, h, rows, cols: int, title=""; val=" ";
+cb.clipboard_clear(LCB_CLIPBOARD)
+
+proc newTextArea*(px, py, w, h: int, title=""; val=" ";
                   border = true; statusbar = false; 
                   fgColor = fgWhite; bgColor = bgNone; 
                   tb = newTerminalBuffer(w+2, h+py)): ref TextArea =
@@ -50,8 +42,8 @@ proc newTextArea*(px, py, w, h, rows, cols: int, title=""; val=" ";
     posX: px,
     posY: py,
     value: val,
-    rows: rows,
-    cols: cols,
+    cols: w - px - padding,
+    rows: h - py - (padding * 2),
     size: h - statusbarSize - py, 
     style: style,
     title: title,
@@ -65,23 +57,38 @@ proc newTextArea*(px, py, w, h, rows, cols: int, title=""; val=" ";
 func splitBySize(val: string, size: int, rows: int): seq[string] =
   result = newSeq[string]()
   if val.len > size:
-    let wrappedWords = val.wrapWords(size)
+    let wrappedWords = val.wrapWords(size, 
+                                     seps={'\t', '\v', '\r', '\n', '\f'})
     result = wrappedWords.split("\n")
-    result[result.len - 1] &= " "
+    if result[result.len - 1] != " ": result[result.len - 1] &= " "
   else:
     result.add(val)
 
 
 func rowReCal(t: ref TextArea) =
-  t.textRows = splitBySize(t.value, t.cols - t.paddingX1 - t.paddingX2, t.rows)
+  t.textRows = splitBySize(t.value, t.cols, t.rows)
 
+
+func cursorMove(t: ref TextArea, moved: int) =
+  t.cursor = t.cursor + moved
+  if t.cursor > t.value.len: t.cursor = t.value.len - 1
+  if t.cursor < 0: t.cursor = 0
+  if t.cursor > t.cols:
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  elif t.cursor < t.cols * max(t.rowCursor, 1):
+    t.rowCursor = max(0, t.rowCursor - 1)
 
 func onEnter(t: ref TextArea) =
-  t.value.insert(repeat(' ', t.cols - 3), t.cursor)
-  t.value &= " "
-  t.cursor += t.cols
+  # find out remaining space until next line
+  var rem = t.cursor - ((t.rowCursor + 1) * t.cols)
+  # make rem positive
+  rem = if rem < 0: rem * -1 else: rem
+  # insert remaining space to push cursor to next line
+  t.value.insert(repeat(' ', rem), t.cursor)
+  t.cursor += rem
   t.rowReCal()
   t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+
 
 func moveUp(t: ref TextArea) =
   t.cursor = max(0, t.cursor - t.cols)
@@ -97,24 +104,14 @@ func moveDown(t: ref TextArea) =
 
 func moveLeft(t: ref TextArea) =
   t.cursor = max(0, t.cursor - 1)
-  if t.cursor < t.cols * max(t.rowCursor, 1):
+  if t.cursor < t.cols * t.rowCursor:
     t.rowCursor = max(0, t.rowCursor - 1)
 
 
 func moveRight(t: ref TextArea) =
   t.cursor = min(t.value.len - 1, t.cursor + 1)
-  if t.cursor > t.cols:
+  if t.cursor > t.cols * (t.rowCursor + 1):
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-
-
-func cursorMove(t: ref TextArea, moved: int) =
-  t.cursor = t.cursor + moved
-  if t.cursor > t.value.len: t.cursor = t.value.len - 1
-  if t.cursor < 0: t.cursor = 0
-  if t.cursor > t.cols:
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-  elif t.cursor < t.cols * max(t.rowCursor, 1):
-    t.rowCursor = max(0, t.rowCursor - 1)
 
 
 method render*(t: ref TextArea) =
@@ -122,39 +119,31 @@ method render*(t: ref TextArea) =
   t.renderBorder()
   t.renderTitle()
   t.rowReCal() 
+  #echo $t.textRows
   var index = 1
-  var ir = false
   if t.textRows.len > 0:
     let rowStart = if t.rowCursor < t.size: 0 else: min(t.rowCursor - t.size + 1, t.textRows.len - 1)
-    let rowEnd = min(t.textRows.len - 1, t.rowCursor + t.size - t.statusbarSize)
-    setDoubleBuffering(false)
-    var vcursor = 0
+    let rowEnd = min(t.textRows.len - 1, rowStart + (min(t.size - t.statusbarSize, t.rows)))
+    var vcursor = if rowStart > 0: rowStart * t.cols else: 0
     for row in t.textRows[rowStart .. min(rowEnd, t.textRows.len)]:
-      var pos = 0
       t.renderCleanRow(index)
-      #if t.cursor >= row.min and t.cursor <= row.max:
-      #ir = true
       for i, c in enumerate(row.items()):
         if vcursor == t.cursor:
           let ch = if c == ' ': '_' else: c
           t.tb.write(t.x1 + i, t.posY + index, styleBlink, 
                      styleUnderscore, bgBlue, $ch, resetStyle)
         else:
-          t.tb.write(t.x1 + i, t.posY + index, bgGreen, $c, resetStyle)
-        inc pos
+          t.tb.write(t.x1 + i, t.posY + index, $c, resetStyle)
         inc vcursor 
-
-      # else:
-      #   t.renderRow(row.val, index)
       inc index
   if t.statusbar:
-    # let statusbarText = "size: " & $(t.value.len/1024).toInt() & " character(s)"
-    let cval = if t.value.len > 0: $t.value[t.cursor] else: " "
-    let statusbarText = $t.cursor & "|" & $t.rowCursor & "|" & $ir & "|" & cval & "|len:" & $t.value.len
+    let statusbarText = "size: " & $t.value.len & " character(s)"
+    # for debug
+    # let cval = if t.value.len > 0: $t.value[t.cursor] else: " "
+    # let statusbarText = $t.cursor & "|" & $t.rowCursor & "|" & cval & "|len:" & $t.value.len
     t.renderCleanRect(t.x1, t.height, statusbarText.len, t.height)
     t.tb.write(t.x1, t.height, fgCyan, statusbarText, resetStyle)
   t.tb.display()
-  setDoubleBuffering(true)
 
 
 proc resetCursor*(t: ref TextArea) =
@@ -173,165 +162,152 @@ method onControl*(t: ref TextArea) =
                     Key.CtrlY, Key.CtrlZ}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
-  var moved = 1
   t.focus = true
   while t.focus:
     var key = getKey()
     case key
     of Key.None, FnKeys, CtrlKeys: continue
-    of EscapeKeys: discard
+    of EscapeKeys: t.focus = false
     of Key.Backspace, Key.Delete:
       if t.cursor > 0:
         t.value.delete(t.cursor - 1..t.cursor - 1)
-        moved = -1
+        t.cursorMove(-1)
     of Key.CtrlE:
-      t.value = ""
+      t.value = " "
       t.cursor = 0
       t.clear()
     of Key.ShiftA..Key.ShiftZ:
       let tmpKey = $key
       let alphabet = toSeq(tmpKey.items()).pop()
       t.value.insert($alphabet.toUpperAscii(), t.cursor)
+      t.cursorMove(1)
     of Key.Zero..Key.Nine:
       let keyPos = NumericKeys.find(key)
       if keyPos > -1:
         t.value.insert($keyPos, t.cursor)
+      t.cursorMove(1)
     of Key.Comma:
       t.value.insert(",", t.cursor)
+      t.cursorMove(1)
     of Key.Colon:
       t.value.insert(":", t.cursor)
+      t.cursorMove(1)
     of Key.Semicolon:
       t.value.insert(";", t.cursor)
+      t.cursorMove(1)
     of Key.Underscore:
       t.value.insert("_", t.cursor)
+      t.cursorMove(1)
     of Key.Dot:
       t.value.insert(".", t.cursor)
+      t.cursorMove(1)
     of Key.Ampersand:
       t.value.insert("&", t.cursor)
+      t.cursorMove(1)
     of Key.DoubleQuote:
       t.value.insert("\"", t.cursor)
+      t.cursorMove(1)
     of Key.SingleQuote:
       t.value.insert("'", t.cursor)
+      t.cursorMove(1)
     of Key.QuestionMark:
       t.value.insert("?", t.cursor)
+      t.cursorMove(1)
     of Key.Space:
       t.value.insert(" ", t.cursor)
+      t.cursorMove(1)
     of Key.Pipe:
       t.value.insert("|", t.cursor)
+      t.cursorMove(1)
     of Key.Slash:
       t.value.insert("/", t.cursor)
+      t.cursorMove(1)
     of Key.Equals:
       t.value.insert("=", t.cursor)
+      t.cursorMove(1)
     of Key.Plus:
       t.value.insert("+", t.cursor)
+      t.cursorMove(1)
     of Key.Minus:
       t.value.insert("-", t.cursor)
+      t.cursorMove(1)
     of Key.Asterisk:
       t.value.insert("*", t.cursor)
+      t.cursorMove(1)
     of Key.BackSlash:
       t.value.insert("\\", t.cursor)
+      t.cursorMove(1)
     of Key.GreaterThan:
       t.value.insert(">", t.cursor)
+      t.cursorMove(1)
     of Key.LessThan:
       t.value.insert("<", t.cursor)
+      t.cursorMove(1)
     of Key.LeftBracket:
       t.value.insert("[", t.cursor)
+      t.cursorMove(1)
     of Key.RightBracket:
       t.value.insert("]", t.cursor)
+      t.cursorMove(1)
     of Key.LeftBrace:
       t.value.insert("(", t.cursor)
+      t.cursorMove(1)
     of Key.RightBrace:
       t.value.insert(")", t.cursor)
+      t.cursorMove(1)
     of Key.Percent:
       t.value.insert("%", t.cursor)
+      t.cursorMove(1)
     of Key.Hash:
       t.value.insert("#", t.cursor)
+      t.cursorMove(1)
     of Key.Dollar:
       t.value.insert("$", t.cursor)
+      t.cursorMove(1)
     of Key.ExclamationMark:
       t.value.insert("!", t.cursor)
+      t.cursorMove(1)
     of Key.At:
       t.value.insert("@", t.cursor)
+      t.cursorMove(1)
     of Key.Caret:
       t.value.insert("^", t.cursor)
+      t.cursorMove(1)
     of Key.GraveAccent:
       t.value.insert("~", t.cursor)
+      t.cursorMove(1)
     of Key.Tilde:
       t.value.insert("`", t.cursor)
-    of Key.Home: 
-      t.cursor = 0
-      #t.render()
-      moved = 0
-    of Key.End: 
-      t.cursor = t.value.len
-      #t.render()
-      moved = 0
+      t.cursorMove(1)
+    of Key.Home: discard
+      # t.cursor = 0
+    of Key.End: discard
+      # t.cursor = t.value.len - 1
     of Key.PageUp, Key.PageDown, Key.Insert:
       discard
     of Key.Left:
       t.moveLeft()
-      moved = 0
-      #t.render()
     of Key.Right: 
       t.moveRight()
-      moved = 0
-      #t.render()
     of Key.Up: 
-      t.moveUp()
       t.rowCursor = max(t.rowCursor - 1, 0)
-      moved = 0
-      #t.render()
+      t.moveUp()
     of Key.Down: 
-      t.moveDown()
-      moved = 0
       t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-      #t.render()
-    of Key.CtrlV: discard
-      # let copiedText = $cb.clipboard_text()
-      # t.value.insert(formatText(copiedText), t.cursor)
-      # t.cursor = t.cursor + copiedText.len
+      t.moveDown()
+    of Key.CtrlV:
+      let copiedText = $cb.clipboard_text()
+      t.value.insert(copiedText, t.cursor)
+      t.cursor = t.cursor + copiedText.len
+      t.rowReCal()
     of Key.Enter: 
       t.onEnter()
-      moved = 0
       t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-      #t.render()
     else:
       var ch = $key
       t.value.insert(ch.toLower(), t.cursor)
-    
-    t.cursorMove(moved)
-    # var key = getKey()
-    # case key
-    # of Key.None: 
-    #   discard
-    #   #t.rows[t.rowCursor].focus = true
-    # of Key.Enter: 
-    #   t.rowCursor = min(t.rows.len - 1, t.rowCursor + 1)
-    #   #t.rows[t.rowCursor].focus = true
-    # of Key.Up: 
-    #   t.rowCursor = max(t.rowCursor - 1, 0)
-    #   #t.rows[t.rowCursor].focus = true
-    # of Key.Down: 
-    #   t.rowCursor = min(t.rows.len - 1, t.rowCursor + 1)
-    #   #t.rows[t.rowCursor].focus = true
-    # else:
-    # for i in 0 ..< t.rows.len:
-    #   # if i != t.rowCursor: t.focus = false
-    #   t.rows[i].render()
-    #
-    # t.rows[t.rowCursor].onControl(proc(arg: string) =
-    #   t.rows[t.rowCursor].focus = false
-    #   t.rows[t.rowCursor].render()
-    #   t.rowCursor = min(t.rows.len - 1, t.rowCursor + 1)
-    # )
-    # t.rows[t.rowCursor].onUp = proc(w: ref BaseWidget) =
-    #   t.rows[t.rowCursor].focus = false
-    #   t.rows[t.rowCursor].render()
-    #   t.rowCursor = max(t.rowCursor - 1, 0)
-    # t.rows[t.rowCursor].onDown = proc(w: ref BaseWidget) =
-    #   t.rows[t.rowCursor].focus = false
-    #   t.rows[t.rowCursor].render()
-    #   t.rowCursor = min(t.rows.len - 1, t.rowCursor + 1)
+      t.cursorMove(1)
+
     t.render()
     sleep(t.refreshWaitTime)
 
@@ -339,25 +315,12 @@ method onControl*(t: ref TextArea) =
 method wg*(t: ref TextArea): ref BaseWidget = t
 
 
-# proc value*(t: ref TextArea): string =
-#   for r in t.rows:
-#     result &= r.value()
-#
+proc value*(t: ref TextArea): string = 
+  return t.value[0 ..< t.value.len - 1]
 
-# proc value*(t: ref TextArea, val: string) =
-#   let lineSize = t.x2 - t.x1
-#   let rowSize = ceil(val.len / lineSize).toInt
-#   if rowSize < t.rows.len:
-#     let diffSize = rowSize - t.rows.len
-#     for i in 0 ..< diffSize:
-#       var t = newInputBox(t.posX, t.posY, t.width, t.height, 
-#                           border=false, modeChar=' ',
-#                           fgColor=t.fg, bgColor=bgNone)
-#       t.rows.add(t)
-#   
-#   var pos = 0
-#   for r in t.rows:
-#     r.value(val.substr(pos, lineSize))
-#     pos += lineSize
-#
-#
+
+proc `value=`*(t: ref TextArea, val: string) =
+  t.clear()
+  t.value = val
+  t.rowReCal()
+  t.render()
