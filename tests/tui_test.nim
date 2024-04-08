@@ -37,7 +37,7 @@ var progress = newProgressBar(1, 35, consoleWidth(), 37, percent=0.0)
 
 let enterEv: EnterEventProcedure = proc(arg: string) =
   progress.update(5.0)
-button.onEnter(some(enterEv))
+button.onEnter = enterEv
 
 var list = newSeq[ref ListRow]()
 var i = 0
@@ -51,7 +51,7 @@ for key in keys:
 var label = newLabel(1, 50, 20, 52, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
 
 let selectEv: EnterEventProcedure = proc(arg: string) =
-  label.text(arg)
+  label.text = arg
 
 
 var listview = newListView(1, 38, consoleWidth(), 48, rows=list, title="list", bgColor=bgBlue, selectionStyle=HighlightArrow, onEnter=some(selectEv))
