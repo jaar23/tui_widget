@@ -41,13 +41,14 @@ proc permissionStr(permissions: set[FilePermission]): string =
   if permissions.contains(fpOthersExec): result &= "x" else: result &= "-"
 
 
-proc createList(path: string, hide: bool = false): seq[ref ListRow] =
+proc createList(path: string, hide = false, dd = true): seq[ref ListRow] =
   result = newSeq[ref ListRow]()
   for d in folder(path):
     let visible = if d.hidden and hide: false else: true
     var lr = newListRow(0, d.name, $$d, visible=visible)
     result.add(lr)
-  result.insert(newListRow(0, "..", ".."), 0)
+  if dd:
+    result.insert(newListRow(0, "..", ".."), 0)
 
 var rows = createList(home)
 
@@ -78,11 +79,12 @@ filterCb.onSpace = proc(val: string, checked: bool) =
 dirView.onEnter = proc (val: string) =
   if val == "..":
     currDir = parentDir(currDir)
-    var crows = createList(currDir, filterCb.checked)
+    var crows = if currDir.len > 1: createList(currDir, filterCb.checked) 
+      else: createList(currDir, filterCb.checked, false)
     dirView.rows = crows
     dirView.resetCursor()
     dirView.render()
-    dirView.title = currDir
+    dirView.title = currDir.split("/")[^1]
     return
 
   let file = to[File](val)
@@ -100,7 +102,7 @@ dirView.onEnter = proc (val: string) =
     var crows = createList(file.path, filterCb.checked)
     dirView.rows = crows
     currDir = file.path
-    dirView.title = currDir
+    dirView.title = currDir.split("/")[^1]
     dirView.resetCursor()
     dirView.render()
   else:
