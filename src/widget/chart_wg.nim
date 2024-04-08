@@ -78,6 +78,7 @@ proc renderAsciiGraph(c: ref Chart) =
 
 
 method render*(c: ref Chart) =
+  if not c.illwillInit: return
   c.renderBorder()
   c.renderTitle()
   c.renderAsciiGraph()
@@ -97,5 +98,3 @@ method onControl*(c: ref Chart, cb: CallbackProcedure) =
   c.onEnter = some(cb)
 
 
-proc terminalBuffer*(c: ref Chart): var TerminalBuffer =
-  c.tb

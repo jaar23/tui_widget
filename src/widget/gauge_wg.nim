@@ -54,6 +54,7 @@ proc renderClearRow(g: ref Gauge): void =
 
 
 method render*(g: ref Gauge) =
+  if not g.illwillInit: return
   g.renderClearRow()
   var fullGauge = g.x2 - 8
   var gaugeBarWidth = g.width
@@ -108,14 +109,5 @@ proc set*(g: ref Gauge, point: float) =
 proc completed*(g: ref Gauge) =
   g.percent = 100.0
   g.render()
-
-
-proc show*(g: ref Gauge) = g.render()
-
-
-proc hide*(g: ref Gauge) = g.clear()
-
-
-proc `-`*(g: ref Gauge) = g.show()
 
 

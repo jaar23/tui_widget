@@ -33,6 +33,7 @@ proc newLabel*(px, py, w, h: int, text: string,
 
 
 method render*(lb: ref Label) =
+  if not lb.illwillInit: return
   if lb.border: lb.renderBorder()
   var text: string
   if lb.align == Right:
@@ -48,19 +49,8 @@ method render*(lb: ref Label) =
 method wg*(lb: ref Label): ref BaseWidget = lb
 
 
-proc text*(lb: ref Label, text: string) =
+proc `text=`*(lb: ref Label, text: string) =
   lb.text = text
   lb.render()
 
 
-proc show*(lb: ref Label) = lb.render()
-
-
-proc hide*(lb: ref Label) = lb.clear()
-
-
-proc `-`*(lb: ref Label) = lb.show()
-
-
-proc terminalBuffer*(lb: ref Label): var TerminalBuffer =
-  lb.tb

@@ -52,6 +52,7 @@ proc renderClearRow(pb: ref ProgressBar): void =
 
 
 method render*(pb: ref ProgressBar) =
+  if not pb.illwillInit: return
   pb.renderClearRow()
   var progressLoaded: string = ""
   var progressLoading: string = ""
@@ -97,14 +98,5 @@ proc set*(pb: ref ProgressBar, point: float) =
 proc completed*(pb: ref ProgressBar) =
   pb.percent = 100.0
   pb.render()
-
-
-proc show*(pb: ref ProgressBar) = pb.render()
-
-
-proc hide*(pb: ref ProgressBar) = pb.clear()
-
-
-proc `-`*(pb: ref ProgressBar) = pb.show()
 
 

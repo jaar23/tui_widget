@@ -39,6 +39,7 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
 
 
 method render*(ch: ref Checkbox) =
+  if not ch.illwillInit: return
   ch.renderBorder()
   if ch.title != "":
     ch.renderTitle()
@@ -82,7 +83,5 @@ proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
 proc `onSpace=`*(ch: ref Checkbox, cb: SpaceEventProcedure) =
   ch.onSpace = some(cb)
 
-proc `-`*(ch: ref Checkbox) = ch.show()
 
-proc terminalBuffer*(ch: ref Checkbox): var TerminalBuffer =
-  ch.tb
+

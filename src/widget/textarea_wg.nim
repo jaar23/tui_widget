@@ -114,12 +114,25 @@ func moveRight(t: ref TextArea) =
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
-method render*(t: ref TextArea) =
+func moveToBegin(t: ref TextArea) =
+  let beginCursor = t.rowCursor * t.cols
+  t.cursor = max(0, beginCursor)
+
+
+func moveToEnd(t: ref TextArea) =
+  let endCursor = ((t.rowCursor + 1) * t.cols) - 1
+  t.cursor = min(t.value.len - 1, endCursor)
+  for p in countdown(t.cursor, 0):
+    if t.value[p] == ' ': dec t.cursor
+    else: break
+
+
+method render*(t: ref TextArea) = 
+  if not t.illwillInit: return
   t.clear()
   t.renderBorder()
   t.renderTitle()
   t.rowReCal() 
-  #echo $t.textRows
   var index = 1
   if t.textRows.len > 0:
     let rowStart = if t.rowCursor < t.size: 0 else: min(t.rowCursor - t.size + 1, t.textRows.len - 1)
@@ -137,7 +150,7 @@ method render*(t: ref TextArea) =
         inc vcursor 
       inc index
   if t.statusbar:
-    let statusbarText = "size: " & $t.value.len & " character(s)"
+    let statusbarText = "size: " & $(t.value.len - 1) & " character(s)"
     # for debug
     # let cval = if t.value.len > 0: $t.value[t.cursor] else: " "
     # let statusbarText = $t.cursor & "|" & $t.rowCursor & "|" & cval & "|len:" & $t.value.len
@@ -168,10 +181,14 @@ method onControl*(t: ref TextArea) =
     case key
     of Key.None, FnKeys, CtrlKeys: continue
     of EscapeKeys: t.focus = false
-    of Key.Backspace, Key.Delete:
+    of Key.Backspace:
       if t.cursor > 0:
         t.value.delete(t.cursor - 1..t.cursor - 1)
         t.cursorMove(-1)
+    of Key.Delete:
+      if t.value.len > 0:
+        t.value.delete(t.cursor .. t.cursor)
+        if t.cursor == t.value.len: t.value &= " "
     of Key.CtrlE:
       t.value = " "
       t.cursor = 0
@@ -279,9 +296,11 @@ method onControl*(t: ref TextArea) =
     of Key.Tilde:
       t.value.insert("`", t.cursor)
       t.cursorMove(1)
-    of Key.Home: discard
+    of Key.Home:
+      t.moveToBegin()
       # t.cursor = 0
-    of Key.End: discard
+    of Key.End:
+      t.moveToEnd()
       # t.cursor = t.value.len - 1
     of Key.PageUp, Key.PageDown, Key.Insert:
       discard
@@ -323,4 +342,7 @@ proc `value=`*(t: ref TextArea, val: string) =
   t.clear()
   t.value = val
   t.rowReCal()
+  t.cursor = t.value.len - 1
+  t.rowCursor = t.textRows.len - 1
+  t.rowCursor = min(t.textRows.len - 1, t.rows - 1)
   t.render()

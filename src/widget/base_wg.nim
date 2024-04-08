@@ -49,6 +49,7 @@ type
     groups*: bool = false
     debug*: bool = false
     refreshWaitTime*: int = 50
+    illwillInit*: bool = false
 
   CallbackProcedure* = proc(x: string): void
 

@@ -104,6 +104,7 @@ proc rowReCal(dp: ref Display) =
 
 
 method render*(dp: ref Display) =
+  if not dp.illwillInit: return
   if dp.useCustomTextRow: 
     let customFn = dp.customRowRecal.get
     dp.textRows = customFn(dp.text, dp)

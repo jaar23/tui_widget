@@ -172,6 +172,7 @@ proc renderStatusBar(lv: ref ListView, text: string = "") =
 
 
 method render*(lv: ref ListView) =
+  if not lv.illwillInit: return
   lv.renderClearRow(0, true)
   lv.renderBorder()
   lv.renderTitle()

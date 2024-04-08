@@ -36,6 +36,7 @@ proc newButton*(px, py, w, h: int, label: string,
 
 
 method render*(bt: ref Button) =
+  if not bt.illwillInit: return
   if bt.state == Pressed:
     bt.renderBorder()
     bt.tb.write(bt.x1, bt.y1, bt.bg, center(bt.label, bt.width - 2), resetStyle)
@@ -74,20 +75,10 @@ method onControl*(bt: ref Button) =
 method wg*(bt: ref Button): ref BaseWidget = bt
 
 
-proc onEnter*(bt: ref Button, cb: Option[EnterEventProcedure]) =
-  bt.onEnter = cb
+proc onEnter*(bt: ref Button, cb: EnterEventProcedure) =
+  bt.onEnter = some(cb)
 
 
-proc show*(bt: ref Button) = bt.render()
-
-
-proc hide*(bt: ref Button) = bt.clear()
-
-
-proc `-`*(bt: ref Button) = bt.show()
-
-
-proc terminalBuffer*(bt: ref Button): var TerminalBuffer =
-  bt.tb
-
+proc `onEnter=`*(bt: ref Button, cb: EnterEventProcedure) =
+  bt.onEnter = some(cb)
 

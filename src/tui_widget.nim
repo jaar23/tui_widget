@@ -88,6 +88,11 @@ proc requiredSize*(app: var TerminalApp): (int, int, int) =
   return (w, h, w * h)
 
 
+proc widgetInit(app: var TerminalApp) =
+  for w in app.widgets:
+    w.illwillInit = true
+
+
 proc run*(app: var TerminalApp) =
   proc exitProc() {.noconv.} =
     illwillDeinit()
@@ -108,12 +113,14 @@ proc run*(app: var TerminalApp) =
     stdout.flushFile()
     quit(0)
   
+  # init widgets
+  app.widgetInit()
+
   while true:
     app.tb.clear()
     if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
     let title: string = ansiStyleCode(styleBright) & app.title
     if app.title != "": app.tb.write(2, 0, title)
-    #app.tb.display()
     app.render()
     var key = getKey()
     case key

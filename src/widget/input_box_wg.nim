@@ -99,6 +99,7 @@ proc clear(ib: ref InputBox) =
 
 
 method render*(ib: ref InputBox) =
+  if not ib.illwillInit: return
   ib.clear()
   ib.renderBorder()
   ib.renderTitle()
@@ -179,12 +180,16 @@ method onControl*(ib: ref InputBox) =
     of EscapeKeys:
       ib.focus = false
       ib.mode = "|"
-    of Key.Backspace, Key.Delete:
+    of Key.Backspace:
       if ib.cursor > 0:
         ib.value.delete(ib.cursor - 1..ib.cursor - 1)
         ib.cursorMove(Left)
         ib.visualCursor = ib.visualCursor - 1
         ib.clear()
+    of Key.Delete:
+      if ib.value.len > 0:
+        ib.value.delete(ib.cursor .. ib.cursor)
+        if ib.cursor == ib.value.len: ib.value &= " "
     of Key.CtrlE:
       ib.value = ""
       ib.cursor = 0

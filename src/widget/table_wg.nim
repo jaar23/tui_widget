@@ -306,6 +306,7 @@ proc renderStatusBar(table: ref Table) =
 
 
 method render*(table: ref Table): void =
+  if not table.illwillInit: return
   table.renderClearRow(0, true)
   if table.border:
     table.renderBorder()
