@@ -49,6 +49,8 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
     statusbar: statusbar,
     statusbarSize: statusbarSize
   )
+  # to ensure key responsive, default to < 50  
+  if result.refreshWaitTime > 50: result.refreshWaitTime = 50
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
@@ -174,7 +176,7 @@ method onControl*(ib: ref InputBox) =
   ib.focus = true
   ib.mode = ">"
   while ib.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(ib.refreshWaitTime)
     case key
     of Key.None, FnKeys, CtrlKeys: discard
     of EscapeKeys:

@@ -43,7 +43,7 @@ type
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
                      terminalHeight()), title: string = "", border: bool = true,
-                     refreshWaitTime: int = 50): TerminalApp =
+                     refreshWaitTime: int = 20): TerminalApp =
   result = TerminalApp(
     title: title,
     border: border,

@@ -277,7 +277,7 @@ method onControl*(lv: ref ListView): void =
 
   lv.focus = true
   while lv.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(lv.refreshWaitTime)
     case key
     of Key.None: lv.render()
     of Key.Up:

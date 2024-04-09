@@ -391,7 +391,7 @@ proc resetFilter(table: ref Table) =
 method onControl*(table: ref Table): void =
   table.focus = true
   while table.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(table.refreshWaitTime)
     case key
     of Key.None: table.render()
     of Key.Up:

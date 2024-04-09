@@ -150,7 +150,7 @@ method onControl*(dp: ref Display) =
     dp.rowReCal() 
   dp.clear()
   while dp.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(dp.refreshWaitTime)
     case key
     of Key.None: dp.render()
     of Key.Up:

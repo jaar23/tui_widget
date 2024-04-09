@@ -10,6 +10,8 @@ type
   SelectionStyle* = enum
     Highlight, Arrow, HighlightArrow
 
+  ViMode* = enum
+    Normal, Insert, Visual
 
   WidgetStyle* = object
     fgColor*: ForegroundColor

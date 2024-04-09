@@ -58,7 +58,7 @@ method render*(ch: ref Checkbox) =
 method onControl*(ch: ref Checkbox) =
   ch.focus = true
   while ch.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(ch.refreshWaitTime)
     case key
     of Key.None: ch.render()
     of Key.Escape, Key.Tab: ch.focus = false

@@ -9,6 +9,7 @@ type
     value: string = ""
     rows: int = 0
     cols: int = 0
+    mode: ViMode
 
 
 var cb = clipboard_new(nil)
@@ -35,7 +36,6 @@ proc newTextArea*(px, py, w, h: int, title=""; val=" ";
     fgColor: fgColor,
     bgColor: bgColor
   )
-  #var buff = initTextBuffer(rows, cols)
   var textArea = (ref TextArea)(
     width: w,
     height: h,
@@ -51,6 +51,8 @@ proc newTextArea*(px, py, w, h: int, title=""; val=" ";
     statusbar: statusbar,
     statusbarSize: statusbarSize
   )
+  # to ensure key responsive, default < 50ms
+  if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
   return textArea
 
 
@@ -177,7 +179,7 @@ method onControl*(t: ref TextArea) =
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
   t.focus = true
   while t.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(t.refreshWaitTime)
     case key
     of Key.None, FnKeys, CtrlKeys: continue
     of EscapeKeys: t.focus = false
