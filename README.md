@@ -22,6 +22,12 @@ Refers to `tests/tui_test.nim` for example.
   - some text content does not work well with the default text split, you can define custom text rows split and re-cal on your own
 
 - textarea (y)
+  
+  - works like a textarea in HTML
+
+  - a naive vi mode implemented, can be enable during init of widget
+    
+    - pending for `:` implementation
 
 - button (y)
 
