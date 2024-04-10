@@ -13,6 +13,10 @@ type
   ViMode* = enum
     Normal, Insert, Visual
 
+  CursorStyle* = enum 
+    Block, Ibeam, Underline
+
+
   WidgetStyle* = object
     fgColor*: ForegroundColor
     bgColor*: BackgroundColor

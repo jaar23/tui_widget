@@ -51,7 +51,7 @@ method onControl*(bt: ref Button) =
   bt.focus = true
   var delay = 100
   while bt.focus:
-    var key = getKey()
+    var key = getKeyWithTimeout(bt.refreshWaitTime)
     case key
     of Key.None: bt.render()
     of Key.Escape, Key.Tab: bt.focus = false
