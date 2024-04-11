@@ -10,7 +10,7 @@ type
 
   Chart = object of BaseWidget
     marker: char = '*'
-    axis*: ref Axis
+    axis: ref Axis
     onEnter: Option[CallbackProcedure]
 
 
@@ -98,3 +98,14 @@ method onControl*(c: ref Chart, cb: CallbackProcedure) =
   c.onEnter = some(cb)
 
 
+proc val(c: ref Chart, axis: ref Axis) =
+  c.axis = axis
+  c.render()
+
+
+proc `axis=`*(c: ref Chart, axis: ref Axis) =
+  c.val(axis)
+
+
+proc axis*(c: ref Chart, axis: ref Axis) =
+  c.val(axis)

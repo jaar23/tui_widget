@@ -83,12 +83,17 @@ proc `onEnter=`*(bt: ref Button, cb: EnterEventProcedure) =
   bt.onEnter = some(cb)
 
 
-proc label*(bt: ref Button): string = bt.label
-
-proc `label=`*(bt: ref Button, label: string) =
+proc val(bt: ref Button, label: string) =
   bt.label = label
   bt.render()
 
 
+proc label*(bt: ref Button): string = bt.label
+
+
+proc `label=`*(bt: ref Button, label: string) =
+  bt.val(label)
+
 proc label*(bt: ref Button, label: string) =
-  bt.label = label
+  bt.val(label)
+

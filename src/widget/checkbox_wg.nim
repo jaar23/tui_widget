@@ -76,21 +76,28 @@ method onControl*(ch: ref Checkbox) =
 
 method wg*(ch: ref Checkbox): ref BaseWidget = ch
 
+
 proc checked*(ch: ref Checkbox): bool = ch.checked
+
 
 proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
 
+
 proc `onSpace=`*(ch: ref Checkbox, cb: SpaceEventProcedure) =
   ch.onSpace = some(cb)
+
+
+proc val*(ch: ref Checkbox, label: string) = 
+  ch.label = label
+  ch.render()
 
 
 proc label*(ch: ref Checkbox): string = ch.label
 
 
 proc `label=`*(ch: ref Checkbox, label: string) =
-  ch.label = label
-  ch.render()
+  ch.val(label)
 
 
 proc label*(ch: ref Checkbox, label: string) =
-  ch.label = label
+  ch.val(label)

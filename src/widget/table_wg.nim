@@ -353,29 +353,23 @@ proc filter(table: ref Table, filterStr: string) =
 
 
 proc onFilter(table: ref Table) =
-  table.cursor = 0
-  table.rowCursor = 0
-  table.colCursor = 0
+  table.resetCursor()
   table.renderClearRow(table.size + 5)
   var input = newInputBox(table.x1, table.y1, 
                           table.x2, table.y1 + 2, 
                           title="search", 
                           tb=table.tb)
-  let enterEv: CallbackProcedure = proc(x: string) = 
+  let enterEv: EnterEventProcedure = proc(x: string) = 
     table.filter(x)
     table.prevSelection()
     input.focus = false
     input.remove()
   # passing enter event as a callback
-  procCall input.onControl(enterEv)
+  input.illwillInit = true
+  input.onControl(enterEv)
+  #procCall input.onControl(enterEv)
   
-  # passing enter event to onEnter method
-  #input.onEnter(some(enterEv))
-  # let filterStr = input.value()
-  # table.filter(filterStr)
-  # input.hide()
-  # table.prevSelection()
-
+  
 
 proc resetFilter(table: ref Table) =
   for r in 0..<table.rows.len:

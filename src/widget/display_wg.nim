@@ -186,9 +186,9 @@ method wg*(dp: ref Display): ref BaseWidget = dp
 proc text*(dp: ref Display): string = dp.text
 
 
-proc `text=`*(dp: ref Display, text: string) =
+proc val(dp: ref Display, val: string) =
   dp.clear()
-  dp.text = text
+  dp.text = val
   if dp.useCustomTextRow: 
     let customFn = dp.customRowRecal.get
     dp.textRows = customFn(dp.text, dp)
@@ -197,12 +197,14 @@ proc `text=`*(dp: ref Display, text: string) =
   dp.render()
 
 
+proc `text=`*(dp: ref Display, text: string) =
+  dp.val(text)
+
+
 proc `text=`*(dp: ref Display, text: string, customRowRecal: proc(text: string, dp: ref Display): seq[string]) =
-  dp.clear()
-  dp.text = text
   dp.textRows = customRowRecal(text, dp)
   dp.useCustomTextRow = true
-  dp.render()
+  dp.val(text)
 
 
 proc `wordwrap=`*(dp: ref Display, wrap: bool) =
@@ -212,6 +214,4 @@ proc `wordwrap=`*(dp: ref Display, wrap: bool) =
 
 
 proc add*(dp: ref Display, text: string) =
-  dp.text = dp.text & text
-
-
+  dp.val(dp.text & text)

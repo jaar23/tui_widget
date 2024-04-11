@@ -351,7 +351,7 @@ method onControl*(ib: ref InputBox) =
     sleep(ib.refreshWaitTime)
 
 
-method onControl*(ib: ref InputBox, cb: CallbackProcedure): void =
+method onControl*(ib: ref InputBox, cb: EnterEventProcedure): void =
   ib.onEnter = some(cb)
   ib.onControl()
 
@@ -359,21 +359,25 @@ method onControl*(ib: ref InputBox, cb: CallbackProcedure): void =
 method wg*(ib: ref InputBox): ref BaseWidget = ib
 
 
-proc `value=`*(ib: ref InputBox, val: string) = 
+proc val(ib: ref InputBox, val: string) =
   ib.value = formatText(val)
   ib.cursor = val.len
   ib.render()
 
 
+proc `value=`*(ib: ref InputBox, val: string) = 
+  ib.val(val)
+
+
 proc value*(ib: ref InputBox, val: string) = 
-  ib.value = val
+  ib.val(val)
 
 
 proc value*(ib: ref InputBox): string = ib.value
 
 
-proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =
-  ib.onEnter = cb
+proc onEnter*(ib: ref InputBox, cb: EnterEventProcedure) =
+  ib.onEnter = some(cb)
 
 
 proc `onEnter=`*(ib: ref InputBox, cb: EnterEventProcedure) =

@@ -474,7 +474,6 @@ proc normalMode(t: ref TextArea) =
   ##   u           = undo last change
   ##   dd          = delete whole line
   ##   Escape      = back to normal mode
-  var keychunks = ""
   while true:
     let keys = getKeysWithTimeout()
     let key = identifyKey(keys)
@@ -975,9 +974,9 @@ proc value*(t: ref TextArea): string =
   return t.value[0 ..< t.value.len - 1]
 
 
-proc `value=`*(t: ref TextArea, val: string) =
+proc val(t: ref TextArea, val: string) =
   t.clear()
-  t.value = val
+  t.value = val & " "
   t.rowReCal()
   t.cursor = t.value.len - 1
   t.rowCursor = t.textRows.len - 1
@@ -985,5 +984,9 @@ proc `value=`*(t: ref TextArea, val: string) =
   t.render()
 
 
+proc `value=`*(t: ref TextArea, val: string) =
+  t.val(val)
+
 proc value*(t: ref TextArea, val: string) =
-  t.value = val
+  t.val(val) 
+

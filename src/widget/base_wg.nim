@@ -92,7 +92,12 @@ method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} 
   echo ""
 
 
-method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
+# method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
+#   #child needs to implement this!
+#   echo ""
+
+
+method onControl*(this: ref BaseWidget, cb: EnterEventProcedure): void {.base.} =
   #child needs to implement this!
   echo ""
 
