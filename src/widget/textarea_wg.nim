@@ -1,4 +1,4 @@
-import illwill, base_wg, os, sequtils, strutils, deques
+import illwill, base_wg, os, sequtils, strutils, deques, times
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
 
@@ -209,8 +209,8 @@ func moveToNextWord(t: ref TextArea) =
       space = false
       break
     else: continue
-    # if t.cursor > t.cols * (t.rowCursor + 1):
-    #   t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  if t.cursor > t.cols * (t.rowCursor + 1):
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
 
@@ -238,8 +238,8 @@ func moveToPrevWord(t: ref TextArea) =
       space = false
       break
     else: continue
-    # if t.cursor < t.cols * t.rowCursor: 
-    #   t.rowCursor = max(0, t.rowCursor - 1)
+  if t.cursor < t.cols * t.rowCursor: 
+    t.rowCursor = max(0, t.rowCursor - 1)
 
 
 
@@ -401,6 +401,7 @@ method render*(t: ref TextArea) =
       elif t.vimode == Visual:
         bgColor = t.viStyle.visualBg
         fgColor = t.viStyle.visualFg
+
       t.tb.write(t.x1, t.height, bgColor, fgColor, center(toUpper($t.vimode), len($t.vimode) + 4), resetStyle)
       
       let (r, c) = if t.vimode == Visual: (t.viSelection.startat, t.viSelection.endat) else: t.cursorAtLine()
@@ -419,6 +420,37 @@ proc resetCursor*(t: ref TextArea) =
   t.cursor = 0
   t.statusbarText = ""
 
+
+proc commandEvent*(t: ref TextArea) =
+  return
+
+
+proc getKeysWithTimeout(timeout = 1000): seq[Key] =
+  let numOfKey = 2
+  var captured = 0
+  var keyCapture = newSeq[Key]()
+  let waitTime = timeout * 1000
+  let startTime = now().nanosecond()
+  let endTime = startTime + waitTime
+  while true and now().nanosecond() < endTime:
+    if captured == numOfKey: break
+    let key = getKey()
+    keyCapture.add(key)
+    inc captured
+
+  return keyCapture
+
+
+proc identifyKey(keys: seq[Key]): Key = 
+  if keys.len < 2: 
+    return Key.None 
+  else:
+    if keys[1] == Key.None: return keys[0]
+    if keys[0] == keys[1]: 
+      return keys[0]
+    else:
+      return Key.None
+    
 
 proc normalMode(t: ref TextArea) =
   ## minimal supported of vi keybinding
@@ -442,9 +474,10 @@ proc normalMode(t: ref TextArea) =
   ##   u           = undo last change
   ##   dd          = delete whole line
   ##   Escape      = back to normal mode
-  # TODO: capture ctrl + v events to prevent conflicts with I
+  var keychunks = ""
   while true:
-    var key = getKeyWithTimeout(t.refreshWaitTime)
+    let keys = getKeysWithTimeout()
+    let key = identifyKey(keys)
     if key in {Key.I, Key.Insert}:
       t.vimode = Insert
       t.render()
@@ -515,21 +548,184 @@ proc normalMode(t: ref TextArea) =
       let (r, c) =t.cursorAtLine()
       t.statusbarText = $r & ":" & $c
       t.render()
+    elif key == Key.ShiftG:
+      t.cursor = t.value.len - 1
+      t.rowCursor = t.textRows.len - 1
+      t.render()
+    elif key == Key.G:
+      t.statusbarText = " G "
+      t.render()
+      while true:
+        var key2 = getKeyWithTimeout(1000)
+        case key2
+        of Key.G:
+          t.cursor = 0
+          t.rowCursor = 0
+          break
+        of Key.Escape: break
+        else: discard
+        sleep(t.refreshWaitTime)
+      let (r, c) =t.cursorAtLine()
+      t.statusbarText = $r & ":" & $c
+      t.render()
+    elif key == Key.Colon:
+      # custom command event
+      t.statusbarText = " :" 
+      t.render()
+      t.commandEvent()
+      let (r, c) = t.cursorAtLine()
+      t.statusbarText = $r & ":" & $c
+      t.render()
     else:
       t.vimode = Normal
       t.statusbarText = ""
       t.render()
-    sleep(t.refreshWaitTime)
+    #sleep(t.refreshWaitTime)
+
+
+
+# proc normalMode(t: ref TextArea) =
+#   ## minimal supported of vi keybinding
+#   ##
+#   ## .. code-block::
+#   ##   i, Insert   = switch to insert mode 
+#   ##   v           = switch to visual mode
+#   ##   A           = append at end of line
+#   ##   Delete      = delete at cursor
+#   ##   Tab         = exit widget
+#   ##   Left, <-, H = move backward
+#   ##   Right, L    = move forward
+#   ##   Up, K       = move upward
+#   ##   Down, J     = move downward
+#   ##   Home, ^     = goto beginning of line
+#   ##   End, $      = goto end of line
+#   ##   w           = goto next word
+#   ##   b           = goto previous word
+#   ##   x           = cut text at cursor
+#   ##   p           = paste last history at cursor
+#   ##   u           = undo last change
+#   ##   dd          = delete whole line
+#   ##   Escape      = back to normal mode
+#   # TODO: capture ctrl + v events to prevent conflicts with I
+#   var keychunks = ""
+#   while true:
+#     var key = getKeyWithTimeout(t.refreshWaitTime)
+#     if key in {Key.I, Key.Insert}:
+#       t.vimode = Insert
+#       t.render()
+#       break
+#     elif key in {Key.V}:
+#       t.vimode = Visual
+#       t.select()
+#       t.render()
+#       break
+#     elif key == Key.ShiftA:
+#       t.vimode = Insert
+#       t.moveToEnd()
+#       inc t.cursor
+#       t.render()
+#       break
+#     elif key == Key.Delete:
+#       t.delAtCursor() 
+#     elif key == Key.Tab:
+#       t.focus = false
+#       t.render()
+#       break
+#     elif key in {Key.Left, Key.Backspace, Key.H}:
+#       t.moveLeft()
+#     elif key in {Key.Right, Key.L}: 
+#       t.moveRight()
+#     elif key in {Key.Up, Key.K}: 
+#       t.rowCursor = max(t.rowCursor - 1, 0)
+#       t.moveUp()
+#     elif key in {Key.Down, Key.J}: 
+#       t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+#       t.moveDown()
+#     elif key in {Key.Home, Key.Caret}:
+#       t.moveToBegin()
+#     elif key in {Key.End, Key.Dollar}:
+#       t.moveToEnd()
+#     elif key == Key.W:
+#       t.moveToNextWord()
+#       t.render()
+#     elif key == Key.B:
+#       t.moveToPrevWord()
+#       t.render()
+#     elif key == Key.X:
+#       if t.cursor < t.value.len:
+#         t.viHistory.addLast((cursor: t.cursor, content: $t.value[t.cursor]))
+#         t.delAtCursor()
+#     elif key == Key.P:
+#       if t.cursor < t.value.len and t.viHistory.len > 0:
+#         let last = t.viHistory.popLast()
+#         t.putAtCursor(last.content)
+#         t.viHistory.addLast(last)
+#     elif key == Key.U:
+#       # experiments, need more fix
+#       if t.cursor < t.value.len and t.viHistory.len > 0:
+#         let prevBuff = t.viHistory.popLast()
+#         t.putAtCursor(prevBuff.content, prevBuff.cursor, updateCursor=true)
+#     elif key == Key.D:
+#       t.statusbarText = " D "
+#       t.render()
+#       while true:
+#         var key2 = getKeyWithTimeout(1000)
+#         case key2
+#         of Key.D:
+#           t.delLine()
+#           break
+#         of Key.Escape: break
+#         else: discard
+#         sleep(t.refreshWaitTime)
+#       let (r, c) =t.cursorAtLine()
+#       t.statusbarText = $r & ":" & $c
+#       t.render()
+#     elif key == Key.ShiftG:
+#       t.cursor = t.value.len - 1
+#       t.rowCursor = t.textRows.len - 1
+#       t.render()
+#     elif key == Key.G:
+#       t.statusbarText = " G "
+#       t.render()
+#       while true:
+#         var key2 = getKeyWithTimeout(1000)
+#         case key2
+#         of Key.G:
+#           t.cursor = 0
+#           t.rowCursor = 0
+#           break
+#         of Key.Escape: break
+#         else: discard
+#         sleep(t.refreshWaitTime)
+#       let (r, c) =t.cursorAtLine()
+#       t.statusbarText = $r & ":" & $c
+#       t.render()
+#     elif key == Key.Colon:
+#       # custom command event
+#       t.statusbarText = " :" 
+#       t.render()
+#       t.commandEvent()
+#       let (r, c) =t.cursorAtLine()
+#       t.statusbarText = $r & ":" & $c
+#       t.render()
+#     else:
+#       t.vimode = Normal
+#       t.statusbarText = ""
+#       t.render()
+#     sleep(t.refreshWaitTime)
 
 
 proc visualMode(t: ref TextArea) =
   while true:
     var key = getKeyWithTimeout(t.refreshWaitTime)
-    if key in {Key.I, Key.Insert}:
-      t.vimode = Insert
-      t.render()
-      break
-    elif key in {Key.Escape}:
+    # some terminal return ctrl+v with I (105)
+    # to prevent this happen in visual mode
+    # I key is disabled
+    # if key in {Key.I, Key.Insert}:
+    #   t.vimode = Insert
+    #   t.render()
+    #   break
+    if key in {Key.Escape}:
       t.vimode = Normal
       t.render()
       break
@@ -787,3 +983,7 @@ proc `value=`*(t: ref TextArea, val: string) =
   t.rowCursor = t.textRows.len - 1
   t.rowCursor = min(t.textRows.len - 1, t.rows - 1)
   t.render()
+
+
+proc value*(t: ref TextArea, val: string) =
+  t.value = val

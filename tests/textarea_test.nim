@@ -1,10 +1,10 @@
 import tui_widget
 
-var textarea = newTextArea(1, 1, consoleWidth(), 5, title="textarea", statusbar=true, enableViMode=true, cursorStyle=Ibeam)
+var textarea = newTextArea(1, 1, consoleWidth(), 10, title="textarea", statusbar=true, enableViMode=true, cursorStyle=Ibeam)
 
-var label = newLabel(1, 6, 40, 6, text="Welcome, Textarea")
+var label = newLabel(1, 11, 40, 11, text="Welcome, Textarea")
 
-var textarea2 = newTextArea(1, 7, consoleWidth(), 16, title="textarea 2", statusbar=true)
+var textarea2 = newTextArea(1, 12, consoleWidth(), 22, title="textarea 2", statusbar=true)
 
 var app = newTerminalApp(title="octo", border=true)
 
