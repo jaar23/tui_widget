@@ -4,6 +4,8 @@ Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/
 
 These widget is <b>under development</b>, things might change or break!
 
+** widgets event will be re-worked **
+
 ### Quick preview
 
 ![preview](./docs/images/tui_widget.gif)
