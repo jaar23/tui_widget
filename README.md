@@ -51,6 +51,9 @@ Refers to `tests/tui_test.nim` for example.
 
   - chart have some limitation, it do not aggregate the data when display.
 
+### Todo
+
+[todo list](./todo.md)
 
 ### Usage
 
