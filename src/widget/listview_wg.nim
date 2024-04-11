@@ -81,14 +81,6 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
   )
 
 
-proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
-  for r in 0 ..< rows.len:
-    rows[r].index = r
-  
-  if rows.len > 0:
-    rows[0].selected = true
-  
-  lv.rows = rows
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =
@@ -312,12 +304,23 @@ method onControl*(lv: ref ListView): void =
 
 method wg*(lv: ref ListView): ref BaseWidget = lv
 
+
 proc `onEnter=`*(lv: ref ListView, cb: EnterEventProcedure) =
   lv.onEnter = some(cb)
+
 
 proc rows*(lv: ref ListView): seq[ref ListRow] =
   return lv.rows
 
+
+proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
+  for r in 0 ..< rows.len:
+    rows[r].index = r
+  
+  if rows.len > 0:
+    rows[0].selected = true
+  
+  lv.rows = rows
 
 # ListRow attributes
 #

@@ -88,14 +88,6 @@ method render*(g: ref Gauge) =
 method wg*(g: ref Gauge): ref BaseWidget = g
 
 
-# proc update*(g: ref Gauge, point: float) =
-#   if g.percent + point >= GaugePercent.high:
-#     g.percent = GaugePercent.high
-#   else:
-#     g.percent += point
-#   g.render()
-#
-
 proc set*(g: ref Gauge, point: float) =
   if point >= GaugePercent.high:
     g.percent = GaugePercent.high

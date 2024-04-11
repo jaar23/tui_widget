@@ -182,18 +182,8 @@ method onControl*(dp: ref Display) =
 
 method wg*(dp: ref Display): ref BaseWidget = dp
 
+
 proc text*(dp: ref Display): string = dp.text
-
-proc terminalBuffer*(dp: ref Display): var TerminalBuffer =
-  return dp.tb
-
-proc add*(dp: ref Display, text: string) =
-  dp.text = dp.text & text
-  if dp.useCustomTextRow: 
-    let customFn = dp.customRowRecal.get
-    dp.textRows = customFn(dp.text, dp)
-  else: 
-    dp.rowReCal() 
 
 
 proc `text=`*(dp: ref Display, text: string) =
@@ -206,6 +196,7 @@ proc `text=`*(dp: ref Display, text: string) =
     dp.rowReCal()
   dp.render()
 
+
 proc `text=`*(dp: ref Display, text: string, customRowRecal: proc(text: string, dp: ref Display): seq[string]) =
   dp.clear()
   dp.text = text
@@ -213,9 +204,14 @@ proc `text=`*(dp: ref Display, text: string, customRowRecal: proc(text: string, 
   dp.useCustomTextRow = true
   dp.render()
 
+
 proc `wordwrap=`*(dp: ref Display, wrap: bool) =
   if dp.visibility:
     dp.wordwrap = wrap
     dp.render()
+
+
+proc add*(dp: ref Display, text: string) =
+  dp.text = dp.text & text
 
 

@@ -66,6 +66,8 @@ type
   UpEventProcedure* = proc(bw: ref BaseWidget): void
 
   DownEventProcedure* = proc(bw: ref BaseWidget): void
+
+  CommandEvent* = proc(bw: ref BaseWidget, command: string): void
   
 
 proc consoleWidth*(): int =
@@ -231,20 +233,25 @@ proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
     bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.title, resetStyle)
 
 
-proc renderCleanRow*(bw: ref BaseWidget, index = 0) =
-  bw.tb.fill(bw.x1, bw.posY + index, bw.x2, bw.posY + index, " ")
+proc renderCleanRow*(bw: ref BaseWidget, index = 0, cleanWith=" ") =
+  bw.tb.fill(bw.x1, bw.posY + index, bw.x2, bw.posY + index, cleanWith)
   # for y in bw.posY + index..bw.posY + index:
   #   for x in bw.x1..bw.x2:
   #     bw.tb[x, y] = TerminalChar(ch: " ".runeAt(0), fg: bw.tb.getForegroundColor, bg: bw.tb.getBackgroundColor, style: bw.tb.getStyle)
   #stdout.flushFile()
 
-proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int) =
-  bw.tb.fill(x1, y1, x2, y2, " ")
+proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int, cleanWith=" ") =
+  bw.tb.fill(x1, y1, x2, y2, cleanWith)
 
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
   bw.tb.write(bw.x1, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
-  #stdout.flushFile()
+
+
+proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: ForegroundColor, 
+                content: string, index: int = 0, withoutPadding = false) =
+  let x1 = if withoutPadding: bw.posX else: bw.x1
+  bw.tb.write(x1, bw.posY + index, bgColor, fgColor, content, resetStyle)
 
 
 proc clear*(bw: ref BaseWidget) =

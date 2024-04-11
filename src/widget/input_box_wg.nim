@@ -8,8 +8,6 @@ type
     visualCursor: int = 2
     mode: string = "|"
     onEnter: Option[EnterEventProcedure]
-    onUp: Option[UpEventProcedure]
-    onDown: Option[DownEventProcedure]
 
   CursorDirection = enum
     Left, Right
@@ -313,14 +311,14 @@ method onControl*(ib: ref InputBox) =
     of Key.Right: 
       ib.cursorMove(Right)
       ib.rerender()
-    of Key.Up: 
-      if ib.onUp.isSome:
-        let fn = ib.onUp.get
-        fn(ib)
-    of Key.Down:
-      if ib.onDown.isSome:
-        let fn = ib.onDown.get
-        fn(ib)
+    of Key.Up, Key.Down: discard 
+    #   if ib.onUp.isSome:
+    #     let fn = ib.onUp.get
+    #     fn(ib)
+    # of Key.Down:
+    #   if ib.onDown.isSome:
+    #     let fn = ib.onDown.get
+    #     fn(ib)
     of Key.CtrlV:
       let copiedText = $cb.clipboard_text()
       ib.value.insert(formatText(copiedText), ib.cursor)
@@ -361,14 +359,17 @@ method onControl*(ib: ref InputBox, cb: CallbackProcedure): void =
 method wg*(ib: ref InputBox): ref BaseWidget = ib
 
 
-proc value*(ib: ref InputBox, val: string) = ib.value = val
+proc `value=`*(ib: ref InputBox, val: string) = 
+  ib.value = formatText(val)
+  ib.cursor = val.len
+  ib.render()
+
+
+proc value*(ib: ref InputBox, val: string) = 
+  ib.value = val
 
 
 proc value*(ib: ref InputBox): string = ib.value
-
-
-proc terminalBuffer*(ib: ref InputBox): var TerminalBuffer =
-  return ib.tb
 
 
 proc onEnter*(ib: ref InputBox, cb: Option[EnterEventProcedure]) =
@@ -379,11 +380,11 @@ proc `onEnter=`*(ib: ref InputBox, cb: EnterEventProcedure) =
   ib.onEnter = some(cb)
 
 
-proc `onUp=`*(ib: ref InputBox, ev: UpEventProcedure) =
-  ib.onUp = some(ev)
-
-
-proc `onDown=`*(ib: ref InputBox, ev: DownEventProcedure) =
-  ib.onDown = some(ev)
-
+# proc `onUp=`*(ib: ref InputBox, ev: UpEventProcedure) =
+#   ib.onUp = some(ev)
+#
+#
+# proc `onDown=`*(ib: ref InputBox, ev: DownEventProcedure) =
+#   ib.onDown = some(ev)
+#
 

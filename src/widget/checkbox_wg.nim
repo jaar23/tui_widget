@@ -84,4 +84,13 @@ proc `onSpace=`*(ch: ref Checkbox, cb: SpaceEventProcedure) =
   ch.onSpace = some(cb)
 
 
+proc label*(ch: ref Checkbox): string = ch.label
 
+
+proc `label=`*(ch: ref Checkbox, label: string) =
+  ch.label = label
+  ch.render()
+
+
+proc label*(ch: ref Checkbox, label: string) =
+  ch.label = label

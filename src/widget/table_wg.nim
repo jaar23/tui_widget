@@ -439,15 +439,6 @@ method onControl*(table: ref Table): void =
 method wg*(table: ref Table): ref BaseWidget = table
 
 
-proc show*(table: ref Table) = table.render()
-
-
-proc hide*(table: ref Table) = table.clear()
-
-
-proc `-`*(table: ref Table) = table.show()
-
-
 proc addRow*(table: ref Table, tablerow: ref TableRow, index: Option[int] = none(int)): void =
   for i in 0..<tablerow.columns.len:
     if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:

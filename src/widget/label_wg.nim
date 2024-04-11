@@ -50,7 +50,13 @@ method wg*(lb: ref Label): ref BaseWidget = lb
 
 
 proc `text=`*(lb: ref Label, text: string) =
-  lb.text = text
+  let size = lb.x2 - lb.x1
+  if text.len > size:
+    lb.text = text[0..size - 2] & ".."
+  else:
+    lb.text = text
   lb.render()
 
 
+proc text*(lb: ref Label, text: string) =
+  lb.text = text
