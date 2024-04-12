@@ -50,11 +50,33 @@
     ```
     
     EnterEvent in input, textarea (vi mode), listview, table, button as primary event trigger.
+    
+    ```nim
+    var btn = newButton(1, 1, 10, 2, "Click Me")
+
+    btn.onEnter = proc(btn:  ref Button) =
+        echo "done"
+    ```
 
     Standardize SpaceEvent in input, textarea (vi mode), listview, table, button, eg, <leader>+<key>, for secondary trigger
 
     QuestionEvent in all for help text, except input, and allow user to defined their own help text.
     
     Register command event in input, textarea widget
+    
+    ```nim
+    var btn = newButton(1, 1, 10, 2, "Click Me")
+    
+    btn.on("click", enterEv)
+    # or
+    btn.on(click, proc(btn: ref Button) ->
+       echo "done" 
+    )
+
+    ## call it
+    btn.call('click')
+    
+    btn.click('click', p1, p2)
+    ```
 
 [ ] Menu widget
