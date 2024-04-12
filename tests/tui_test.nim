@@ -31,11 +31,12 @@ var checkbox = newCheckbox(1, 17, 20, 19, title="done", label="yes", value="y")
 var checkbox2 = newCheckbox(21, 17, 40, 19, title="accept", label="yes", value="y", checkMark='*')
 
 var table = newTable(1, 23, consoleWidth(), 33, title="table", selectionStyle=Highlight)
+
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
 var progress = newProgressBar(1, 35, consoleWidth(), 37, percent=0.0)
 
-let enterEv: EnterEventProcedure = proc(arg: string) =
+let enterEv = proc(btn: ref Button, args: varargs[string]) =
   progress.update(5.0)
 button.onEnter = enterEv
 
@@ -50,11 +51,13 @@ for key in keys:
 
 var label = newLabel(1, 50, 20, 52, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
 
-let selectEv: EnterEventProcedure = proc(arg: string) =
-  label.text = arg
+let selectEv = proc(lv: ref ListView, args: varargs[string]) =
+  label.text = args[0]
 
 
-var listview = newListView(1, 38, consoleWidth(), 48, rows=list, title="list", bgColor=bgBlue, selectionStyle=HighlightArrow, onEnter=some(selectEv))
+var listview = newListView(1, 38, consoleWidth(), 48, rows=list, title="list", bgColor=bgBlue, selectionStyle=HighlightArrow)
+
+listView.onEnter = selectEv
 
 
 var app = newTerminalApp(title="octo")
