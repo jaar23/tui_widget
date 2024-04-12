@@ -1,7 +1,7 @@
 import base_wg, illwill, strutils
 
 type
-  Label = object of BaseWidget
+  Label* = object of BaseWidget
     text: string = ""
     align: Alignment = Left
 

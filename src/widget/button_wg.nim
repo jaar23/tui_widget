@@ -1,4 +1,5 @@
-import illwill, base_wg, options, os, strutils
+import illwill, base_wg, os, strutils
+import tables
 
 type
   ButtonState = enum
@@ -6,10 +7,13 @@ type
 
   Button* = object of BaseWidget
     label: string = ""
-    disabled: bool = false
-    onEnter: Option[EnterEventProcedure]
+    disabled*: bool = false
     state: ButtonState = Unpressed
+    events*: Table[string, EventFn[ref Button]]
+    keyEvents*: Table[Key, EventFn[ref Button]]
 
+
+const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None}
 
 proc newButton*(px, py, w, h: int, label: string, 
                 disabled = false, bgColor = bgGreen, fgColor = fgWhite,
@@ -31,8 +35,33 @@ proc newButton*(px, py, w, h: int, label: string,
     label: label,
     tb: tb,
     disabled: disabled,
-    style: style
+    style: style,
+    events: initTable[string, EventFn[ref Button]](),
+    keyEvents: initTable[Key, EventFn[ref Button]]()
   )
+
+
+proc on*(bt: ref Button, event: string, fn: EventFn[ref Button]) =
+  bt.events[event] = fn
+
+
+proc on*(bt: ref Button, key: Key, fn: EventFn[ref Button]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  bt.keyEvents[key] = fn
+    
+
+
+proc call*(bt: ref Button, event: string) =
+  let fn = bt.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(bt)
+
+
+proc call(bt: ref Button, key: Key) =
+  let fn = bt.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(bt)
 
 
 method render*(bt: ref Button) =
@@ -49,25 +78,27 @@ method render*(bt: ref Button) =
 
 method onControl*(bt: ref Button) =
   bt.focus = true
-  var delay = 100
+  var delay = 20
   while bt.focus:
     var key = getKeyWithTimeout(bt.refreshWaitTime)
     case key
     of Key.None: bt.render()
     of Key.Escape, Key.Tab: bt.focus = false
-    of Key.Space, Key.Enter:
+    of Key.Enter:
       if bt.disabled: return
-      if bt.onEnter.isSome:
-        let fn = bt.onEnter.get
-        fn("")
-        bt.state = Pressed
-        bt.render()
-    else: discard
+      bt.call("enter")
+      bt.state = Pressed
+      bt.render()
+    else:
+      if key in forbiddenKeyBind: discard
+      elif bt.keyEvents.hasKey(key):
+        bt.call(key)
+        
     if bt.state == Pressed:
       delay = delay - 1
     if delay == 0:
       bt.state = Unpressed
-      delay = 100
+      delay = 20
   bt.render()
   sleep(bt.refreshWaitTime)
 
@@ -75,12 +106,12 @@ method onControl*(bt: ref Button) =
 method wg*(bt: ref Button): ref BaseWidget = bt
 
 
-proc onEnter*(bt: ref Button, cb: EnterEventProcedure) =
-  bt.onEnter = some(cb)
+proc onEnter*(bt: ref Button, eventFn: EventFn[ref Button]) =
+  bt.on("enter", eventFn)
 
 
-proc `onEnter=`*(bt: ref Button, cb: EnterEventProcedure) =
-  bt.onEnter = some(cb)
+proc `onEnter=`*(bt: ref Button, eventFn: EventFn[ref Button]) =
+  bt.on("enter", eventFn)
 
 
 proc val(bt: ref Button, label: string) =
@@ -96,4 +127,5 @@ proc `label=`*(bt: ref Button, label: string) =
 
 proc label*(bt: ref Button, label: string) =
   bt.val(label)
+
 

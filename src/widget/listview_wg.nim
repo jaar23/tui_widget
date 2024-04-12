@@ -1,4 +1,4 @@
-import illwill, base_wg, options, sequtils, strutils, os
+import illwill, base_wg, sequtils, strutils, os, tables
 
 type
   ListRow* = object
@@ -17,7 +17,12 @@ type
     mode: Mode = Normal
     filteredSize: int = 0
     selectionStyle: SelectionStyle
-    onEnter: Option[EnterEventProcedure]
+    events*: Table[string, EventFn[ref ListView]]
+    keyEvents*: Table[Key, EventFn[ref ListView]]
+
+const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
+                          Key.Down, Key.PageUp, Key.PageDown,
+                          Key.Left, Key.Right}
 
 
 proc newListRow*(index: int, text: string, value: string, align = Center,
@@ -39,7 +44,6 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
                   statusbarText = "<!> Enter to select",
                   fgColor = fgWhite, bgColor = bgNone,
                   selectionStyle: SelectionStyle = Highlight,
-                  onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
   let padding = if border: 1 else: 0
 
@@ -75,7 +79,6 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     statusbar: statusbar,
     selectionStyle: selectionStyle,
     colCursor: 0,
-    onEnter: onEnter,
     statusbarText: statusbarText,
     statusbarSize: statusbarText.len()
   )
@@ -256,6 +259,28 @@ proc resetCursor*(lv: ref ListView) =
       #lv.rows[r].visible = true
 
 
+proc on*(lv: ref ListView, event: string, fn: EventFn[ref ListView]) =
+  lv.events[event] = fn
+
+
+proc on*(lv: ref ListView, key: Key, fn: EventFn[ref ListView]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  lv.keyEvents[key] = fn
+    
+
+proc call*(lv: ref ListView, event: string, args: varargs[string]) =
+  let fn = lv.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
+proc call(lv: ref ListView, key: Key, args: varargs[string]) =
+  let fn = lv.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
 method onControl*(lv: ref ListView): void =
   if lv.visibility == false: 
     lv.cursor = 0
@@ -293,11 +318,15 @@ method onControl*(lv: ref ListView): void =
     of Key.Left:
       lv.colCursor = max(lv.colCursor - 1, 0)
     of Key.Enter:
-      if lv.onEnter.isSome:
-        let fn = lv.onEnter.get
-        fn(lv.selected.value)
+      # if lv.onEnter.isSome:
+      #   let fn = lv.onEnter.get
+      #   fn(lv.selected.value)
+      lv.call("enter", lv.selected.value)
     of Tab: lv.focus = false
-    else: discard
+    else:
+      if key in forbiddenKeyBind: discard
+      elif lv.keyEvents.hasKey(key):
+        lv.call(key, lv.selected.value)
   lv.render()
   sleep(lv.refreshWaitTime)
 
@@ -305,8 +334,12 @@ method onControl*(lv: ref ListView): void =
 method wg*(lv: ref ListView): ref BaseWidget = lv
 
 
-proc `onEnter=`*(lv: ref ListView, cb: EnterEventProcedure) =
-  lv.onEnter = some(cb)
+proc `onEnter=`*(lv: ref ListView, enterEv: EventFn[ref ListView]) =
+  lv.on("enter", enterEv)
+
+
+proc onEnter*(lv: ref ListView, enterEv: EventFn[ref ListView]) =
+  lv.on("enter", enterEv)
 
 
 proc rows*(lv: ref ListView): seq[ref ListRow] =

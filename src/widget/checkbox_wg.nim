@@ -1,12 +1,14 @@
-import illwill, base_wg, options, os
+import illwill, base_wg, os, tables
 
 type
-  Checkbox = object of BaseWidget
+  Checkbox* = object of BaseWidget
     label: string = ""
     value: string= ""
     checkMark: char = 'X'
     checked: bool
-    onSpace: Option[SpaceEventProcedure]
+    events: Table[string, BoolEventFn[ref Checkbox]]
+    keyEvents*: Table[Key, BoolEventFn[ref Checkbox]]
+
 
 proc newCheckbox*(px, py, w, h: int, title = "", label = "", 
                   value = "", checked = false, checkMark = 'X',
@@ -33,9 +35,36 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
     tb: tb,
     checked: checked,
     style: style,
-    checkMark: checkMark
+    checkMark: checkMark,
+    events: initTable[string, BoolEventFn[ref Checkbox]](),
+    keyEvents: initTable[Key, BoolEventFn[ref Checkbox]]()
   )
   return checkbox
+
+
+const forbiddenKeyBind = {Key.Tab, Key.None, Key.Escape}
+
+
+proc on*(ch: ref Checkbox, event: string, fn: BoolEventFn[ref Checkbox]) =
+  ch.events[event] = fn
+
+
+proc on*(ch: ref Checkbox, key: Key, fn: BoolEventFn[ref Checkbox]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  ch.keyEvents[key] = fn
+    
+
+proc call*(ch: ref Checkbox, event: string, arg: bool) =
+  let fn = ch.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(ch, arg)
+
+
+proc call(ch: ref Checkbox, key: Key, arg: bool) =
+  let fn = ch.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(ch, arg)
 
 
 method render*(ch: ref Checkbox) =
@@ -62,16 +91,20 @@ method onControl*(ch: ref Checkbox) =
     case key
     of Key.None: ch.render()
     of Key.Escape, Key.Tab: ch.focus = false
-    of Key.Space, Key.Enter:
+    of Key.Enter:
       ch.checked = not ch.checked
-      if ch.onSpace.isSome:
-        let fn = ch.onSpace.get
-        fn(ch.value, ch.checked)
+      ch.call("enter", ch.checked)
+      # if ch.onSpace.isSome:
+      #   let fn = ch.onSpace.get
+      #   fn(ch.value, ch.checked)
       ch.render()
-    else: discard
+    else:
+      if key in forbiddenKeyBind: discard
+      elif ch.keyEvents.hasKey(key):
+        ch.call(key, ch.checked)
+
   ch.render()
   sleep(ch.refreshWaitTime)
-
 
 
 method wg*(ch: ref Checkbox): ref BaseWidget = ch
@@ -83,8 +116,15 @@ proc checked*(ch: ref Checkbox): bool = ch.checked
 proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
 
 
-proc `onSpace=`*(ch: ref Checkbox, cb: SpaceEventProcedure) =
-  ch.onSpace = some(cb)
+proc `checked=`*(ch: ref Checkbox, state: bool) = ch.checked = state
+
+
+proc `onEnter=`*(ch: ref Checkbox, enterEv: BoolEventFn[ref Checkbox]) =
+  ch.on("enter", enterEv)
+
+
+proc onEnter*(ch: ref Checkbox, enterEv: BoolEventFn[ref Checkbox]) =
+  ch.on("enter", enterEv)
 
 
 proc val*(ch: ref Checkbox, label: string) = 

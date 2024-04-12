@@ -1,4 +1,4 @@
-import illwill, base_wg, os, std/wordwrap, strutils, options
+import illwill, base_wg, os, std/wordwrap, strutils, options, tables
 
 # Doesn't work nice when rendering a lot of character rather than 
 # alphanumeric text.
@@ -12,6 +12,13 @@ type
     wordwrap*: bool = false
     useCustomTextRow* = false
     customRowRecal: Option[CustomRowRecal]
+    events*: Table[string, EventFn[ref Display]]
+    keyEvents*: Table[Key, EventFn[ref Display]]
+
+
+const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
+                          Key.Down, Key.PageUp, Key.PageDown, Key.Home,
+                          Key.End, Key.Left, Key.Right, Key.ShiftW}
 
 
 proc newDisplay*(px, py, w, h: int,
@@ -137,6 +144,29 @@ proc resetCursor*(dp: ref Display) =
   dp.cursor = 0
 
 
+proc on*(dp: ref Display, event: string, fn: EventFn[ref Display]) =
+  dp.events[event] = fn
+
+
+proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  dp.keyEvents[key] = fn
+    
+
+
+proc call*(dp: ref Display, event: string) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(dp)
+
+
+proc call(dp: ref Display, key: Key) =
+  let fn = dp.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(dp)
+
+
 method onControl*(dp: ref Display) =
   if dp.visibility == false: 
     dp.cursor = 0
@@ -175,7 +205,11 @@ method onControl*(dp: ref Display) =
       dp.focus = false
     of Key.ShiftW:
       dp.wordwrap = not dp.wordwrap
-    else: discard
+    else:
+      if key in forbiddenKeyBind: discard
+      elif dp.keyEvents.hasKey(key):
+        dp.call(key)
+
   dp.render()
   sleep(dp.refreshWaitTime)
 

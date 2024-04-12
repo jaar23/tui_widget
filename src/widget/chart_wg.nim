@@ -1,4 +1,4 @@
-import illwill, base_wg, os, options, strutils, asciigraph, std/math
+import illwill, base_wg, os, strutils, asciigraph, std/math
 
 type
   Axis* = object
@@ -8,10 +8,10 @@ type
     title: string
     data: seq[float64]
 
-  Chart = object of BaseWidget
+  Chart* = object of BaseWidget
     marker: char = '*'
     axis: ref Axis
-    onEnter: Option[CallbackProcedure]
+    #onEnter: Option[CallbackProcedure]
 
 
 proc newAxis*(lb: float64 = 0.0, ub: float64 = 0.0, title: string = "",
@@ -94,8 +94,8 @@ method onControl*(c: ref Chart) =
   sleep(c.refreshWaitTime)
 
 
-method onControl*(c: ref Chart, cb: CallbackProcedure) =
-  c.onEnter = some(cb)
+# method onControl*(c: ref Chart, cb: CallbackProcedure) =
+#   c.onEnter = some(cb)
 
 
 proc val(c: ref Chart, axis: ref Axis) =

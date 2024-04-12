@@ -1,6 +1,7 @@
 import illwill, base_wg, os, sequtils, strutils, deques, times
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
+import tables
 
 
 type
@@ -35,6 +36,8 @@ type
     viHistory: Deque[ViHistory]
     viStyle*: ViStyle
     viSelection: ViSelection
+    events*: Table[string, EventFn[ref TextArea]]
+    keyEvents*: Table[Key, EventFn[ref TextArea]]
 
 
 var cb = clipboard_new(nil)

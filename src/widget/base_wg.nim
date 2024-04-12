@@ -57,18 +57,12 @@ type
     refreshWaitTime*: int = 50
     illwillInit*: bool = false
 
-  CallbackProcedure* = proc(x: string): void
+  EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
-  EnterEventProcedure* = proc(x: string): void
-
-  SpaceEventProcedure* = proc(x: string, b: bool): void
-
-  UpEventProcedure* = proc(bw: ref BaseWidget): void
-
-  DownEventProcedure* = proc(bw: ref BaseWidget): void
-
-  CommandEvent* = proc(bw: ref BaseWidget, command: string): void
+  BoolEventFn*[T] = proc (wg: T, arg: bool): void
   
+  EventKeyError* = object of CatchableError
+
 
 proc consoleWidth*(): int =
   return terminalWidth() - 2
@@ -82,14 +76,14 @@ method onControl*(this: ref BaseWidget): void {.base.} =
   echo ""
 
 
-method onControl*(this: ref BaseWidget, cb: proc(args: varargs[string])): void {.base.} =
-  #child needs to implement this!
-  echo ""
+# method onControl*(this: ref BaseWidget, cb: proc(bw: ref BaseWidget, args: varargs[string])): void {.base.} =
+#   #child needs to implement this!
+#   echo ""
+#
 
-
-method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} =
-  #child needs to implement this!
-  echo ""
+# method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} =
+#   #child needs to implement this!
+#   echo ""
 
 
 # method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
@@ -97,10 +91,10 @@ method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} 
 #   echo ""
 
 
-method onControl*(this: ref BaseWidget, cb: EnterEventProcedure): void {.base.} =
-  #child needs to implement this!
-  echo ""
-
+# method onControl*(this: ref BaseWidget, cb: EnterEventProcedure): void {.base.} =
+#   #child needs to implement this!
+#   echo ""
+#
 
 method render*(this: ref BaseWidget): void {.base.} = 
   echo ""

@@ -1,5 +1,6 @@
-import illwill, os, strutils, base_wg, options, sequtils, encodings
+import illwill, os, strutils, base_wg, sequtils, encodings
 import nimclipboard/libclipboard
+import tables
 
 type
   InputBox* = object of BaseWidget
@@ -7,11 +8,22 @@ type
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = "|"
-    onEnter: Option[EnterEventProcedure]
+    events*: Table[string, EventFn[ref InputBox]]
+    keyEvents*: Table[Key, EventFn[ref InputBox]]
 
   CursorDirection = enum
     Left, Right
 
+const allowKeyBind = {Key.Up, Key.Down}
+
+const allowFnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
+                     Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
+ 
+const allowCtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF, 
+                       Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
+                       Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
+                       Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
+                       Key.CtrlY, Key.CtrlZ}
 
 var cb = clipboard_new(nil)
 
@@ -45,7 +57,9 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
     tb: tb,
     style: style,
     statusbar: statusbar,
-    statusbarSize: statusbarSize
+    statusbarSize: statusbarSize,
+    events: initTable[string, EventFn[ref InputBox]](),
+    keyEvents: initTable[Key, EventFn[ref InputBox]]()
   )
   # to ensure key responsive, default to < 50  
   if result.refreshWaitTime > 50: result.refreshWaitTime = 50
@@ -156,18 +170,41 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
     ib.visualCursor = vcursorPos
 
 
+proc on*(ib: ref InputBox, event: string, fn: EventFn[ref InputBox]) =
+  ib.events[event] = fn
+
+
+proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]) {.raises: [EventKeyError]} =
+  if key in allowKeyBind or key in allowFnKeys or key in allowCtrlKeys: 
+    ib.keyEvents[key] = fn
+  else:
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+    
+
+
+proc call*(ib: ref InputBox, event: string, args: varargs[string]) =
+  let fn = ib.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(ib, args)
+
+
+proc call(ib: ref InputBox, key: Key, args: varargs[string]) =
+  let fn = ib.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(ib, args)
+
 
 ## optional callback proc function
 #method onControl*(ib: ref InputBox, onEnter: Option[CallbackProcedure] = none(CallbackProcedure)) = 
 method onControl*(ib: ref InputBox) = 
   const EscapeKeys = {Key.Escape, Key.Tab}
-  const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
-                  Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
-  const CtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF, 
-                    Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
-                    Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
-                    Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
-                    Key.CtrlY, Key.CtrlZ}
+  # const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
+  #                 Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
+  # const CtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF, 
+  #                   Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
+  #                   Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
+  #                   Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
+  #                   Key.CtrlY, Key.CtrlZ}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
 
@@ -176,7 +213,7 @@ method onControl*(ib: ref InputBox) =
   while ib.focus:
     var key = getKeyWithTimeout(ib.refreshWaitTime)
     case key
-    of Key.None, FnKeys, CtrlKeys: discard
+    of Key.None: discard
     of EscapeKeys:
       ib.focus = false
       ib.mode = "|"
@@ -311,7 +348,7 @@ method onControl*(ib: ref InputBox) =
     of Key.Right: 
       ib.cursorMove(Right)
       ib.rerender()
-    of Key.Up, Key.Down: discard 
+    # of Key.Up, Key.Down: discard 
     #   if ib.onUp.isSome:
     #     let fn = ib.onUp.get
     #     fn(ib)
@@ -324,13 +361,23 @@ method onControl*(ib: ref InputBox) =
       ib.value.insert(formatText(copiedText), ib.cursor)
       ib.cursor = ib.cursor + copiedText.len
     of Key.Enter:
+      ib.call("enter")
       # when implementing function as a callback
       # if onEnter.isSome:
       #   let cb = onEnter.get
       #   cb(ib.value)
-      if ib.onEnter.isSome:
-        let fn = ib.onEnter.get
-        fn(ib.value)
+      # if ib.onEnter.isSome:
+      #   let fn = ib.onEnter.get
+      #   fn(ib.value)
+    of allowKeyBind:
+      if ib.keyEvents.hasKey(key):
+        ib.call(key)
+    of allowFnKeys:
+      if ib.keyEvents.hasKey(key):
+        ib.call(key)
+    of allowCtrlKeys:
+      if ib.keyEvents.hasKey(key):
+        ib.call(key)
     else:
       var ch = $key
       ib.value.insert(ch.toLower(), ib.cursor)
@@ -351,10 +398,10 @@ method onControl*(ib: ref InputBox) =
     sleep(ib.refreshWaitTime)
 
 
-method onControl*(ib: ref InputBox, cb: EnterEventProcedure): void =
-  ib.onEnter = some(cb)
-  ib.onControl()
-
+# method onControl*(ib: ref InputBox, enterEv: EventFn[ref InputBox]): void =
+#   ib.on("enter", enterEv)
+#   ib.onControl()
+#
 
 method wg*(ib: ref InputBox): ref BaseWidget = ib
 
@@ -376,12 +423,12 @@ proc value*(ib: ref InputBox, val: string) =
 proc value*(ib: ref InputBox): string = ib.value
 
 
-proc onEnter*(ib: ref InputBox, cb: EnterEventProcedure) =
-  ib.onEnter = some(cb)
+proc onEnter*(ib: ref InputBox, enterEv: EventFn[ref InputBox]) =
+  ib.on("enter", enterEv)
 
 
-proc `onEnter=`*(ib: ref InputBox, cb: EnterEventProcedure) =
-  ib.onEnter = some(cb)
+proc `onEnter=`*(ib: ref InputBox, enterEv: EventFn[ref InputBox]) =
+  ib.on("enter", enterEv)
 
 
 # proc `onUp=`*(ib: ref InputBox, ev: UpEventProcedure) =

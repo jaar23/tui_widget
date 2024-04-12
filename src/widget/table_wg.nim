@@ -1,5 +1,6 @@
 import illwill, sequtils, base_wg, os, options, strutils, parsecsv, input_box_wg
 from std/streams import newFileStream
+import tables as systable
 
 type
   ColumnType* = enum
@@ -32,7 +33,7 @@ type
     selected: bool = false
     value: string = ""
 
-  Table = object of BaseWidget
+  Table* = object of BaseWidget
     headers: Option[ref TableRow]
     rows: seq[ref TableRow]
     mode: Mode = Normal
@@ -40,7 +41,12 @@ type
     selectedRow: int = 0
     selectionStyle: SelectionStyle
     maxColWidth: int = 64
-    onEnter: Option[EnterEventProcedure]
+    events*: systable.Table[string, EventFn[ref Table]]
+    keyEvents*: systable.Table[Key, EventFn[ref Table]]
+
+
+const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.Slash, Key.Up, Key.Down,
+                          Key.Left, Key.Right}
 
 
 proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow: bool = false,
@@ -91,7 +97,6 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle,
-               onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
@@ -125,7 +130,6 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     colCursor: 0,
     maxColWidth: w,
     selectionStyle: selectionStyle,
-    onEnter: onEnter
   )
   if headers.isSome: 
     table.size -= 1
@@ -141,7 +145,6 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle = Highlight,
-               onEnter: Option[EnterEventProcedure] = none(EnterEventProcedure),
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[ref TableRow]()
   let padding = if border: 2 else: 1
@@ -170,7 +173,6 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     style: style,
     colCursor: 0,
     selectionStyle: selectionStyle,
-    onEnter: onEnter
   )
   return table
 
@@ -359,14 +361,15 @@ proc onFilter(table: ref Table) =
                           table.x2, table.y1 + 2, 
                           title="search", 
                           tb=table.tb)
-  let enterEv: EnterEventProcedure = proc(x: string) = 
-    table.filter(x)
+  let enterEv = proc(ib: ref InputBox, x: varargs[string]) = 
+    table.filter(ib.value)
     table.prevSelection()
     input.focus = false
     input.remove()
   # passing enter event as a callback
   input.illwillInit = true
-  input.onControl(enterEv)
+  input.on("enter", enterEv)
+  input.onControl()
   #procCall input.onControl(enterEv)
   
   
@@ -380,6 +383,29 @@ proc resetFilter(table: ref Table) =
   table.colCursor = 0
   table.renderClearRow(0)
   table.prevSelection()
+
+
+proc on*(table: ref Table, event: string, fn: EventFn[ref Table]) =
+  table.events[event] = fn
+
+
+proc on*(table: ref Table, key: Key, fn: EventFn[ref Table]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  table.keyEvents[key] = fn
+    
+
+proc call*(table: ref Table, event: string, args: varargs[string]) =
+  let fn = table.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(table, args)
+
+
+proc call(table: ref Table, key: Key, args: varargs[string]) =
+  let fn = table.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(table, args)
+
 
 
 method onControl*(table: ref Table): void =
@@ -420,12 +446,18 @@ method onControl*(table: ref Table): void =
       if table.mode == Filter:
         table.mode = Normal
         table.resetFilter()
-    of Key.Tab: table.focus = false
+    of Key.Tab: 
+      table.focus = false
     of Key.Enter:
-      if table.onEnter.isSome:
-        let fn = table.onEnter.get
-        fn(table.rows[table.cursor].value)
-    else: discard
+      table.call("enter")
+      # if table.onEnter.isSome:
+      #   let fn = table.onEnter.get
+      #   fn(table.rows[table.cursor].value)
+    else: 
+      if key in forbiddenKeyBind: discard
+      elif table.keyEvents.hasKey(key):
+        table.call(key)
+
   table.render()
   sleep(table.refreshWaitTime)
 
