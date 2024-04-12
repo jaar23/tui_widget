@@ -60,8 +60,7 @@ var dirView = newListView(1, 4, 30, consoleHeight(), title=home, rows = rows, bg
 
 var filterCb = newCheckbox(1, 1, 30, 3, label="hide hidden files")
 
-
-filterCb.onSpace = proc(val: string, checked: bool) =
+filterCb.onEnter = proc (ch: ref Checkbox, checked: bool) =
   var i = 0
   for r in dirView.rows():
     if r.value == "..": continue 
@@ -76,7 +75,8 @@ filterCb.onSpace = proc(val: string, checked: bool) =
   dirView.render()
 
 
-dirView.onEnter = proc (val: string) =
+dirView.onEnter = proc (lv: ref ListView, args: varargs[string]) =
+  let val = args[0]
   if val == "..":
     currDir = parentDir(currDir)
     var crows = if currDir.len > 1: createList(currDir, filterCb.checked) 
