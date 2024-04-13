@@ -7,13 +7,12 @@ type
     Header, Column
 
   TableColumn* = object
-    index: int
+    index*: int
     width: int
     height: int
     overflow: bool
-    text: string
-    widget: Option[BaseWidget]
-    key: string
+    text*: string
+    key*: string
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     align: Alignment = Left
@@ -22,16 +21,16 @@ type
     visible: bool = true
 
   TableRow* = object
-    index: int
+    index*: int
     width: int
     height: int
     maxColWidth: int
-    columns: seq[ref TableColumn]
+    columns*: seq[ref TableColumn]
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     visible: bool = true
-    selected: bool = false
-    value: string = ""
+    selected*: bool = false
+    value*: string = ""
 
   Table* = object of BaseWidget
     headers: Option[ref TableRow]
@@ -44,15 +43,16 @@ type
     events*: systable.Table[string, EventFn[ref Table]]
     keyEvents*: systable.Table[Key, EventFn[ref Table]]
 
+  SizeDiffError = object of CatchableError
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.Slash, Key.Up, Key.Down,
                           Key.Left, Key.Right}
 
 
-proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow: bool = false,
-                     widget: Option[BaseWidget] = none(BaseWidget),
-                     bgColor = bgNone, fgColor = fgWhite,
-                     align = Left, columnType = Column): ref TableColumn =
+proc newTableColumn*(width: int, height: int = 1; text = ""; key = ""; 
+                     index = 0; overflow: bool = false;
+                     bgColor = bgNone; fgColor = fgWhite;
+                     align = Left; columnType = Column): ref TableColumn =
   var tc = (ref TableColumn)(
     index: index,
     width: max(width, text.len),
@@ -60,7 +60,6 @@ proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow:
     overflow: overflow,
     text: text,
     key: key,
-    widget: widget,
     bgColor: bgColor,
     fgColor: fgColor,
     align: align,
@@ -70,13 +69,14 @@ proc newTableColumn*(width, height: int, text, key: string, index = 0, overflow:
 
 
 
-proc newTableRow*(width, height: int, columns: seq[ref TableColumn], index = 0,
-                     bgColor = bgNone, fgColor = fgWhite,
-                     selected = false): ref TableRow =
+proc newTableRow*(width: int, height = 1; 
+                  columns: seq[ref TableColumn] = newSeq[ref TableColumn](), 
+                  index = 0,bgColor = bgNone, fgColor = fgWhite,
+                  selected = false): ref TableRow =
   var maxColWidth = 0
   for i in 0..<columns.len:
     columns[i].index = i
-    maxColWidth = max(columns[i].width, maxColWidth)
+    maxColWidth = min(columns[i].width, maxColWidth)
 
   var tr = (ref TableRow)(
     index: index,
@@ -96,7 +96,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
                title: string = "", cursor = 0, rowCursor = 0, 
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
-               selectionStyle: SelectionStyle,
+               selectionStyle: SelectionStyle, maxColWidth = w,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
@@ -128,8 +128,9 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     tb: tb,
     style: style,
     colCursor: 0,
-    maxColWidth: w,
+    maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
+    statusbar: statusbar
   )
   if headers.isSome: 
     table.size -= 1
@@ -144,7 +145,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
 proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0, 
                border: bool = true, statusbar: bool = true,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
-               selectionStyle: SelectionStyle = Highlight,
+               selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[ref TableRow]()
   let padding = if border: 2 else: 1
@@ -172,7 +173,9 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     tb: tb,
     style: style,
     colCursor: 0,
+    maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
+    statusbar: statusbar
   )
   return table
 
@@ -187,7 +190,8 @@ proc rowMaxWidth(table: ref Table): int =
       result += col.width
 
 
-proc vrows(table: ref Table): seq[ref TableRow] = table.rows.filter(proc(r: ref TableRow): bool = r.visible)
+proc vrows(table: ref Table): seq[ref TableRow] = 
+  table.rows.filter(proc(r: ref TableRow): bool = r.visible)
 
 
 proc dtmColumnToDisplay(table: ref Table) =
@@ -302,18 +306,21 @@ proc renderTableRow(table: ref Table, row: ref TableRow, index: int) =
 
 proc renderStatusBar(table: ref Table) =
   if table.statusbar:
-    table.tb.write(table.x1, table.height, fgYellow, "rows: ",
-                   $table.vrows().len , " selected: ", $table.selectedRow, 
+    let mode = " " & $table.mode & " "
+    table.tb.write(table.x1, table.height, fgBlack, bgWhite, mode, resetStyle)
+    table.tb.write(table.x1 + mode.len + 1, table.height, fgBlack, bgWhite, 
+                   " size: " & $table.vrows().len & " ", 
                    resetStyle)
 
 
 method render*(table: ref Table): void =
   if not table.illwillInit: return
-  table.renderClearRow(0, true)
-  if table.border:
-    table.renderBorder()
-  if table.title != "":
-    table.renderTitle()
+  #table.renderClearRow(0, true)
+  table.clear()
+  #if table.border:
+  table.renderBorder()
+  #if table.title != "":
+  table.renderTitle()
   var index = table.renderTableHeader()
   let rows = table.vrows()
   if rows.len > 0:
@@ -356,6 +363,7 @@ proc filter(table: ref Table, filterStr: string) =
 
 proc onFilter(table: ref Table) =
   table.resetCursor()
+  table.renderStatusBar()
   table.renderClearRow(table.size + 5)
   var input = newInputBox(table.x1, table.y1, 
                           table.x2, table.y1 + 2, 
@@ -465,17 +473,35 @@ method onControl*(table: ref Table): void =
 method wg*(table: ref Table): ref BaseWidget = table
 
 
+proc `header=`*(table: ref Table, header: ref TableRow) =
+  table.headers = some(header)
+
+
+proc header*(table: ref Table, header: ref TableRow) =
+  table.headers = some(header)
+
+
+proc header*(table: ref Table): Option[ ref TableRow] = table.headers
+
+
 proc addRow*(table: ref Table, tablerow: ref TableRow, index: Option[int] = none(int)): void =
   for i in 0..<tablerow.columns.len:
     if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:
       table.headers.get.columns[i].width = min(table.maxColWidth, 
                                                tablerow.columns[i].text.len + 1)
+    if tablerow.columns[i].text.len > table.maxColWidth:
+      tablerow.columns[i].text = tablerow.columns[i].text[0..table.maxColWidth - 3] &  ".."
+
   if index.isSome:
     tablerow.index = index.get
   else:
     tablerow.index = table.rows.len + 1
-  tablerow.selected = false
   table.rows.add(tablerow)
+  if table.rows.len == 1:
+    tablerow.selected = true
+    table.selectedRow = 1
+  else:
+    tablerow.selected = false
 
 
 proc removeRow*(table: ref Table, index: int) =
@@ -527,4 +553,29 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIn
     table.prevSelection()
   except:
     echo "failed to open file"
+
+
+proc headerFromArray*(table: ref Table, header: openArray[string]) =
+  var headers = newTableRow(table.width)
+  for h in header:
+    let column = newTableColumn(h.len, 1, h, h)
+    headers.columns.add(column)
+  table.header = headers
+
+
+proc loadFromSeq*(table: ref Table, rows: openArray[seq[string]]) =
+  if rows.len == 0:
+    raise newException(ValueError, "rows cannot be empty.")
+
+  for i in 0 ..< rows.len:
+    if table.headers.isSome:
+      if table.headers.get.columns.len != rows[i].len:
+        raise newException(SizeDiffError, "Table header and rows has different size")
+
+    var row = newTableRow(table.width)
+    for d in rows[i]:
+      var column = newTableColumn(d.len, 1, d, d)
+      row.columns.add(column)
+    table.addRow(row)
+
 
