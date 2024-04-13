@@ -1,4 +1,4 @@
-import illwill, base_wg, os, sequtils, strutils, deques, times
+import illwill, base_wg, os, sequtils, strutils, deques, times, input_box_wg
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
 import tables
@@ -37,7 +37,9 @@ type
     viStyle*: ViStyle
     viSelection: ViSelection
     events*: Table[string, EventFn[ref TextArea]]
-    keyEvents*: Table[Key, EventFn[ref TextArea]]
+    editKeyEvents*: Table[Key, EventFn[ref TextArea]]
+    normalKeyEvents*: Table[Key, EventFn[ref TextArea]]
+    visualKeyEvents*: Table[Key, EventFn[ref TextArea]]
 
 
 var cb = clipboard_new(nil)
@@ -47,14 +49,14 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 let CursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
 
 
-proc newViStyle(nbg: BackgroundColor = bgBlue, ibg: BackgroundColor = bgCyan,
+proc newViStyle(nbg: BackgroundColor = bgBlue, tg: BackgroundColor = bgCyan,
                 vbg: BackgroundColor = bgYellow,
                 nfg: ForegroundColor = fgWhite, ifg: ForegroundColor = fgWhite, 
                 vfg: ForegroundColor = fgWhite,
                 calBg: BackgroundColor = bgWhite, calFg: ForegroundColor = fgBlack): ViStyle =
   result = ViStyle(
     normalBg: nbg,
-    insertBg: ibg,
+    insertBg: tg,
     visualBg: vbg,
     normalFg: nfg,
     insertFg: ifg,
@@ -108,7 +110,12 @@ proc newTextArea*(px, py, w, h: int, title=""; val=" ";
     enableViMode: enableViMode,
     viHistory: initDeque[ViHistory](),
     viStyle: viStyle,
-    viSelection: (startat: 0, endat: 0, direction: Right)
+    viSelection: (startat: 0, endat: 0, direction: Right),
+    events: initTable[string, EventFn[ref TextArea]](),
+    editKeyEvents: initTable[Key, EventFn[ref TextArea]](),
+    normalKeyEvents: initTable[Key, EventFn[ref TextArea]](),
+    visualKeyEvents: initTable[Key, EventFn[ref TextArea]]()
+
   )
   # to ensure key responsive, default < 50ms
   if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
@@ -345,6 +352,89 @@ func cursorAtLine(t: ref TextArea): (int, int) =
   return (t.rowCursor + 1, lineCursor) 
 
 
+proc on*(t: ref TextArea, event: string, fn: EventFn[ref TextArea]) =
+  t.events[event] = fn
+
+
+proc onNormalMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+  const forbiddenKeys = {Key.I, Key.Insert, Key.V, Key.ShiftA, Key.Delete,
+                        Key.Left, Key.Right, Key.Backspace, Key.H,
+                        Key.L, Key.Up, Key.K, Key.Down, Key.J, Key.Home,
+                        Key.Caret, Key.End, Key.Dollar, Key.W, Key.B,
+                        Key.X, Key.P, Key.U, Key.D, Key.ShiftG, Key.G,
+                        Key.Colon, Key.Escape, Key.Tab}
+  if key in forbiddenKeys: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  else:
+    t.normalKeyEvents[key] = fn
+
+
+proc onEditMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+  const allowFnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
+                       Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
+   
+  const allowCtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF, 
+                         Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
+                         Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
+                         Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
+                         Key.CtrlY, Key.CtrlZ}
+
+  if key in allowFnKeys or key in allowCtrlKeys: 
+    t.editKeyEvents[key] = fn
+  else:
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+
+
+proc onVisualMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+  const forbiddenKeys = {Key.Escape, Key.Tab, Key.V, Key.Y, Key.P,
+                        Key.Left, Key.Right, Key.Backspace, Key.H,
+                        Key.L, Key.Up, Key.K, Key.Down, Key.J, Key.Home,
+                        Key.Caret, Key.End, Key.Dollar, Key.W, Key.B,
+                        Key.X, Key.P, Key.U, Key.D}
+  if key in forbiddenKeys: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  else:
+    t.visualKeyEvents[key] = fn
+   
+
+proc on*(t: ref TextArea, key: Key, fn: EventFn[ref TextArea], vimode: ViMode = Insert) {.raises: [EventKeyError]} =
+  if t.enableViMode:
+    if vimode == Normal:
+      t.onNormalMode(key, fn)
+    elif vimode == Insert:
+      t.onEditMode(key, fn)
+    elif vimode == Visual:
+      t.onVisualMode(key, fn)
+  else:
+    t.onEditMode(key, fn)
+    
+
+
+proc call*(t: ref TextArea, event: string, args: varargs[string]) =
+  let fn = t.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(t, args)
+
+
+proc call(t: ref TextArea, key: Key, args: varargs[string]) =
+  if t.enableViMode:
+    if t.vimode == Normal: 
+      let fn = t.normalKeyEvents.getOrDefault(key, nil)
+      if not fn.isNil:
+        fn(t, args)
+    elif t.vimode == Insert: 
+      let fn = t.editKeyEvents.getOrDefault(key, nil)
+      if not fn.isNil:
+        fn(t, args)
+    elif t.vimode == Visual: 
+      let fn = t.visualKeyEvents.getOrDefault(key, nil)
+      if not fn.isNil:
+        fn(t, args)
+  else:
+    let fn = t.editKeyEvents.getOrDefault(key, nil)
+    if not fn.isNil:
+      fn(t, args)
+
 
 method render*(t: ref TextArea) = 
   if not t.illwillInit: return
@@ -425,7 +515,17 @@ proc resetCursor*(t: ref TextArea) =
 
 
 proc commandEvent*(t: ref TextArea) =
-  return
+  var input = newInputBox(t.x1+ 9, t.y2,
+                          t.x1 + 9 + 12, t.y2,
+                         tb=t.tb, border=true)
+  let enterEv = proc(ib: ref InputBox, x: varargs[string]) =
+    if t.events.hasKey(ib.value()):
+      t.call(ib.value())
+    input.focus = false
+
+  input.illwillInit = true
+  input.on("enter", enterEv)
+  input.onControl()
 
 
 proc getKeysWithTimeout(timeout = 1000): seq[Key] =
@@ -579,6 +679,8 @@ proc normalMode(t: ref TextArea) =
       t.statusbarText = $r & ":" & $c
       t.render()
     else:
+      if t.normalKeyEvents.hasKey(key):
+        t.call(key)
       t.vimode = Normal
       t.statusbarText = ""
       t.render()
@@ -767,6 +869,8 @@ proc visualMode(t: ref TextArea) =
     elif key == Key.B:
       t.selectMoveLeft(key)
     else:
+      if t.visualKeyEvents.hasKey(key):
+        t.call(key)
       t.vimode = Visual
       t.render()
     sleep(t.refreshWaitTime)
@@ -794,7 +898,7 @@ proc editMode(t: ref TextArea) =
     elif t.enableViMode and t.vimode == Normal: continue
     else:
       case key
-      of Key.None, FnKeys, CtrlKeys: continue
+      of Key.None: continue
       of Key.Escape:
         if t.enableViMode: 
           t.normalMode()
@@ -946,6 +1050,9 @@ proc editMode(t: ref TextArea) =
       of Key.Enter: 
         t.enter()
         t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+      of FnKeys, CtrlKeys:
+        if t.editKeyEvents.hasKey(key):
+          t.call(key)
       else:
         var ch = $key
         t.value.insert(ch.toLower(), t.cursor)
