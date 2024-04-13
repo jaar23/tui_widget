@@ -14,7 +14,7 @@
 
     - widget in error will be update as error state and render error
 
-[ ] event handling
+[x] event handling
     
     References from js for inspiration
 
