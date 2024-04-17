@@ -1,6 +1,6 @@
 import illwill, os, strutils, base_wg, sequtils, encodings
 import nimclipboard/libclipboard
-import tables
+import tables, threading/channels
 
 type
   InputBox* = object of BaseWidget
@@ -63,6 +63,7 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
   )
   # to ensure key responsive, default to < 50  
   if result.refreshWaitTime > 50: result.refreshWaitTime = 50
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
@@ -182,10 +183,16 @@ proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]) {.raises: [Event
     
 
 
-proc call*(ib: ref InputBox, event: string, args: varargs[string]) =
+method call*(ib: ref InputBox, event: string, args: varargs[string]) =
   let fn = ib.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ib, args)
+
+
+method call*(ib: InputBox, event: string, args: varargs[string]) =
+  let fn = ib.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(ib.asRef(), args)
 
 
 proc call(ib: ref InputBox, key: Key, args: varargs[string]) =
@@ -194,8 +201,197 @@ proc call(ib: ref InputBox, key: Key, args: varargs[string]) =
     fn(ib, args)
 
 
-## optional callback proc function
-#method onControl*(ib: ref InputBox, onEnter: Option[CallbackProcedure] = none(CallbackProcedure)) = 
+method onUpdate*(ib: ref InputBox, key: Key) = 
+  const EscapeKeys = {Key.Escape, Key.Tab}
+  const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
+                        Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
+  ib.focus = true
+  ib.mode = ">"
+  case key
+  of Key.None: discard
+  of EscapeKeys:
+    ib.focus = false
+    ib.mode = "|"
+  of Key.Backspace:
+    if ib.cursor > 0:
+      ib.value.delete(ib.cursor - 1..ib.cursor - 1)
+      ib.cursorMove(Left)
+      ib.visualCursor = ib.visualCursor - 1
+      ib.clear()
+  of Key.Delete:
+    if ib.value.len > 0:
+      ib.value.delete(ib.cursor .. ib.cursor)
+      if ib.cursor == ib.value.len: ib.value &= " "
+  of Key.CtrlE:
+    ib.value = ""
+    ib.cursor = 0
+    ib.clear()
+  of Key.ShiftA..Key.ShiftZ:
+    let tmpKey = $key
+    let alphabet = toSeq(tmpKey.items()).pop()
+    ib.value.insert($alphabet.toUpperAscii(), ib.cursor)
+    ib.overflowWidth()
+  of Key.Zero..Key.Nine:
+    let keyPos = NumericKeys.find(key)
+    if keyPos > -1:
+      ib.value.insert($keyPos, ib.cursor)
+      ib.overflowWidth()
+  of Key.Comma:
+    ib.value.insert(",", ib.cursor)
+    ib.overflowWidth()
+  of Key.Colon:
+    ib.value.insert(":", ib.cursor)
+    ib.overflowWidth()
+  of Key.Semicolon:
+    ib.value.insert(";", ib.cursor)
+    ib.overflowWidth()
+  of Key.Underscore:
+    ib.value.insert("_", ib.cursor)
+    ib.overflowWidth()
+  of Key.Dot:
+    ib.value.insert(".", ib.cursor)
+    ib.overflowWidth()
+  of Key.Ampersand:
+    ib.value.insert("&", ib.cursor)
+    ib.overflowWidth()
+  of Key.DoubleQuote:
+    ib.value.insert("\"", ib.cursor)
+    ib.overflowWidth()
+  of Key.SingleQuote:
+    ib.value.insert("'", ib.cursor)
+    ib.overflowWidth()
+  of Key.QuestionMark:
+    ib.value.insert("?", ib.cursor)
+    ib.overflowWidth()
+  of Key.Space:
+    ib.value.insert(" ", ib.cursor)
+    ib.overflowWidth()
+  of Key.Pipe:
+    ib.value.insert("|", ib.cursor)
+    ib.overflowWidth()
+  of Key.Slash:
+    ib.value.insert("/", ib.cursor)
+    ib.overflowWidth()
+  of Key.Equals:
+    ib.value.insert("=", ib.cursor)
+    ib.overflowWidth()
+  of Key.Plus:
+    ib.value.insert("+", ib.cursor)
+    ib.overflowWidth()
+  of Key.Minus:
+    ib.value.insert("-", ib.cursor)
+    ib.overflowWidth()
+  of Key.Asterisk:
+    ib.value.insert("*", ib.cursor)
+    ib.overflowWidth()
+  of Key.BackSlash:
+    ib.value.insert("\\", ib.cursor)
+    ib.overflowWidth()
+  of Key.GreaterThan:
+    ib.value.insert(">", ib.cursor)
+    ib.overflowWidth()
+  of Key.LessThan:
+    ib.value.insert("<", ib.cursor)
+    ib.overflowWidth()
+  of Key.LeftBracket:
+    ib.value.insert("[", ib.cursor)
+    ib.overflowWidth()
+  of Key.RightBracket:
+    ib.value.insert("]", ib.cursor)
+    ib.overflowWidth()
+  of Key.LeftBrace:
+    ib.value.insert("(", ib.cursor)
+    ib.overflowWidth()
+  of Key.RightBrace:
+    ib.value.insert(")", ib.cursor)
+    ib.overflowWidth()
+  of Key.Percent:
+    ib.value.insert("%", ib.cursor)
+    ib.overflowWidth()
+  of Key.Hash:
+    ib.value.insert("#", ib.cursor)
+    ib.overflowWidth()
+  of Key.Dollar:
+    ib.value.insert("$", ib.cursor)
+    ib.overflowWidth()
+  of Key.ExclamationMark:
+    ib.value.insert("!", ib.cursor)
+    ib.overflowWidth()
+  of Key.At:
+    ib.value.insert("@", ib.cursor)
+    ib.overflowWidth()
+  of Key.Caret:
+    ib.value.insert("^", ib.cursor)
+    ib.overflowWidth()
+  of Key.GraveAccent:
+    ib.value.insert("~", ib.cursor)
+    ib.overflowWidth()
+  of Key.Tilde:
+    ib.value.insert("`", ib.cursor)
+    ib.overflowWidth()
+  of Key.Home: 
+    ib.cursor = 0
+    ib.rerender()
+  of Key.End: 
+    ib.cursor = ib.value.len
+    ib.rerender()
+  of Key.PageUp, Key.PageDown, Key.Insert:
+    discard
+  of Key.Left:
+    ib.cursorMove(Left)
+    ib.rerender()
+  of Key.Right: 
+    ib.cursorMove(Right)
+    ib.rerender()
+  # of Key.Up, Key.Down: discard 
+  #   if ib.onUp.isSome:
+  #     let fn = ib.onUp.get
+  #     fn(ib)
+  # of Key.Down:
+  #   if ib.onDown.isSome:
+  #     let fn = ib.onDown.get
+  #     fn(ib)
+  of Key.CtrlV:
+    let copiedText = $cb.clipboard_text()
+    ib.value.insert(formatText(copiedText), ib.cursor)
+    ib.cursor = ib.cursor + copiedText.len
+  of Key.Enter:
+    ib.call("enter")
+    # when implementing function as a callback
+    # if onEnter.isSome:
+    #   let cb = onEnter.get
+    #   cb(ib.value)
+    # if ib.onEnter.isSome:
+    #   let fn = ib.onEnter.get
+    #   fn(ib.value)
+  of allowKeyBind:
+    if ib.keyEvents.hasKey(key):
+      ib.call(key)
+  of allowFnKeys:
+    if ib.keyEvents.hasKey(key):
+      ib.call(key)
+  of allowCtrlKeys:
+    if ib.keyEvents.hasKey(key):
+      ib.call(key)
+  else:
+    var ch = $key
+    ib.value.insert(ch.toLower(), ib.cursor)
+    ib.overflowWidth() 
+
+  if ib.value.len >= ib.width - ib.paddingX1 - 1:
+    # visualSkip for 2 bytes on the ui border and mode
+    # 1 byte to push cursor at last
+    let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    ib.visualVal = ib.value.substr(s, e)
+    ib.visualCursor = cursorPos 
+  else:
+    let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    ib.visualVal = ib.value.substr(s, e)
+    ib.visualCursor = cursorPos 
+
+  ib.render()
+
+
 method onControl*(ib: ref InputBox) = 
   const EscapeKeys = {Key.Escape, Key.Tab}
   # const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
@@ -212,191 +408,191 @@ method onControl*(ib: ref InputBox) =
   ib.mode = ">"
   while ib.focus:
     var key = getKeyWithTimeout(ib.refreshWaitTime)
-    case key
-    of Key.None: discard
-    of EscapeKeys:
-      ib.focus = false
-      ib.mode = "|"
-    of Key.Backspace:
-      if ib.cursor > 0:
-        ib.value.delete(ib.cursor - 1..ib.cursor - 1)
-        ib.cursorMove(Left)
-        ib.visualCursor = ib.visualCursor - 1
-        ib.clear()
-    of Key.Delete:
-      if ib.value.len > 0:
-        ib.value.delete(ib.cursor .. ib.cursor)
-        if ib.cursor == ib.value.len: ib.value &= " "
-    of Key.CtrlE:
-      ib.value = ""
-      ib.cursor = 0
-      ib.clear()
-    of Key.ShiftA..Key.ShiftZ:
-      let tmpKey = $key
-      let alphabet = toSeq(tmpKey.items()).pop()
-      ib.value.insert($alphabet.toUpperAscii(), ib.cursor)
-      ib.overflowWidth()
-    of Key.Zero..Key.Nine:
-      let keyPos = NumericKeys.find(key)
-      if keyPos > -1:
-        ib.value.insert($keyPos, ib.cursor)
-        ib.overflowWidth()
-    of Key.Comma:
-      ib.value.insert(",", ib.cursor)
-      ib.overflowWidth()
-    of Key.Colon:
-      ib.value.insert(":", ib.cursor)
-      ib.overflowWidth()
-    of Key.Semicolon:
-      ib.value.insert(";", ib.cursor)
-      ib.overflowWidth()
-    of Key.Underscore:
-      ib.value.insert("_", ib.cursor)
-      ib.overflowWidth()
-    of Key.Dot:
-      ib.value.insert(".", ib.cursor)
-      ib.overflowWidth()
-    of Key.Ampersand:
-      ib.value.insert("&", ib.cursor)
-      ib.overflowWidth()
-    of Key.DoubleQuote:
-      ib.value.insert("\"", ib.cursor)
-      ib.overflowWidth()
-    of Key.SingleQuote:
-      ib.value.insert("'", ib.cursor)
-      ib.overflowWidth()
-    of Key.QuestionMark:
-      ib.value.insert("?", ib.cursor)
-      ib.overflowWidth()
-    of Key.Space:
-      ib.value.insert(" ", ib.cursor)
-      ib.overflowWidth()
-    of Key.Pipe:
-      ib.value.insert("|", ib.cursor)
-      ib.overflowWidth()
-    of Key.Slash:
-      ib.value.insert("/", ib.cursor)
-      ib.overflowWidth()
-    of Key.Equals:
-      ib.value.insert("=", ib.cursor)
-      ib.overflowWidth()
-    of Key.Plus:
-      ib.value.insert("+", ib.cursor)
-      ib.overflowWidth()
-    of Key.Minus:
-      ib.value.insert("-", ib.cursor)
-      ib.overflowWidth()
-    of Key.Asterisk:
-      ib.value.insert("*", ib.cursor)
-      ib.overflowWidth()
-    of Key.BackSlash:
-      ib.value.insert("\\", ib.cursor)
-      ib.overflowWidth()
-    of Key.GreaterThan:
-      ib.value.insert(">", ib.cursor)
-      ib.overflowWidth()
-    of Key.LessThan:
-      ib.value.insert("<", ib.cursor)
-      ib.overflowWidth()
-    of Key.LeftBracket:
-      ib.value.insert("[", ib.cursor)
-      ib.overflowWidth()
-    of Key.RightBracket:
-      ib.value.insert("]", ib.cursor)
-      ib.overflowWidth()
-    of Key.LeftBrace:
-      ib.value.insert("(", ib.cursor)
-      ib.overflowWidth()
-    of Key.RightBrace:
-      ib.value.insert(")", ib.cursor)
-      ib.overflowWidth()
-    of Key.Percent:
-      ib.value.insert("%", ib.cursor)
-      ib.overflowWidth()
-    of Key.Hash:
-      ib.value.insert("#", ib.cursor)
-      ib.overflowWidth()
-    of Key.Dollar:
-      ib.value.insert("$", ib.cursor)
-      ib.overflowWidth()
-    of Key.ExclamationMark:
-      ib.value.insert("!", ib.cursor)
-      ib.overflowWidth()
-    of Key.At:
-      ib.value.insert("@", ib.cursor)
-      ib.overflowWidth()
-    of Key.Caret:
-      ib.value.insert("^", ib.cursor)
-      ib.overflowWidth()
-    of Key.GraveAccent:
-      ib.value.insert("~", ib.cursor)
-      ib.overflowWidth()
-    of Key.Tilde:
-      ib.value.insert("`", ib.cursor)
-      ib.overflowWidth()
-    of Key.Home: 
-      ib.cursor = 0
-      ib.rerender()
-    of Key.End: 
-      ib.cursor = ib.value.len
-      ib.rerender()
-    of Key.PageUp, Key.PageDown, Key.Insert:
-      discard
-    of Key.Left:
-      ib.cursorMove(Left)
-      ib.rerender()
-    of Key.Right: 
-      ib.cursorMove(Right)
-      ib.rerender()
-    # of Key.Up, Key.Down: discard 
-    #   if ib.onUp.isSome:
-    #     let fn = ib.onUp.get
-    #     fn(ib)
-    # of Key.Down:
-    #   if ib.onDown.isSome:
-    #     let fn = ib.onDown.get
-    #     fn(ib)
-    of Key.CtrlV:
-      let copiedText = $cb.clipboard_text()
-      ib.value.insert(formatText(copiedText), ib.cursor)
-      ib.cursor = ib.cursor + copiedText.len
-    of Key.Enter:
-      ib.call("enter")
-      # when implementing function as a callback
-      # if onEnter.isSome:
-      #   let cb = onEnter.get
-      #   cb(ib.value)
-      # if ib.onEnter.isSome:
-      #   let fn = ib.onEnter.get
-      #   fn(ib.value)
-    of allowKeyBind:
-      if ib.keyEvents.hasKey(key):
-        ib.call(key)
-    of allowFnKeys:
-      if ib.keyEvents.hasKey(key):
-        ib.call(key)
-    of allowCtrlKeys:
-      if ib.keyEvents.hasKey(key):
-        ib.call(key)
-    else:
-      var ch = $key
-      ib.value.insert(ch.toLower(), ib.cursor)
-      ib.overflowWidth() 
-
-    if ib.value.len >= ib.width - ib.paddingX1 - 1:
-      # visualSkip for 2 bytes on the ui border and mode
-      # 1 byte to push cursor at last
-      let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
-      ib.visualVal = ib.value.substr(s, e)
-      ib.visualCursor = cursorPos 
-    else:
-      let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
-      ib.visualVal = ib.value.substr(s, e)
-      ib.visualCursor = cursorPos 
-
-    ib.render()
-    sleep(ib.refreshWaitTime)
-
+    ib.onUpdate(key)
+    # case key
+    # of Key.None: discard
+    # of EscapeKeys:
+    #   ib.focus = false
+    #   ib.mode = "|"
+    # of Key.Backspace:
+    #   if ib.cursor > 0:
+    #     ib.value.delete(ib.cursor - 1..ib.cursor - 1)
+    #     ib.cursorMove(Left)
+    #     ib.visualCursor = ib.visualCursor - 1
+    #     ib.clear()
+    # of Key.Delete:
+    #   if ib.value.len > 0:
+    #     ib.value.delete(ib.cursor .. ib.cursor)
+    #     if ib.cursor == ib.value.len: ib.value &= " "
+    # of Key.CtrlE:
+    #   ib.value = ""
+    #   ib.cursor = 0
+    #   ib.clear()
+    # of Key.ShiftA..Key.ShiftZ:
+    #   let tmpKey = $key
+    #   let alphabet = toSeq(tmpKey.items()).pop()
+    #   ib.value.insert($alphabet.toUpperAscii(), ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Zero..Key.Nine:
+    #   let keyPos = NumericKeys.find(key)
+    #   if keyPos > -1:
+    #     ib.value.insert($keyPos, ib.cursor)
+    #     ib.overflowWidth()
+    # of Key.Comma:
+    #   ib.value.insert(",", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Colon:
+    #   ib.value.insert(":", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Semicolon:
+    #   ib.value.insert(";", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Underscore:
+    #   ib.value.insert("_", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Dot:
+    #   ib.value.insert(".", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Ampersand:
+    #   ib.value.insert("&", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.DoubleQuote:
+    #   ib.value.insert("\"", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.SingleQuote:
+    #   ib.value.insert("'", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.QuestionMark:
+    #   ib.value.insert("?", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Space:
+    #   ib.value.insert(" ", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Pipe:
+    #   ib.value.insert("|", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Slash:
+    #   ib.value.insert("/", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Equals:
+    #   ib.value.insert("=", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Plus:
+    #   ib.value.insert("+", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Minus:
+    #   ib.value.insert("-", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Asterisk:
+    #   ib.value.insert("*", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.BackSlash:
+    #   ib.value.insert("\\", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.GreaterThan:
+    #   ib.value.insert(">", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.LessThan:
+    #   ib.value.insert("<", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.LeftBracket:
+    #   ib.value.insert("[", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.RightBracket:
+    #   ib.value.insert("]", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.LeftBrace:
+    #   ib.value.insert("(", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.RightBrace:
+    #   ib.value.insert(")", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Percent:
+    #   ib.value.insert("%", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Hash:
+    #   ib.value.insert("#", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Dollar:
+    #   ib.value.insert("$", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.ExclamationMark:
+    #   ib.value.insert("!", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.At:
+    #   ib.value.insert("@", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Caret:
+    #   ib.value.insert("^", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.GraveAccent:
+    #   ib.value.insert("~", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Tilde:
+    #   ib.value.insert("`", ib.cursor)
+    #   ib.overflowWidth()
+    # of Key.Home: 
+    #   ib.cursor = 0
+    #   ib.rerender()
+    # of Key.End: 
+    #   ib.cursor = ib.value.len
+    #   ib.rerender()
+    # of Key.PageUp, Key.PageDown, Key.Insert:
+    #   discard
+    # of Key.Left:
+    #   ib.cursorMove(Left)
+    #   ib.rerender()
+    # of Key.Right: 
+    #   ib.cursorMove(Right)
+    #   ib.rerender()
+    # # of Key.Up, Key.Down: discard 
+    # #   if ib.onUp.isSome:
+    # #     let fn = ib.onUp.get
+    # #     fn(ib)
+    # # of Key.Down:
+    # #   if ib.onDown.isSome:
+    # #     let fn = ib.onDown.get
+    # #     fn(ib)
+    # of Key.CtrlV:
+    #   let copiedText = $cb.clipboard_text()
+    #   ib.value.insert(formatText(copiedText), ib.cursor)
+    #   ib.cursor = ib.cursor + copiedText.len
+    # of Key.Enter:
+    #   ib.call("enter")
+    #   # when implementing function as a callback
+    #   # if onEnter.isSome:
+    #   #   let cb = onEnter.get
+    #   #   cb(ib.value)
+    #   # if ib.onEnter.isSome:
+    #   #   let fn = ib.onEnter.get
+    #   #   fn(ib.value)
+    # of allowKeyBind:
+    #   if ib.keyEvents.hasKey(key):
+    #     ib.call(key)
+    # of allowFnKeys:
+    #   if ib.keyEvents.hasKey(key):
+    #     ib.call(key)
+    # of allowCtrlKeys:
+    #   if ib.keyEvents.hasKey(key):
+    #     ib.call(key)
+    # else:
+    #   var ch = $key
+    #   ib.value.insert(ch.toLower(), ib.cursor)
+    #   ib.overflowWidth() 
+    #
+    # if ib.value.len >= ib.width - ib.paddingX1 - 1:
+    #   # visualSkip for 2 bytes on the ui border and mode
+    #   # 1 byte to push cursor at last
+    #   let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    #   ib.visualVal = ib.value.substr(s, e)
+    #   ib.visualCursor = cursorPos 
+    # else:
+    #   let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    #   ib.visualVal = ib.value.substr(s, e)
+    #   ib.visualCursor = cursorPos 
+    #
+    # ib.render()
+    # sleep(ib.refreshWaitTime)
 
 # method onControl*(ib: ref InputBox, enterEv: EventFn[ref InputBox]): void =
 #   ib.on("enter", enterEv)

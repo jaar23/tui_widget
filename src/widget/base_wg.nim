@@ -1,4 +1,4 @@
-import illwill
+import illwill, threading/channels, std/tasks
 
 type
   Alignment* = enum
@@ -16,7 +16,6 @@ type
   CursorStyle* = enum 
     Block, Ibeam, Underline
 
-
   WidgetStyle* = object
     fgColor*: ForegroundColor
     bgColor*: BackgroundColor
@@ -25,6 +24,13 @@ type
     paddingX2*: int
     paddingY1*: int
     paddingY2*: int
+
+  WidgetBgEvent* = object
+    widgetId*: string
+    widgetPtr*: ptr BaseWidget
+    widgetEvent*: string
+    args*: seq[string]
+    error*: string
 
   #############################
   # posX, posY-----------width
@@ -41,6 +47,7 @@ type
     posX*: int
     posY*: int
     size*: int
+    id*: string = ""
     title*: string
     focus*: bool = false
     tb*: TerminalBuffer
@@ -56,6 +63,8 @@ type
     debug*: bool = false
     refreshWaitTime*: int = 50
     illwillInit*: bool = false
+    channel: Chan[WidgetBgEvent]
+    nonBlocking*: bool = true
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -76,25 +85,44 @@ method onControl*(this: ref BaseWidget): void {.base.} =
   echo ""
 
 
-# method onControl*(this: ref BaseWidget, cb: proc(bw: ref BaseWidget, args: varargs[string])): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-#
-
-# method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
+method onUpdate*(this: ref BaseWidget, key: Key): void {.base.} =
+  echo ""
 
 
-# method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
+method call*(this: ref BaseWidget, event: string, args: varargs[string]): void {.base.} = 
+  echo ""
 
 
-# method onControl*(this: ref BaseWidget, cb: EnterEventProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-#
+method call*(this: ref BaseWidget, event: string, args: bool): void {.base.} = 
+  echo ""
+
+
+method call*(this: BaseWidget, event: string, args: varargs[string]): void {.base.} = 
+  echo ""
+
+
+method call*(this: BaseWidget, event: string, args: bool): void {.base.} = 
+  echo ""
+
+
+method poll*(this: ref BaseWidget): void {.base.} =
+  echo ""
+
+
+proc `channel=`*(this: ref BaseWidget, channel: Chan[WidgetBgEvent]) = this.channel = channel
+
+
+proc channel*(this: ref BaseWidget): var Chan[WidgetBgEvent] = this.channel
+
+
+proc `channel=`*(this: var BaseWidget, channel: Chan[WidgetBgEvent]) = this.channel = channel
+
+
+proc channel*(this: var BaseWidget): var Chan[WidgetBgEvent] = this.channel
+
+
+proc asRef*[T](x: T): ref T = new(result); result[] = x
+
 
 method render*(this: ref BaseWidget): void {.base.} = 
   echo ""

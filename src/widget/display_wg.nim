@@ -1,4 +1,6 @@
 import illwill, base_wg, os, std/wordwrap, strutils, options, tables
+import threading/channels
+import octolog
 
 # Doesn't work nice when rendering a lot of character rather than 
 # alphanumeric text.
@@ -21,7 +23,7 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.End, Key.Left, Key.Right, Key.ShiftW}
 
 
-proc newDisplay*(px, py, w, h: int,
+proc newDisplay*(px, py, w, h: int, id = "";
                  title: string = "", text: string = "", border: bool = true,
                  statusbar = true, wordwrap = false,
                  fgColor: ForegroundColor = fgWhite,
@@ -44,8 +46,9 @@ proc newDisplay*(px, py, w, h: int,
     height: h,
     posX: px,
     posY: py,
+    id: id,
     text: text,
-    size: h - statusbarSize - py,
+    size: h - statusbarSize - py - (padding * 2),
     statusbarSize: statusbarSize,
     title: title,
     statusbar: statusbar,
@@ -55,6 +58,7 @@ proc newDisplay*(px, py, w, h: int,
     customRowRecal: customRowRecal,
     useCustomTextRow: if customRowRecal.isSome: true else: false
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc splitBySize(val: string, size: int, rows: int,
@@ -125,8 +129,8 @@ method render*(dp: ref Display) =
     let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
     let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size -
         dp.statusbarSize)
-    setDoubleBuffering(false)
-    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len)]:
+    #setDoubleBuffering(false)
+    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
       dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
@@ -136,7 +140,11 @@ method render*(dp: ref Display) =
     dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
     dp.tb.write(dp.x1, dp.height, fgCyan, statusbarText, resetStyle)
   dp.tb.display()
-  setDoubleBuffering(true)
+  info "display rendered: " & $dp.textRows.len & " | " & $dp.text.len
+  let p2 = cast[int](addr dp).toHex
+  info "display rendered ref ptr: " & $p2 
+
+  #setDoubleBuffering(true)
 
 
 proc resetCursor*(dp: ref Display) =
@@ -154,17 +162,89 @@ proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKe
   dp.keyEvents[key] = fn
     
 
-
-proc call*(dp: ref Display, event: string) =
+method call*(dp: ref Display, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
-    fn(dp)
+    fn(dp, args)
+    info "ref display trigger"
+
+
+method call*(dp: Display, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # let convert = proc(x: Display): ref Display =
+    #   new(result)
+    #   result[] = x
+    # let dpRef = convert(dp)
+    let dpRef = dp.asRef()
+    fn(dpRef, args)
+    # info "display trigger: " & $args
+    # let p1 = cast[int](addr dp).toHex
+    # let p2 = cast[int](addr dpRef).toHex
+    # info "display ptr: " & $p1 & " display ref ptr: " & $p2 
 
 
 proc call(dp: ref Display, key: Key) =
   let fn = dp.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(dp)
+
+
+method poll*(dp: ref Display) =
+  info "polling"
+  var widgetEv: WidgetBgEvent
+  if dp.channel.tryRecv(widgetEv):
+    info "polled"
+    dp.call(widgetEv.widgetEvent, widgetEv.args)
+    dp.render()
+
+
+method onUpdate*(dp: ref Display, key: Key) =
+  # reset
+  if dp.visibility == false: 
+    dp.cursor = 0
+    dp.rowCursor = 0
+    return
+  
+  dp.focus = true
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal() 
+  dp.clear()
+
+  # key binding action
+  case key
+  of Key.None: dp.render()
+  of Key.Up:
+    dp.rowCursor = max(0, dp.rowCursor - 1)
+  of Key.Down:
+    dp.rowCursor = min(dp.rowCursor + 1, max(dp.textRows.len - dp.size, 0))
+  of Key.Right:
+    dp.cursor += 1
+    if dp.cursor >= dp.x2 - dp.x1:
+      dp.cursor = dp.x2 - dp.x1 - 1
+  of Key.Left:
+    dp.cursor = max(0, (dp.cursor - 1))
+  of Key.PageUp:
+    dp.rowCursor = max(0, dp.rowCursor - dp.size)
+  of Key.PageDown:
+    dp.rowCursor = min(dp.rowCursor + dp.size, max(dp.textRows.len - dp.size, 0))
+  of Key.Home:
+    dp.rowCursor = 0
+  of Key.End:
+    dp.rowCursor = max(dp.textRows.len - dp.size, 0)
+  of Key.Escape, Key.Tab:
+    dp.focus = false
+  of Key.ShiftW:
+    dp.wordwrap = not dp.wordwrap
+  else:
+    if key in forbiddenKeyBind: discard
+    elif dp.keyEvents.hasKey(key):
+      dp.call(key)
+
+  dp.render()
 
 
 method onControl*(dp: ref Display) =
@@ -181,37 +261,38 @@ method onControl*(dp: ref Display) =
   dp.clear()
   while dp.focus:
     var key = getKeyWithTimeout(dp.refreshWaitTime)
-    case key
-    of Key.None: dp.render()
-    of Key.Up:
-      dp.rowCursor = max(0, dp.rowCursor - 1)
-    of Key.Down:
-      dp.rowCursor = min(dp.rowCursor + 1, max(dp.textRows.len - dp.size, 0))
-    of Key.Right:
-      dp.cursor += 1
-      if dp.cursor >= dp.x2 - dp.x1:
-        dp.cursor = dp.x2 - dp.x1 - 1
-    of Key.Left:
-      dp.cursor = max(0, (dp.cursor - 1))
-    of Key.PageUp:
-      dp.rowCursor = max(0, dp.rowCursor - dp.size)
-    of Key.PageDown:
-      dp.rowCursor = min(dp.rowCursor + dp.size, max(dp.textRows.len - dp.size, 0))
-    of Key.Home:
-      dp.rowCursor = 0
-    of Key.End:
-      dp.rowCursor = max(dp.textRows.len - dp.size, 0)
-    of Key.Escape, Key.Tab:
-      dp.focus = false
-    of Key.ShiftW:
-      dp.wordwrap = not dp.wordwrap
-    else:
-      if key in forbiddenKeyBind: discard
-      elif dp.keyEvents.hasKey(key):
-        dp.call(key)
+    dp.onUpdate(key)
+    # case key
+    # of Key.None: dp.render()
+    # of Key.Up:
+    #   dp.rowCursor = max(0, dp.rowCursor - 1)
+    # of Key.Down:
+    #   dp.rowCursor = min(dp.rowCursor + 1, max(dp.textRows.len - dp.size, 0))
+    # of Key.Right:
+    #   dp.cursor += 1
+    #   if dp.cursor >= dp.x2 - dp.x1:
+    #     dp.cursor = dp.x2 - dp.x1 - 1
+    # of Key.Left:
+    #   dp.cursor = max(0, (dp.cursor - 1))
+    # of Key.PageUp:
+    #   dp.rowCursor = max(0, dp.rowCursor - dp.size)
+    # of Key.PageDown:
+    #   dp.rowCursor = min(dp.rowCursor + dp.size, max(dp.textRows.len - dp.size, 0))
+    # of Key.Home:
+    #   dp.rowCursor = 0
+    # of Key.End:
+    #   dp.rowCursor = max(dp.textRows.len - dp.size, 0)
+    # of Key.Escape, Key.Tab:
+    #   dp.focus = false
+    # of Key.ShiftW:
+    #   dp.wordwrap = not dp.wordwrap
+    # else:
+    #   if key in forbiddenKeyBind: discard
+    #   elif dp.keyEvents.hasKey(key):
+    #     dp.call(key)
 
-  dp.render()
-  sleep(dp.refreshWaitTime)
+  # dp.render()
+    sleep(dp.refreshWaitTime)
 
 
 method wg*(dp: ref Display): ref BaseWidget = dp
@@ -221,6 +302,7 @@ proc text*(dp: ref Display): string = dp.text
 
 
 proc val(dp: ref Display, val: string) =
+  info "display val fired: " & $dp.text.len
   dp.clear()
   dp.text = val
   if dp.useCustomTextRow: 
@@ -229,6 +311,7 @@ proc val(dp: ref Display, val: string) =
   else: 
     dp.rowReCal()
   dp.render()
+  info "display val fired after: " & $dp.text.len
 
 
 proc `text=`*(dp: ref Display, text: string) =

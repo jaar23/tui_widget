@@ -12,7 +12,8 @@ import
   widget/chart_wg,
   widget/gauge_wg,
   widget/textarea_wg
-
+import malebolgia, threading/channels, std/tasks, sequtils
+import octolog
 
 export
   base_wg,
@@ -40,6 +41,8 @@ type
     widgets: seq[ref BaseWidget]
     refreshWaitTime: int = 20
 
+
+var bgChannel = newChan[Task]() 
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
                      terminalHeight()), title: string = "", border: bool = true,
@@ -69,15 +72,6 @@ proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
   app.widgets
 
 
-proc render*(app: var TerminalApp) =
-  for w in app.widgets:
-    if w.visibility:
-      try:
-        w.rerender()
-      except:
-        w.onError("E01")
-
-
 proc requiredSize*(app: var TerminalApp): (int, int, int) =
   var w, h: int = 0
   for wg in app.widgets:
@@ -88,9 +82,126 @@ proc requiredSize*(app: var TerminalApp): (int, int, int) =
   return (w, h, w * h)
 
 
+proc render*(app: var TerminalApp) =
+  for w in app.widgets:
+    if w.visibility:
+      try:
+        w.rerender()
+      except:
+        w.onError("E01")
+
+
 proc widgetInit(app: var TerminalApp) =
   for w in app.widgets:
     w.illwillInit = true
+
+
+proc runInBackground*(task: sink Task) =
+  bgChannel.send(task) 
+
+
+proc notify*(app: ptr TerminalApp, wg: ptr BaseWidget, id: string, event: string, args: varargs[string]) =
+  let arguments = args.toSeq()
+  #let wgRef = wg[].asRef()
+  for w in app.widgets:
+    if w.id == id: 
+      w.channel.send(WidgetBgEvent(
+        widgetId: id,
+        widgetPtr: wg,
+        widgetEvent: event,
+        args: arguments,
+        error: ""
+        ))
+
+  # wgRef.channel.send(WidgetBgEvent(
+  #   widgetId: id,
+  #   widgetPtr: wg,
+  #   widgetEvent: event,
+  #   args: arguments,
+  #   error: ""
+  #   ))
+  info "widget notify: " & event
+
+
+proc backgroundTasks() {.thread.} =
+  while true:
+    let task = bgChannel.recv()
+    try:
+      task.invoke()
+      # let wg = wgbgev.widgetPtr
+      # pointer access, unsafe and need special care
+      # wg[].channel.send(wgbgev)
+      # if wgbgev.args.len > 0:
+      #
+      #   wg.call(wgbgev.widgetEvent, wgbgev.args)
+      # else:
+      #   wg.call(wgbgev.widgetEvent)
+    except:
+      echo getCurrentExceptionMsg()
+
+
+proc pollWidgetChannel(app: var TerminalApp) =
+  for w in app.widgets:
+    w.poll()
+    # var wgbgev: WidgetBgEvent
+    # if w.channel.tryRecv(wgbgev):
+    #   let wg = wgbgev.widgetPtr
+    #   info "poll widget: " & $typeof(wg[]) & " " & $wgbgev.args
+    #   wg[].call(wgbgev.widgetEvent, wgbgev.args)
+
+
+proc go*(app: var TerminalApp) =
+  octologStart(useConsoleLogger=false)
+  proc exitProc() {.noconv.} =
+    illwillDeinit()
+    showCursor()
+    octologStop()
+    quit(0)
+
+  illwillInit(fullscreen = app.fullscreen)
+  setControlCHook(exitProc)
+  hideCursor()
+  let (w, h, requiredSize) = app.requiredSize()
+  if requiredSize > (terminalWidth() * terminalHeight()):
+    stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed,
+                           center("terminal width and height cannot fit application.",
+                               terminalWidth()))
+    stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed,
+                           center("width: " & $w & " height: " & $h, terminalWidth()))
+    stdout.resetAttributes()
+    stdout.flushFile()
+    quit(0)
+  
+  # init widgets
+  app.widgetInit()
+
+  var threadMaster = createMaster()
+  threadMaster.spawn backgroundTasks()
+  
+  app.tb.clear()
+  if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
+  let title: string = ansiStyleCode(styleBright) & app.title
+  if app.title != "": app.tb.write(2, 0, title)
+
+  while true:
+    app.render()
+    var key = getKeyWithTimeout(app.refreshWaitTime)
+    case key
+    of Key.Tab:
+      app.widgets[app.cursor].focus = false
+      inc app.cursor
+      if app.cursor >= app.widgets.len: app.cursor = 0
+
+      if not app.widgets[app.cursor].nonBlocking:
+        app.widgets[app.cursor].onControl()
+
+    else:
+      app.widgets[app.cursor].focus = true
+      app.widgets[app.cursor].onUpdate(key)
+
+      # poll for changes from other widget
+      app.pollWidgetChannel()
+      app.render()
 
 
 proc run*(app: var TerminalApp) =
