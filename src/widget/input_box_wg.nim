@@ -1,6 +1,7 @@
 import illwill, os, strutils, base_wg, sequtils, encodings
 import nimclipboard/libclipboard
 import tables
+import threading/channels
 
 type
   InputBox* = object of BaseWidget
@@ -182,10 +183,20 @@ proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]) {.raises: [Event
     
 
 
-proc call*(ib: ref InputBox, event: string, args: varargs[string]) =
+method call*(ib: ref InputBox, event: string, args: varargs[string]) =
   let fn = ib.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ib, args)
+
+
+method call*(ib: InputBox, event: string, args: varargs[string]) =
+  let fn = ib.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    let convert = proc(x: InputBox): ref InputBox =
+      new(result)
+      result[] = x
+    let ibref = convert(ib)
+    fn(ibref, args)
 
 
 proc call(ib: ref InputBox, key: Key, args: varargs[string]) =
@@ -207,10 +218,13 @@ method onControl*(ib: ref InputBox) =
   #                   Key.CtrlY, Key.CtrlZ}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
-
   ib.focus = true
   ib.mode = ">"
   while ib.focus:
+    # var widgetEv: WidgetEvent
+    # if ib.channel.tryRecv(widgetEv):
+    #   let tgtWg = widgetEv.tgtWg[]
+    #   tgtWg.call(widgetEv.widgetEvent, widgetEv.args)
     var key = getKeyWithTimeout(ib.refreshWaitTime)
     case key
     of Key.None: discard

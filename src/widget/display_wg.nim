@@ -1,4 +1,5 @@
 import illwill, base_wg, os, std/wordwrap, strutils, options, tables
+import threading/channels, times
 
 # Doesn't work nice when rendering a lot of character rather than 
 # alphanumeric text.
@@ -14,7 +15,6 @@ type
     customRowRecal: Option[CustomRowRecal]
     events*: Table[string, EventFn[ref Display]]
     keyEvents*: Table[Key, EventFn[ref Display]]
-
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown, Key.Home,
@@ -53,8 +53,9 @@ proc newDisplay*(px, py, w, h: int,
     style: style,
     wordwrap: wordwrap,
     customRowRecal: customRowRecal,
-    useCustomTextRow: if customRowRecal.isSome: true else: false
+    useCustomTextRow: if customRowRecal.isSome: true else: false,
   )
+  result.channel = newChan[WidgetEvent]()
 
 
 proc splitBySize(val: string, size: int, rows: int,
@@ -112,6 +113,11 @@ proc rowReCal(dp: ref Display) =
 
 method render*(dp: ref Display) =
   if not dp.illwillInit: return
+  ## event notification
+  # var widgetEv: WidgetEvent
+  # if dp.channel.tryRecv(widgetEv):
+  #   dp.call(widgetEv.widgetEvent, widgetEv.args)
+  # dp.text = $now().toTime()
   if dp.useCustomTextRow: 
     let customFn = dp.customRowRecal.get
     dp.textRows = customFn(dp.text, dp)
@@ -154,17 +160,36 @@ proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKe
   dp.keyEvents[key] = fn
     
 
-
-proc call*(dp: ref Display, event: string) =
+method call*(dp: ref Display, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
-    fn(dp)
+    fn(dp, args)
+
+
+method call*(dp: Display, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    let convert = proc(x: Display): ref Display =
+      new(result)
+      result[] = x
+    let dpRef = convert(dp)
+    fn(dpRef, args)
 
 
 proc call(dp: ref Display, key: Key) =
   let fn = dp.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(dp)
+
+
+proc onUpdate*(dp: ref Display) =
+  while true:
+    var widgetEv: WidgetEvent
+    if dp.channel.tryRecv(widgetEv):
+      dp.call(widgetEv.widgetEvent, widgetEv.args)
+      break
+      dp.render()
+      sleep(dp.refreshWaitTime)
 
 
 method onControl*(dp: ref Display) =
@@ -182,7 +207,11 @@ method onControl*(dp: ref Display) =
   while dp.focus:
     var key = getKeyWithTimeout(dp.refreshWaitTime)
     case key
-    of Key.None: dp.render()
+    of Key.None:
+      var widgetEv: WidgetEvent
+      if dp.channel.tryRecv(widgetEv):
+        dp.call(widgetEv.widgetEvent, widgetEv.args)
+      dp.render()
     of Key.Up:
       dp.rowCursor = max(0, dp.rowCursor - 1)
     of Key.Down:
@@ -249,3 +278,7 @@ proc `wordwrap=`*(dp: ref Display, wrap: bool) =
 
 proc add*(dp: ref Display, text: string) =
   dp.val(dp.text & text)
+
+
+
+

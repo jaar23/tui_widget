@@ -1,4 +1,4 @@
-import illwill
+import illwill, tables, threading/channels
 
 type
   Alignment* = enum
@@ -26,6 +26,18 @@ type
     paddingY1*: int
     paddingY2*: int
 
+  
+  EventFn*[T] = proc (wg: T, args: varargs[string]): void
+
+
+  BoolEventFn*[T] = proc (wg: T, arg: bool): void
+  
+  WidgetEvent* = object
+    widgetId*: int
+    widgetEvent*: string
+    args*: seq[string]
+    error*: string
+
   #############################
   # posX, posY-----------width
   # | 
@@ -43,6 +55,7 @@ type
     size*: int
     title*: string
     focus*: bool = false
+    id*: int = 0
     tb*: TerminalBuffer
     style*: WidgetStyle
     cursor*: int = 0
@@ -56,11 +69,8 @@ type
     debug*: bool = false
     refreshWaitTime*: int = 50
     illwillInit*: bool = false
-
-  EventFn*[T] = proc (wg: T, args: varargs[string]): void
-
-  BoolEventFn*[T] = proc (wg: T, arg: bool): void
-  
+    channel: Chan[WidgetEvent]
+ 
   EventKeyError* = object of CatchableError
 
 
@@ -75,26 +85,6 @@ method onControl*(this: ref BaseWidget): void {.base.} =
   #child needs to implement this!
   echo ""
 
-
-# method onControl*(this: ref BaseWidget, cb: proc(bw: ref BaseWidget, args: varargs[string])): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-#
-
-# method onControl*(this: ref BaseWidget, cb: SpaceEventProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-
-
-# method onControl*(this: ref BaseWidget, cb: CallbackProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-
-
-# method onControl*(this: ref BaseWidget, cb: EnterEventProcedure): void {.base.} =
-#   #child needs to implement this!
-#   echo ""
-#
 
 method render*(this: ref BaseWidget): void {.base.} = 
   echo ""
@@ -111,6 +101,33 @@ method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
 method onError*(this: ref BaseWidget, errorCode: string) {.base.} =
   this.tb.fill(this.posX, this.posY, this.width, this.height, " ")
   this.tb.write(this.posX +  1, this.posY, fgRed, bgWhite, "[!] " & errorCode, resetStyle)
+
+
+method call*(this: ref BaseWidget, event: string, args: varargs[string]): void {.base.} = 
+  echo ""
+
+
+method call*(this: ref BaseWidget, event: string, args: bool): void {.base.} = 
+  echo ""
+
+
+method call*(this: BaseWidget, event: string, args: varargs[string]): void {.base.} = 
+  echo ""
+
+
+method call*(this: BaseWidget, event: string, args: bool): void {.base.} = 
+  echo ""
+
+proc `channel=`*(this: ref BaseWidget, channel: Chan[WidgetEvent]) = this.channel = channel
+
+
+proc channel*(this: ref BaseWidget): var Chan[WidgetEvent] = this.channel
+
+
+proc `channel=`*(this: var BaseWidget, channel: Chan[WidgetEvent]) = this.channel = channel
+
+
+proc channel*(this: var BaseWidget): var Chan[WidgetEvent] = this.channel
 
 
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =

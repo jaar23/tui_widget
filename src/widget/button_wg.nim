@@ -52,7 +52,7 @@ proc on*(bt: ref Button, key: Key, fn: EventFn[ref Button]) {.raises: [EventKeyE
     
 
 
-proc call*(bt: ref Button, event: string) =
+method call*(bt: ref Button, event: string) =
   let fn = bt.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(bt)

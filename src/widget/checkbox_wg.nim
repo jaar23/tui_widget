@@ -55,7 +55,7 @@ proc on*(ch: ref Checkbox, key: Key, fn: BoolEventFn[ref Checkbox]) {.raises: [E
   ch.keyEvents[key] = fn
     
 
-proc call*(ch: ref Checkbox, event: string, arg: bool) =
+method call*(ch: ref Checkbox, event: string, arg: bool) =
   let fn = ch.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ch, arg)

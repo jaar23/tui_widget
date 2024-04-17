@@ -1,33 +1,39 @@
 import ../src/tui_widget
-import httpclient, net, os
+import httpclient, net, os, std/tasks
 
 # tui widget currently is running in synchronous
 # when making http request, the screen will be freezed
 
-proc httpCall(url: string): (bool, string) =
+var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
+
+var display = newDisplay(1, 4, consoleWidth(), consoleHeight() - 20, title="content")
+
+let displayEv = proc(dp: ref Display, args: varargs[string]) =
+  let f = open("background.txt", fmAppend)
+  f.write("last part " & $args)
+  dp.text = args[0]
+
+display.on("display", displayEv)
+
+let httpCall = proc (wg: ptr BaseWidget, url: string) {.gcsafe.} =
   var client = newHttpClient(sslContext=newContext(verifyMode=CVerifyPeerUseEnvVars))
   defer:
     client.close()
   try:
     let content = client.getContent(url)
-    return (true, content)
+    sleep(4000)
+    notifyWidget(wg, "display", content)
   except:
-    return (false, getCurrentExceptionMsg())
+    echo getCurrentExceptionMsg()
 
-
-var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
-
-var display = newDisplay(1, 4, consoleWidth(), consoleHeight(), title="content")
 
 let asyncEnterEv = proc (ib: ref InputBox, args: varargs[string]) =
   let url = ib.value
-  var curlResult: (bool, string) = httpCall(url)
   ib.value = ""
-  let (success, content) = curlResult
-  if not success:
-    display.text = "failed to curl this url"
-  else:
-    display.text = content
+  
+  let httpCallTask = toTask httpCall(addr display[], url)
+  runInBackground(httpCallTask)
+  #display.onControl()
 
 input.onEnter = asyncEnterEv
 
