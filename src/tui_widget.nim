@@ -13,7 +13,6 @@ import
   widget/gauge_wg,
   widget/textarea_wg
 import malebolgia, threading/channels, std/tasks, sequtils
-import octolog
 
 export
   base_wg,
@@ -100,27 +99,16 @@ proc runInBackground*(task: sink Task) =
   bgChannel.send(task) 
 
 
-proc notify*(app: ptr TerminalApp, wg: ptr BaseWidget, id: string, event: string, args: varargs[string]) =
+proc notify*(app: ptr TerminalApp, id: string, event: string, args: varargs[string]) =
   let arguments = args.toSeq()
-  #let wgRef = wg[].asRef()
   for w in app.widgets:
     if w.id == id: 
       w.channel.send(WidgetBgEvent(
         widgetId: id,
-        widgetPtr: wg,
         widgetEvent: event,
         args: arguments,
         error: ""
         ))
-
-  # wgRef.channel.send(WidgetBgEvent(
-  #   widgetId: id,
-  #   widgetPtr: wg,
-  #   widgetEvent: event,
-  #   args: arguments,
-  #   error: ""
-  #   ))
-  info "widget notify: " & event
 
 
 proc backgroundTasks() {.thread.} =
@@ -128,14 +116,6 @@ proc backgroundTasks() {.thread.} =
     let task = bgChannel.recv()
     try:
       task.invoke()
-      # let wg = wgbgev.widgetPtr
-      # pointer access, unsafe and need special care
-      # wg[].channel.send(wgbgev)
-      # if wgbgev.args.len > 0:
-      #
-      #   wg.call(wgbgev.widgetEvent, wgbgev.args)
-      # else:
-      #   wg.call(wgbgev.widgetEvent)
     except:
       echo getCurrentExceptionMsg()
 
@@ -143,24 +123,28 @@ proc backgroundTasks() {.thread.} =
 proc pollWidgetChannel(app: var TerminalApp) =
   for w in app.widgets:
     w.poll()
-    # var wgbgev: WidgetBgEvent
-    # if w.channel.tryRecv(wgbgev):
-    #   let wg = wgbgev.widgetPtr
-    #   info "poll widget: " & $typeof(wg[]) & " " & $wgbgev.args
-    #   wg[].call(wgbgev.widgetEvent, wgbgev.args)
 
 
-proc go*(app: var TerminalApp) =
-  octologStart(useConsoleLogger=false)
-  proc exitProc() {.noconv.} =
-    illwillDeinit()
-    showCursor()
-    octologStop()
-    quit(0)
+proc nonBlockingControl(app: var TerminalApp) =
+  if app.widgets[app.cursor].blocking:
+    app.widgets[app.cursor].onControl()
+    inc app.cursor
+  else:
+    inc app.cursor
+    if app.cursor > app.widgets.len - 1: app.cursor = 0
 
+
+proc exitProc() {.noconv.} =
+  illwillDeinit()
+  showCursor()
+  quit(0)
+
+
+proc go(app: var TerminalApp) =
   illwillInit(fullscreen = app.fullscreen)
   setControlCHook(exitProc)
   hideCursor()
+
   let (w, h, requiredSize) = app.requiredSize()
   if requiredSize > (terminalWidth() * terminalHeight()):
     stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed,
@@ -189,12 +173,7 @@ proc go*(app: var TerminalApp) =
     case key
     of Key.Tab:
       app.widgets[app.cursor].focus = false
-      inc app.cursor
-      if app.cursor >= app.widgets.len: app.cursor = 0
-
-      if not app.widgets[app.cursor].nonBlocking:
-        app.widgets[app.cursor].onControl()
-
+      app.nonBlockingControl()
     else:
       app.widgets[app.cursor].focus = true
       app.widgets[app.cursor].onUpdate(key)
@@ -204,15 +183,11 @@ proc go*(app: var TerminalApp) =
       app.render()
 
 
-proc run*(app: var TerminalApp) =
-  proc exitProc() {.noconv.} =
-    illwillDeinit()
-    showCursor()
-    quit(0)
-
+proc hold(app: var TerminalApp) =
   illwillInit(fullscreen = app.fullscreen)
   setControlCHook(exitProc)
   hideCursor()
+
   let (w, h, requiredSize) = app.requiredSize()
   if requiredSize > (terminalWidth() * terminalHeight()):
     stdout.styledWriteLine(terminal.fgWhite, terminal.bgRed,
@@ -250,3 +225,11 @@ proc run*(app: var TerminalApp) =
     sleep(app.refreshWaitTime)
 
 
+
+proc run*(app: var TerminalApp, nonBlocking=false) =
+  if nonBlocking:
+    # running non blocking
+    app.go()
+  else:
+    # run and hold on one control 
+    app.hold()

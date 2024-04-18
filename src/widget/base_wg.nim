@@ -1,4 +1,4 @@
-import illwill, threading/channels, std/tasks
+import illwill, threading/channels
 
 type
   Alignment* = enum
@@ -27,7 +27,6 @@ type
 
   WidgetBgEvent* = object
     widgetId*: string
-    widgetPtr*: ptr BaseWidget
     widgetEvent*: string
     args*: seq[string]
     error*: string
@@ -64,7 +63,7 @@ type
     refreshWaitTime*: int = 50
     illwillInit*: bool = false
     channel: Chan[WidgetBgEvent]
-    nonBlocking*: bool = true
+    blocking*: bool = false
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 

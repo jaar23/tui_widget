@@ -1,6 +1,5 @@
 import illwill, base_wg, os, std/wordwrap, strutils, options, tables
 import threading/channels
-import octolog
 
 # Doesn't work nice when rendering a lot of character rather than 
 # alphanumeric text.
@@ -48,7 +47,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
     posY: py,
     id: id,
     text: text,
-    size: h - statusbarSize - py - (padding * 2),
+    size: h - statusbarSize - py - padding,
     statusbarSize: statusbarSize,
     title: title,
     statusbar: statusbar,
@@ -140,10 +139,6 @@ method render*(dp: ref Display) =
     dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
     dp.tb.write(dp.x1, dp.height, fgCyan, statusbarText, resetStyle)
   dp.tb.display()
-  info "display rendered: " & $dp.textRows.len & " | " & $dp.text.len
-  let p2 = cast[int](addr dp).toHex
-  info "display rendered ref ptr: " & $p2 
-
   #setDoubleBuffering(true)
 
 
@@ -166,23 +161,14 @@ method call*(dp: ref Display, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(dp, args)
-    info "ref display trigger"
 
 
 method call*(dp: Display, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
-    # let convert = proc(x: Display): ref Display =
-    #   new(result)
-    #   result[] = x
-    # let dpRef = convert(dp)
     let dpRef = dp.asRef()
     fn(dpRef, args)
-    # info "display trigger: " & $args
-    # let p1 = cast[int](addr dp).toHex
-    # let p2 = cast[int](addr dpRef).toHex
-    # info "display ptr: " & $p1 & " display ref ptr: " & $p2 
-
+    
 
 proc call(dp: ref Display, key: Key) =
   let fn = dp.keyEvents.getOrDefault(key, nil)
@@ -191,10 +177,8 @@ proc call(dp: ref Display, key: Key) =
 
 
 method poll*(dp: ref Display) =
-  info "polling"
   var widgetEv: WidgetBgEvent
   if dp.channel.tryRecv(widgetEv):
-    info "polled"
     dp.call(widgetEv.widgetEvent, widgetEv.args)
     dp.render()
 
@@ -302,7 +286,6 @@ proc text*(dp: ref Display): string = dp.text
 
 
 proc val(dp: ref Display, val: string) =
-  info "display val fired: " & $dp.text.len
   dp.clear()
   dp.text = val
   if dp.useCustomTextRow: 
@@ -311,7 +294,6 @@ proc val(dp: ref Display, val: string) =
   else: 
     dp.rowReCal()
   dp.render()
-  info "display val fired after: " & $dp.text.len
 
 
 proc `text=`*(dp: ref Display, text: string) =

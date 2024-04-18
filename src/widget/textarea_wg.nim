@@ -116,7 +116,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     editKeyEvents: initTable[Key, EventFn[ref TextArea]](),
     normalKeyEvents: initTable[Key, EventFn[ref TextArea]](),
     visualKeyEvents: initTable[Key, EventFn[ref TextArea]](),
-    nonBlocking: false
+    blocking: true
   )
   # to ensure key responsive, default < 50ms
   if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
