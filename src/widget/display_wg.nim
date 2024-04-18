@@ -47,7 +47,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
     posY: py,
     id: id,
     text: text,
-    size: h - statusbarSize - py - padding,
+    size: h - statusbarSize - py - (padding * 2),
     statusbarSize: statusbarSize,
     title: title,
     statusbar: statusbar,
@@ -126,8 +126,7 @@ method render*(dp: ref Display) =
   var index = 1
   if dp.textRows.len > 0:
     let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
-    let rowEnd = min(dp.textRows.len - 1, dp.rowCursor + dp.size -
-        dp.statusbarSize)
+    let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
     #setDoubleBuffering(false)
     for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
       dp.renderCleanRow(index)
@@ -246,36 +245,6 @@ method onControl*(dp: ref Display) =
   while dp.focus:
     var key = getKeyWithTimeout(dp.refreshWaitTime)
     dp.onUpdate(key)
-    # case key
-    # of Key.None: dp.render()
-    # of Key.Up:
-    #   dp.rowCursor = max(0, dp.rowCursor - 1)
-    # of Key.Down:
-    #   dp.rowCursor = min(dp.rowCursor + 1, max(dp.textRows.len - dp.size, 0))
-    # of Key.Right:
-    #   dp.cursor += 1
-    #   if dp.cursor >= dp.x2 - dp.x1:
-    #     dp.cursor = dp.x2 - dp.x1 - 1
-    # of Key.Left:
-    #   dp.cursor = max(0, (dp.cursor - 1))
-    # of Key.PageUp:
-    #   dp.rowCursor = max(0, dp.rowCursor - dp.size)
-    # of Key.PageDown:
-    #   dp.rowCursor = min(dp.rowCursor + dp.size, max(dp.textRows.len - dp.size, 0))
-    # of Key.Home:
-    #   dp.rowCursor = 0
-    # of Key.End:
-    #   dp.rowCursor = max(dp.textRows.len - dp.size, 0)
-    # of Key.Escape, Key.Tab:
-    #   dp.focus = false
-    # of Key.ShiftW:
-    #   dp.wordwrap = not dp.wordwrap
-    # else:
-    #   if key in forbiddenKeyBind: discard
-    #   elif dp.keyEvents.hasKey(key):
-    #     dp.call(key)
-
-  # dp.render()
     sleep(dp.refreshWaitTime)
 
 
@@ -312,5 +281,8 @@ proc `wordwrap=`*(dp: ref Display, wrap: bool) =
     dp.render()
 
 
-proc add*(dp: ref Display, text: string) =
-  dp.val(dp.text & text)
+proc add*(dp: ref Display, text: string, autoScroll=false) =
+  dp.text &= text
+  dp.val(dp.text)
+  if autoScroll and dp.textRows.len > dp.size: 
+    dp.rowCursor = min(dp.textRows.len - 1, dp.rowCursor + 1)
