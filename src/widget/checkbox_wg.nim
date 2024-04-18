@@ -84,27 +84,27 @@ method render*(ch: ref Checkbox) =
   ch.tb.display()
 
 
+method onUpdate*(ch: ref Checkbox, key: Key) =
+  case key
+  of Key.None: ch.render()
+  of Key.Escape, Key.Tab: ch.focus = false
+  of Key.Enter:
+    ch.checked = not ch.checked
+    ch.call("enter", ch.checked)
+    ch.render()
+  else:
+    if key in forbiddenKeyBind: discard
+    elif ch.keyEvents.hasKey(key):
+      ch.call(key, ch.checked)
+  ch.render()
+  sleep(ch.refreshWaitTime)
+
+
 method onControl*(ch: ref Checkbox) =
   ch.focus = true
   while ch.focus:
     var key = getKeyWithTimeout(ch.refreshWaitTime)
-    case key
-    of Key.None: ch.render()
-    of Key.Escape, Key.Tab: ch.focus = false
-    of Key.Enter:
-      ch.checked = not ch.checked
-      ch.call("enter", ch.checked)
-      # if ch.onSpace.isSome:
-      #   let fn = ch.onSpace.get
-      #   fn(ch.value, ch.checked)
-      ch.render()
-    else:
-      if key in forbiddenKeyBind: discard
-      elif ch.keyEvents.hasKey(key):
-        ch.call(key, ch.checked)
-
-  ch.render()
-  sleep(ch.refreshWaitTime)
+    ch.onUpdate(key)
 
 
 method wg*(ch: ref Checkbox): ref BaseWidget = ch

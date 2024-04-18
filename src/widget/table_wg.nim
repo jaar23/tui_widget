@@ -415,59 +415,62 @@ proc call(table: ref Table, key: Key, args: varargs[string]) =
     fn(table, args)
 
 
+method onUpdate*(table: ref Table, key: Key) =
+  case key
+  of Key.None: table.render()
+  of Key.Up:
+    if table.rowCursor == 0:
+      table.rowCursor = 0
+    else:
+      table.rowCursor = table.rowCursor - 1
+    table.prevSelection()
+  of Key.Down:
+    let rowSize = if table.mode == Filter: table.vrows().len else: table.rows.len
+    if table.rowCursor >= rowSize - 1:
+      table.rowCursor = rowSize - 1
+    else:
+      table.rowCursor += 1
+    table.nextSelection() 
+  of Key.Right: 
+    if table.colCursor == table.headers.get.columns.len - 1:
+      table.colCursor = table.headers.get.columns.len - 1
+    else:
+      table.colCursor += 1
+    table.dtmColumnToDisplay()
+  of Key.Left:
+    if table.colCursor == 0:
+      table.colCursor = 0
+    else:
+      table.colCursor -= 1
+    table.dtmColumnToDisplay()
+  of Key.Slash:
+    table.mode = Filter
+    table.onFilter()
+  of Key.Escape:
+    if table.mode == Filter:
+      table.mode = Normal
+      table.resetFilter()
+  of Key.Tab: 
+    table.focus = false
+  of Key.Enter:
+    table.call("enter")
+    # if table.onEnter.isSome:
+    #   let fn = table.onEnter.get
+    #   fn(table.rows[table.cursor].value)
+  else: 
+    if key in forbiddenKeyBind: discard
+    elif table.keyEvents.hasKey(key):
+      table.call(key)
+
+  table.render()
+  sleep(table.refreshWaitTime)
+
 
 method onControl*(table: ref Table): void =
   table.focus = true
   while table.focus:
     var key = getKeyWithTimeout(table.refreshWaitTime)
-    case key
-    of Key.None: table.render()
-    of Key.Up:
-      if table.rowCursor == 0:
-        table.rowCursor = 0
-      else:
-        table.rowCursor = table.rowCursor - 1
-      table.prevSelection()
-    of Key.Down:
-      let rowSize = if table.mode == Filter: table.vrows().len else: table.rows.len
-      if table.rowCursor >= rowSize - 1:
-        table.rowCursor = rowSize - 1
-      else:
-        table.rowCursor += 1
-      table.nextSelection() 
-    of Key.Right: 
-      if table.colCursor == table.headers.get.columns.len - 1:
-        table.colCursor = table.headers.get.columns.len - 1
-      else:
-        table.colCursor += 1
-      table.dtmColumnToDisplay()
-    of Key.Left:
-      if table.colCursor == 0:
-        table.colCursor = 0
-      else:
-        table.colCursor -= 1
-      table.dtmColumnToDisplay()
-    of Key.Slash:
-      table.mode = Filter
-      table.onFilter()
-    of Key.Escape:
-      if table.mode == Filter:
-        table.mode = Normal
-        table.resetFilter()
-    of Key.Tab: 
-      table.focus = false
-    of Key.Enter:
-      table.call("enter")
-      # if table.onEnter.isSome:
-      #   let fn = table.onEnter.get
-      #   fn(table.rows[table.cursor].value)
-    else: 
-      if key in forbiddenKeyBind: discard
-      elif table.keyEvents.hasKey(key):
-        table.call(key)
-
-  table.render()
-  sleep(table.refreshWaitTime)
+    table.onUpdate(key) 
 
 
 method wg*(table: ref Table): ref BaseWidget = table

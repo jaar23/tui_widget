@@ -281,6 +281,40 @@ proc call(lv: ref ListView, key: Key, args: varargs[string]) =
     fn(lv, args)
 
 
+method onUpdate*(lv: ref ListView, key: Key) =
+  case key
+  of Key.None: lv.render()
+  of Key.Up:
+    if lv.rowCursor == 0:
+      lv.rowCursor = 0
+    else:
+      lv.rowCursor = lv.rowCursor - 1
+    lv.prevSelection()
+    lv.colCursor = 0
+  of Key.Down:
+    let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
+    if lv.rowCursor >= rowSize - 1:
+      lv.rowCursor = rowSize - 1
+    else:
+      lv.rowCursor += 1
+    lv.nextSelection()
+    lv.colCursor = 0
+  of Key.Right:
+    lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
+        lv.paddingX2)))
+  of Key.Left:
+    lv.colCursor = max(lv.colCursor - 1, 0)
+  of Key.Enter:
+    lv.call("enter", lv.selected.value)
+  of Tab: lv.focus = false
+  else:
+    if key in forbiddenKeyBind: discard
+    elif lv.keyEvents.hasKey(key):
+      lv.call(key, lv.selected.value)
+  lv.render()
+  sleep(lv.refreshWaitTime)
+
+
 method onControl*(lv: ref ListView): void =
   if lv.visibility == false: 
     lv.cursor = 0
@@ -295,40 +329,7 @@ method onControl*(lv: ref ListView): void =
   lv.focus = true
   while lv.focus:
     var key = getKeyWithTimeout(lv.refreshWaitTime)
-    case key
-    of Key.None: lv.render()
-    of Key.Up:
-      if lv.rowCursor == 0:
-        lv.rowCursor = 0
-      else:
-        lv.rowCursor = lv.rowCursor - 1
-      lv.prevSelection()
-      lv.colCursor = 0
-    of Key.Down:
-      let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
-      if lv.rowCursor >= rowSize - 1:
-        lv.rowCursor = rowSize - 1
-      else:
-        lv.rowCursor += 1
-      lv.nextSelection()
-      lv.colCursor = 0
-    of Key.Right:
-      lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
-          lv.paddingX2)))
-    of Key.Left:
-      lv.colCursor = max(lv.colCursor - 1, 0)
-    of Key.Enter:
-      # if lv.onEnter.isSome:
-      #   let fn = lv.onEnter.get
-      #   fn(lv.selected.value)
-      lv.call("enter", lv.selected.value)
-    of Tab: lv.focus = false
-    else:
-      if key in forbiddenKeyBind: discard
-      elif lv.keyEvents.hasKey(key):
-        lv.call(key, lv.selected.value)
-  lv.render()
-  sleep(lv.refreshWaitTime)
+    lv.onUpdate(key)  
 
 
 method wg*(lv: ref ListView): ref BaseWidget = lv

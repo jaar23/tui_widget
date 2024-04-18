@@ -85,6 +85,7 @@ method render*(g: ref Gauge) =
   g.tb.write(g.width - len(percentage), g.height - 1, g.bg(), percentage, resetStyle)
   g.tb.display()
 
+
 method wg*(g: ref Gauge): ref BaseWidget = g
 
 

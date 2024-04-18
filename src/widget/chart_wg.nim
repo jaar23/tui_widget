@@ -94,10 +94,6 @@ method onControl*(c: ref Chart) =
   sleep(c.refreshWaitTime)
 
 
-# method onControl*(c: ref Chart, cb: CallbackProcedure) =
-#   c.onEnter = some(cb)
-
-
 proc val(c: ref Chart, axis: ref Axis) =
   c.axis = axis
   c.render()

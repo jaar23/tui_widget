@@ -16,4 +16,4 @@ var app = newTerminalApp(title="tui widget")
 
 app.addWidget(inputBox)
 app.addWidget(display)
-app.go()
+app.run(nonBlocking=true)

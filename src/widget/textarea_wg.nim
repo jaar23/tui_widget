@@ -723,6 +723,9 @@ proc visualMode(t: ref TextArea) =
       t.focus = false
       t.render()
       break
+    elif key == Key.None:
+      t.render()
+      continue
     elif key in {Key.X, Key.D, Key.Delete}:
       if t.cursor < t.value.len:
         let content = t.value[t.viSelection.startat..t.viSelection.endat]
@@ -759,11 +762,12 @@ proc visualMode(t: ref TextArea) =
         t.call(key)
       t.vimode = Visual
       t.render()
+
+    t.render()
     sleep(t.refreshWaitTime)
 
 
-
-proc editMode(t: ref TextArea) =
+method onUpdate*(t: ref TextArea, key: Key) =
   const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
                   Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
   const CtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF,
@@ -773,6 +777,174 @@ proc editMode(t: ref TextArea) =
                     Key.CtrlY, Key.CtrlZ}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four,
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
+
+  case key
+  of Key.None: 
+    t.render()
+    return
+  of Key.Escape:
+    if t.enableViMode:
+      t.normalMode()
+      return
+    else: t.focus = false
+  of Key.Tab: t.focus = false
+  of Key.Backspace:
+    if t.cursor > 0:
+      t.value.delete(t.cursor - 1..t.cursor - 1)
+      t.cursorMove(-1)
+  of Key.Delete:
+    if t.value.len > 0:
+      t.value.delete(t.cursor .. t.cursor)
+      if t.cursor == t.value.len: t.value &= " "
+  of Key.CtrlE:
+    t.value = " "
+    t.cursor = 0
+    t.clear()
+  of Key.ShiftA..Key.ShiftZ:
+    let tmpKey = $key
+    let alphabet = toSeq(tmpKey.items()).pop()
+    t.value.insert($alphabet.toUpperAscii(), t.cursor)
+    t.cursorMove(1)
+  of Key.Zero..Key.Nine:
+    let keyPos = NumericKeys.find(key)
+    if keyPos > -1:
+      t.value.insert($keyPos, t.cursor)
+    t.cursorMove(1)
+  of Key.Comma:
+    t.value.insert(",", t.cursor)
+    t.cursorMove(1)
+  of Key.Colon:
+    t.value.insert(":", t.cursor)
+    t.cursorMove(1)
+  of Key.Semicolon:
+    t.value.insert(";", t.cursor)
+    t.cursorMove(1)
+  of Key.Underscore:
+    t.value.insert("_", t.cursor)
+    t.cursorMove(1)
+  of Key.Dot:
+    t.value.insert(".", t.cursor)
+    t.cursorMove(1)
+  of Key.Ampersand:
+    t.value.insert("&", t.cursor)
+    t.cursorMove(1)
+  of Key.DoubleQuote:
+    t.value.insert("\"", t.cursor)
+    t.cursorMove(1)
+  of Key.SingleQuote:
+    t.value.insert("'", t.cursor)
+    t.cursorMove(1)
+  of Key.QuestionMark:
+    t.value.insert("?", t.cursor)
+    t.cursorMove(1)
+  of Key.Space:
+    t.value.insert(" ", t.cursor)
+    t.cursorMove(1)
+  of Key.Pipe:
+    t.value.insert("|", t.cursor)
+    t.cursorMove(1)
+  of Key.Slash:
+    t.value.insert("/", t.cursor)
+    t.cursorMove(1)
+  of Key.Equals:
+    t.value.insert("=", t.cursor)
+    t.cursorMove(1)
+  of Key.Plus:
+    t.value.insert("+", t.cursor)
+    t.cursorMove(1)
+  of Key.Minus:
+    t.value.insert("-", t.cursor)
+    t.cursorMove(1)
+  of Key.Asterisk:
+    t.value.insert("*", t.cursor)
+    t.cursorMove(1)
+  of Key.BackSlash:
+    t.value.insert("\\", t.cursor)
+    t.cursorMove(1)
+  of Key.GreaterThan:
+    t.value.insert(">", t.cursor)
+    t.cursorMove(1)
+  of Key.LessThan:
+    t.value.insert("<", t.cursor)
+    t.cursorMove(1)
+  of Key.LeftBracket:
+    t.value.insert("[", t.cursor)
+    t.cursorMove(1)
+  of Key.RightBracket:
+    t.value.insert("]", t.cursor)
+    t.cursorMove(1)
+  of Key.LeftBrace:
+    t.value.insert("{", t.cursor)
+    t.cursorMove(1)
+  of Key.RightBrace:
+    t.value.insert("}", t.cursor)
+    t.cursorMove(1)
+  of Key.LeftParen:
+    t.value.insert("(", t.cursor)
+    t.cursorMove(1)
+  of Key.RightParen:
+    t.value.insert(")", t.cursor)
+    t.cursorMove(1)
+  of Key.Percent:
+    t.value.insert("%", t.cursor)
+    t.cursorMove(1)
+  of Key.Hash:
+    t.value.insert("#", t.cursor)
+    t.cursorMove(1)
+  of Key.Dollar:
+    t.value.insert("$", t.cursor)
+    t.cursorMove(1)
+  of Key.ExclamationMark:
+    t.value.insert("!", t.cursor)
+    t.cursorMove(1)
+  of Key.At:
+    t.value.insert("@", t.cursor)
+    t.cursorMove(1)
+  of Key.Caret:
+    t.value.insert("^", t.cursor)
+    t.cursorMove(1)
+  of Key.GraveAccent:
+    t.value.insert("~", t.cursor)
+    t.cursorMove(1)
+  of Key.Tilde:
+    t.value.insert("`", t.cursor)
+    t.cursorMove(1)
+  of Key.Home:
+    t.moveToBegin()
+  of Key.End:
+    t.moveToEnd()
+  of Key.PageUp, Key.PageDown, Key.Insert:
+    discard
+  of Key.Left:
+    t.moveLeft()
+  of Key.Right:
+    t.moveRight()
+  of Key.Up:
+    t.rowCursor = max(t.rowCursor - 1, 0)
+    t.moveUp()
+  of Key.Down:
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+    t.moveDown()
+  of Key.CtrlV:
+    let copiedText = $cb.clipboard_text()
+    t.value.insert(copiedText, t.cursor)
+    t.cursor = t.cursor + copiedText.len
+    t.rowReCal()
+  of Key.Enter:
+    t.enter()
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  of FnKeys, CtrlKeys:
+    if t.editKeyEvents.hasKey(key):
+      t.call(key)
+  else:
+    var ch = $key
+    t.value.insert(ch.toLower(), t.cursor)
+    t.cursorMove(1)
+  t.render()
+  sleep(t.refreshWaitTime)
+
+
+proc editMode(t: ref TextArea) =
   while t.focus:
     var key = getKeyWithTimeout(t.refreshWaitTime)
     if t.enableViMode and t.vimode == Normal and key in {Key.I, Key.ShiftI, Key.Insert}:
@@ -780,172 +952,12 @@ proc editMode(t: ref TextArea) =
       t.render()
     elif t.enableViMode and t.vimode == Normal and key in {Key.V, Key.ShiftV}:
       t.vimode = Visual
+      t.select()
       continue
-    elif t.enableViMode and t.vimode == Normal: continue
-    else:
-      case key
-      of Key.None: continue
-      of Key.Escape:
-        if t.enableViMode:
-          t.normalMode()
-          break
-        else: t.focus = false
-      of Key.Tab: t.focus = false
-      of Key.Backspace:
-        if t.cursor > 0:
-          t.value.delete(t.cursor - 1..t.cursor - 1)
-          t.cursorMove(-1)
-      of Key.Delete:
-        if t.value.len > 0:
-          t.value.delete(t.cursor .. t.cursor)
-          if t.cursor == t.value.len: t.value &= " "
-      of Key.CtrlE:
-        t.value = " "
-        t.cursor = 0
-        t.clear()
-      of Key.ShiftA..Key.ShiftZ:
-        let tmpKey = $key
-        let alphabet = toSeq(tmpKey.items()).pop()
-        t.value.insert($alphabet.toUpperAscii(), t.cursor)
-        t.cursorMove(1)
-      of Key.Zero..Key.Nine:
-        let keyPos = NumericKeys.find(key)
-        if keyPos > -1:
-          t.value.insert($keyPos, t.cursor)
-        t.cursorMove(1)
-      of Key.Comma:
-        t.value.insert(",", t.cursor)
-        t.cursorMove(1)
-      of Key.Colon:
-        t.value.insert(":", t.cursor)
-        t.cursorMove(1)
-      of Key.Semicolon:
-        t.value.insert(";", t.cursor)
-        t.cursorMove(1)
-      of Key.Underscore:
-        t.value.insert("_", t.cursor)
-        t.cursorMove(1)
-      of Key.Dot:
-        t.value.insert(".", t.cursor)
-        t.cursorMove(1)
-      of Key.Ampersand:
-        t.value.insert("&", t.cursor)
-        t.cursorMove(1)
-      of Key.DoubleQuote:
-        t.value.insert("\"", t.cursor)
-        t.cursorMove(1)
-      of Key.SingleQuote:
-        t.value.insert("'", t.cursor)
-        t.cursorMove(1)
-      of Key.QuestionMark:
-        t.value.insert("?", t.cursor)
-        t.cursorMove(1)
-      of Key.Space:
-        t.value.insert(" ", t.cursor)
-        t.cursorMove(1)
-      of Key.Pipe:
-        t.value.insert("|", t.cursor)
-        t.cursorMove(1)
-      of Key.Slash:
-        t.value.insert("/", t.cursor)
-        t.cursorMove(1)
-      of Key.Equals:
-        t.value.insert("=", t.cursor)
-        t.cursorMove(1)
-      of Key.Plus:
-        t.value.insert("+", t.cursor)
-        t.cursorMove(1)
-      of Key.Minus:
-        t.value.insert("-", t.cursor)
-        t.cursorMove(1)
-      of Key.Asterisk:
-        t.value.insert("*", t.cursor)
-        t.cursorMove(1)
-      of Key.BackSlash:
-        t.value.insert("\\", t.cursor)
-        t.cursorMove(1)
-      of Key.GreaterThan:
-        t.value.insert(">", t.cursor)
-        t.cursorMove(1)
-      of Key.LessThan:
-        t.value.insert("<", t.cursor)
-        t.cursorMove(1)
-      of Key.LeftBracket:
-        t.value.insert("[", t.cursor)
-        t.cursorMove(1)
-      of Key.RightBracket:
-        t.value.insert("]", t.cursor)
-        t.cursorMove(1)
-      of Key.LeftBrace:
-        t.value.insert("{", t.cursor)
-        t.cursorMove(1)
-      of Key.RightBrace:
-        t.value.insert("}", t.cursor)
-        t.cursorMove(1)
-      of Key.LeftParen:
-        t.value.insert("(", t.cursor)
-        t.cursorMove(1)
-      of Key.RightParen:
-        t.value.insert(")", t.cursor)
-        t.cursorMove(1)
-      of Key.Percent:
-        t.value.insert("%", t.cursor)
-        t.cursorMove(1)
-      of Key.Hash:
-        t.value.insert("#", t.cursor)
-        t.cursorMove(1)
-      of Key.Dollar:
-        t.value.insert("$", t.cursor)
-        t.cursorMove(1)
-      of Key.ExclamationMark:
-        t.value.insert("!", t.cursor)
-        t.cursorMove(1)
-      of Key.At:
-        t.value.insert("@", t.cursor)
-        t.cursorMove(1)
-      of Key.Caret:
-        t.value.insert("^", t.cursor)
-        t.cursorMove(1)
-      of Key.GraveAccent:
-        t.value.insert("~", t.cursor)
-        t.cursorMove(1)
-      of Key.Tilde:
-        t.value.insert("`", t.cursor)
-        t.cursorMove(1)
-      of Key.Home:
-        t.moveToBegin()
-      of Key.End:
-        t.moveToEnd()
-      of Key.PageUp, Key.PageDown, Key.Insert:
-        discard
-      of Key.Left:
-        t.moveLeft()
-      of Key.Right:
-        t.moveRight()
-      of Key.Up:
-        t.rowCursor = max(t.rowCursor - 1, 0)
-        t.moveUp()
-      of Key.Down:
-        t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-        t.moveDown()
-      of Key.CtrlV:
-        let copiedText = $cb.clipboard_text()
-        t.value.insert(copiedText, t.cursor)
-        t.cursor = t.cursor + copiedText.len
-        t.rowReCal()
-      of Key.Enter:
-        t.enter()
-        t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-      of FnKeys, CtrlKeys:
-        if t.editKeyEvents.hasKey(key):
-          t.call(key)
-      else:
-        var ch = $key
-        t.value.insert(ch.toLower(), t.cursor)
-        t.cursorMove(1)
-      t.render()
-      sleep(t.refreshWaitTime)
-
+    elif t.enableViMode and t.vimode == Normal: break
+    elif t.enableViMode and t.vimode == Visual: break
+    else: t.onUpdate(key)
+   
 
 method onControl*(t: ref TextArea) =
   t.focus = true

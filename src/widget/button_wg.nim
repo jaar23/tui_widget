@@ -76,31 +76,39 @@ method render*(bt: ref Button) =
   bt.tb.display()
 
 
+method onUpdate*(bt: ref Button, key: Key) =
+  case key
+  of Key.None: bt.render()
+  of Key.Escape, Key.Tab: bt.focus = false
+  of Key.Enter:
+    if bt.disabled: return
+    bt.call("enter")
+    bt.state = Pressed
+    bt.render()
+  else:
+    if key in forbiddenKeyBind: discard
+    elif bt.keyEvents.hasKey(key):
+      bt.call(key)
+      
+
+
+
 method onControl*(bt: ref Button) =
   bt.focus = true
-  var delay = 20
+  var delay = 10
   while bt.focus:
     var key = getKeyWithTimeout(bt.refreshWaitTime)
-    case key
-    of Key.None: bt.render()
-    of Key.Escape, Key.Tab: bt.focus = false
-    of Key.Enter:
-      if bt.disabled: return
-      bt.call("enter")
-      bt.state = Pressed
-      bt.render()
-    else:
-      if key in forbiddenKeyBind: discard
-      elif bt.keyEvents.hasKey(key):
-        bt.call(key)
-        
+    bt.onUpdate(key) 
+
     if bt.state == Pressed:
       delay = delay - 1
     if delay == 0:
       bt.state = Unpressed
-      delay = 20
+      delay = 10
+
   bt.render()
   sleep(bt.refreshWaitTime)
+
 
 
 method wg*(bt: ref Button): ref BaseWidget = bt
