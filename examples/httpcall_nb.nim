@@ -1,57 +1,55 @@
 import ../src/tui_widget
-import httpclient, net, os, std/tasks, times
+import httpclient, net, os, std/tasks
 
-# tui widget currently is running in synchronous
-# when making http request, the screen will be freezed
+# tui widget can run in non blocking mode by setting nonBlocking=true in run proc
+# when making http request, the screen does not freeze and render once content
+# is ready.
 
-#var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
-var input = newTextArea(1, 1, consoleWidth(), 6, title="url", statusbar=true)
+var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
 
-var display = newDisplay(1, 7, consoleWidth(), consoleHeight() - 20, id="display", title="content")
+var display = newDisplay(1, 4, consoleWidth(), consoleHeight(), id="display", title="content")
 
 var app = newTerminalApp(title="curl", border=false)
 
-let displayEv = proc(dp: ref Display, args: varargs[string]) =
-  # let f = open("background.txt", fmAppend)
-  # f.write($now().toTime() & "last part " & $args)
+display.on("display", proc(dp: ref Display, args: varargs[string]) =
   dp.text = args[0]
-  dp.render()
+)
 
 
-display.on("display", displayEv)
-
-let httpCall = proc (appPtr: ptr TerminalApp, dpPtr: ptr Display, id: string, url: string) {.gcsafe.} =
+let httpCall = proc (appPtr: ptr TerminalApp, id: string, url: string) {.gcsafe.} =
   var client = newHttpClient(sslContext=newContext(verifyMode=CVerifyPeerUseEnvVars))
   defer:
     client.close()
   try:
     let content = client.getContent(url)
     sleep(2000)
-    notify(appPtr, dpPtr, id, "display", content)
+
+    # notify main thread when task is done
+    notify(appPtr, id, "display", content)
   except:
+    let err = getCurrentExceptionMsg()
+    notify(appPtr, id, "display", err)
+
+
+let asyncEnterEv = proc (ib: ref InputBox, args: varargs[string]) =
+  try:
+    let url = ib.value
+    ib.value = ""
+    
+    # create a task and passing it to the background thread
+    let httpCallTask = toTask httpCall(addr app, display.id, url)
+
+    # running the task in background
+    runInBackground(httpCallTask)
+  except:
+    echo "task exception"
     echo getCurrentExceptionMsg()
 
 
-# let asyncEnterEv = proc (ib: ref InputBox, args: varargs[string]) =
-#   let url = ib.value
-#   ib.value = ""
-#   
-#   let httpCallTask = toTask httpCall(addr app, addr display[], display.id, url)
-#   runInBackground(httpCallTask)
-#
-
-let asyncEnterEv = proc (t: ref TextArea, args: varargs[string]) =
-  let url = t.value
-  t.value = ""
-  
-  let httpCallTask = toTask httpCall(addr app, addr display[], display.id, url)
-  runInBackground(httpCallTask)
-
-
-input.on(Key.CtrlR, asyncEnterEv)
+input.on("enter", asyncEnterEv)
 
 app.addWidget(input)
 
 app.addWidget(display)
 
-app.go()
+app.run(nonBlocking=true)
