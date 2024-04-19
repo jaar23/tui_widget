@@ -205,7 +205,7 @@ proc vrows(table: ref Table): seq[ref TableRow] =
 proc dtmColumnToDisplay(table: ref Table) =
   var posX = table.paddingX1
   for i in table.colCursor..<table.headers.get.columns.len:
-    if posX + table.headers.get.columns[i].width < table.width:
+    if posX + table.headers.get.columns[i].width < table.x2:
       table.headers.get.columns[i].visible = true
       posX += table.headers.get.columns[i].width
     else:
@@ -214,12 +214,12 @@ proc dtmColumnToDisplay(table: ref Table) =
     table.headers.get.columns[i].visible = false
 
 
-proc prevSelection(table: ref Table) =
+proc prevSelection(table: ref Table, size: int = 1) =
   let rows = table.vrows()
   if table.cursor == 0:
     table.cursor = 0
   else:
-    table.cursor -= 1
+    table.cursor -= size
   if rows.len > 0:
     let index = rows[table.cursor].index
     for r in 0..<table.rows.len:
@@ -230,12 +230,12 @@ proc prevSelection(table: ref Table) =
         table.rows[r].selected = false
 
 
-proc nextSelection(table: ref Table) =
+proc nextSelection(table: ref Table, size: int = 1) =
   let rows = table.vrows()
-  if table.cursor >= rows.len - 1:
-    table.cursor = rows.len - 1
+  if table.cursor >= rows.len - size:
+    table.cursor = rows.len - size
   else:
-    table.cursor += 1
+    table.cursor += size
   if rows.len > 0:
     let index = rows[table.cursor].index
     for r in 0..<table.rows.len:
@@ -329,6 +329,7 @@ method render*(table: ref Table): void =
   table.renderBorder()
   #if table.title != "":
   table.renderTitle()
+  table.dtmColumnToDisplay()
   var index = table.renderTableHeader()
   let rows = table.vrows()
   if rows.len > 0:
@@ -432,13 +433,16 @@ method poll*(table: ref Table) =
 
 method onUpdate*(table: ref Table, key: Key) =
   case key
-  of Key.None: table.render()
+  of Key.None: 
+    #table.dtmColumnToDisplay()
+    table.render()
   of Key.Up:
     if table.rowCursor == 0:
       table.rowCursor = 0
     else:
       table.rowCursor = table.rowCursor - 1
     table.prevSelection()
+  
   of Key.Down:
     let rowSize = if table.mode == Filter: table.vrows().len else: table.rows.len
     if table.rowCursor >= rowSize - 1:
@@ -446,18 +450,38 @@ method onUpdate*(table: ref Table, key: Key) =
     else:
       table.rowCursor += 1
     table.nextSelection() 
+  
+  of Key.PageUp:
+    let size = if table.cursor - table.size > 0: table.size - 1
+      else: 1
+    if table.rowCursor == 0:
+      table.rowCursor = 0
+    else:
+      table.rowCursor = table.rowCursor - size
+    table.prevSelection(size)
+
+  of Key.PageDown:
+    let size = if table.rows.len - table.cursor > table.size: table.size - 1 
+      else: table.rows.len - table.cursor - 1
+    let rowSize = if table.mode == Filter: table.vrows().len else: table.rows.len 
+    if table.rowCursor >= rowSize - size:
+      table.rowCursor = rowSize - size
+    else:
+      table.rowCursor += size
+    table.nextSelection(size) 
+
   of Key.Right: 
     if table.colCursor == table.headers.get.columns.len - 1:
       table.colCursor = table.headers.get.columns.len - 1
     else:
       table.colCursor += 1
-    table.dtmColumnToDisplay()
+    #table.dtmColumnToDisplay()
   of Key.Left:
     if table.colCursor == 0:
       table.colCursor = 0
     else:
       table.colCursor -= 1
-    table.dtmColumnToDisplay()
+    #table.dtmColumnToDisplay()
   of Key.Slash:
     table.mode = Filter
     table.onFilter()
@@ -527,7 +551,8 @@ proc selected*(table: ref Table): ref TableRow =
   return table.rows[table.cursor]
 
 
-proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIndex = false): void =
+proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, 
+                  withIndex = false): void {.raises: [IOError].} =
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")
@@ -567,6 +592,7 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, withIn
     table.cursor = 0
     table.prevSelection()
   except:
+    table.emptyRows()
     echo "failed to open file"
 
 
