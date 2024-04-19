@@ -47,7 +47,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
   let padding = if border: 1 else: 0
-
+  let statusbarSize = if statusbar: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -74,7 +74,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     title: title,
     cursor: 0,
     rowCursor: 0,
-    size: h - py - style.paddingY2 - style.paddingY1,
+    size: h - py - style.paddingY2 - style.paddingY1 - statusbarSize,
     tb: tb,
     style: style,
     statusbar: statusbar,
