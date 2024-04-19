@@ -55,7 +55,9 @@ proc newDisplay*(px, py, w, h: int, id = "";
     style: style,
     wordwrap: wordwrap,
     customRowRecal: customRowRecal,
-    useCustomTextRow: if customRowRecal.isSome: true else: false
+    useCustomTextRow: if customRowRecal.isSome: true else: false,
+    events: initTable[string, EventFn[ref Display]](),
+    keyEvents: initTable[Key, EventFn[ref Display]]()
   )
   result.channel = newChan[WidgetBgEvent]()
 
@@ -132,7 +134,7 @@ method render*(dp: ref Display) =
       dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
-    ## cursor pointer
+  ## cursor pointer
   if dp.statusbar:
     let statusbarText = "size: " & $(dp.text.len/1024).toInt() & "kb"
     dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
@@ -178,7 +180,7 @@ proc call(dp: ref Display, key: Key) =
 method poll*(dp: ref Display) =
   var widgetEv: WidgetBgEvent
   if dp.channel.tryRecv(widgetEv):
-    dp.call(widgetEv.widgetEvent, widgetEv.args)
+    dp.call(widgetEv.event, widgetEv.args)
     dp.render()
 
 

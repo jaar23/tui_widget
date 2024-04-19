@@ -1,4 +1,5 @@
 import illwill, base_wg, os, strutils, asciigraph, std/math
+import tables, threading/channels
 
 type
   Axis* = object
@@ -11,7 +12,8 @@ type
   Chart* = object of BaseWidget
     marker: char = '*'
     axis: ref Axis
-    #onEnter: Option[CallbackProcedure]
+    events*: Table[string, EventFn[ref Chart]]
+    keyEvents*: Table[Key, EventFn[ref Chart]]
 
 
 proc newAxis*(lb: float64 = 0.0, ub: float64 = 0.0, title: string = "",
@@ -61,8 +63,11 @@ proc newChart*(px, py, w, h: int,
     style: style,
     marker: marker,
     axis: axis,
-    title: title
+    title: title,
+    events: initTable[string, EventFn[ref Chart]](),
+    keyEvents: initTable[Key, EventFn[ref Chart]]()
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc renderAsciiGraph(c: ref Chart) =
@@ -88,6 +93,47 @@ method render*(c: ref Chart) =
 method wg*(c: ref Chart): ref BaseWidget = c
 
 
+proc on*(dp: ref Chart, event: string, fn: EventFn[ref Chart]) =
+  dp.events[event] = fn
+
+
+proc on*(dp: ref Chart, key: Key, fn: EventFn[ref Chart]) =
+  dp.keyEvents[key] = fn
+    
+
+method call*(dp: ref Chart, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(dp, args)
+
+
+method call*(dp: Chart, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    let dpRef = dp.asRef()
+    fn(dpRef, args)
+    
+
+proc call(dp: ref Chart, key: Key) =
+  let fn = dp.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(dp)
+
+
+method poll*(c: ref Chart) =
+  var widgetEv: WidgetBgEvent
+  if c.channel.tryRecv(widgetEv):
+    c.call(widgetEv.event, widgetEv.args)
+    c.render()
+
+method onUpdate*(c: ref Chart, key: Key) =
+  if c.keyEvents.hasKey(key):
+    c.call(key)
+
+  c.render()
+  sleep(c.refreshWaitTime)
+
+
 method onControl*(c: ref Chart) =
   #c.focus = true     
   c.render()
@@ -105,3 +151,7 @@ proc `axis=`*(c: ref Chart, axis: ref Axis) =
 
 proc axis*(c: ref Chart, axis: ref Axis) =
   c.val(axis)
+
+
+
+

@@ -1,8 +1,7 @@
 import illwill, base_wg, os, sequtils, strutils, deques, times, input_box_wg
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
-import tables
-
+import tables, threading/channels
 
 type
   ViHistory = tuple[cursor: int, content: string]
@@ -120,6 +119,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
   )
   # to ensure key responsive, default < 50ms
   if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
+  textArea.channel = newChan[WidgetBgEvent]()
   return textArea
 
 

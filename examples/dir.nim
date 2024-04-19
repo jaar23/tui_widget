@@ -124,4 +124,8 @@ tuiapp.addWidget(metadataDisplay)
 
 tuiapp.addWidget(contentDisplay)
 
+## running in non blocking mode
+# tuiapp.run(nonBlocking=true)
+
+# running in blocking mdoe
 tuiapp.run()

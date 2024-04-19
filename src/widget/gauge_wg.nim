@@ -1,5 +1,5 @@
 import illwill, base_wg, strformat
-
+import tables, threading/channels
 
 type
   GaugePercent* = range[0.0..1000.0]
@@ -12,6 +12,7 @@ type
     loadedBlock: char
     loadingBlock: char
     percentileColor: array[PercentileColor, ForegroundColor]
+    events*: Table[string, EventFn[ref Gauge]]
 
 
 proc newGauge*(px, py, w, h: int,
@@ -45,8 +46,10 @@ proc newGauge*(px, py, w, h: int,
     style: style,
     loadedBlock: loadedBlock,
     loadingBlock: loadingBlock,
-    percentileColor: percentileColor
+    percentileColor: percentileColor,
+    events: initTable[string, EventFn[ref Gauge]]()
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc renderClearRow(g: ref Gauge): void =
@@ -102,5 +105,30 @@ proc set*(g: ref Gauge, point: float) =
 proc completed*(g: ref Gauge) =
   g.percent = 100.0
   g.render()
+
+
+proc on*(g: ref Gauge, event: string, fn: EventFn[ref Gauge]) =
+  g.events[event] = fn
+
+
+method call*(g: ref Gauge, event: string, args: varargs[string]) =
+  let fn = g.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(g, args)
+
+
+method call*(g: Gauge, event: string, args: varargs[string]) =
+  let fn = g.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let gRef = g.asRef()
+    fn(gRef, args)
+    
+
+method poll*(g: ref Gauge) =
+  var widgetEv: WidgetBgEvent
+  if g.channel.tryRecv(widgetEv):
+    g.call(widgetEv.event, widgetEv.args)
+    g.render()
 
 

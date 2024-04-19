@@ -27,7 +27,7 @@ type
 
   WidgetBgEvent* = object
     widgetId*: string
-    widgetEvent*: string
+    event*: string
     args*: seq[string]
     error*: string
 
@@ -68,7 +68,7 @@ type
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
   BoolEventFn*[T] = proc (wg: T, arg: bool): void
-  
+
   EventKeyError* = object of CatchableError
 
 

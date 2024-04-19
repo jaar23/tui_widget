@@ -1,6 +1,8 @@
 import illwill, sequtils, base_wg, os, options, strutils, parsecsv, input_box_wg
 from std/streams import newFileStream
 import tables as systable
+import threading/channels
+
 
 type
   ColumnType* = enum
@@ -130,7 +132,9 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     colCursor: 0,
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
-    statusbar: statusbar
+    statusbar: statusbar,
+    events: initTable[string, EventFn[ref Table]](),
+    keyEvents: initTable[Key, EventFn[ref Table]]()
   )
   if headers.isSome: 
     table.size -= 1
@@ -139,6 +143,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     table.height += table.style.paddingY1
   if table.rows.len > 0:
     table.rows[0].selected = true
+  table.channel = newChan[WidgetBgEvent]()
   return table
 
 
@@ -175,8 +180,11 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     colCursor: 0,
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
-    statusbar: statusbar
+    statusbar: statusbar,
+    events: initTable[string, EventFn[ref Table]](),
+    keyEvents: initTable[Key, EventFn[ref Table]]()
   )
+  table.channel = newChan[WidgetBgEvent]()
   return table
 
 
@@ -415,6 +423,13 @@ proc call(table: ref Table, key: Key, args: varargs[string]) =
     fn(table, args)
 
 
+method poll*(table: ref Table) =
+  var widgetEv: WidgetBgEvent
+  if table.channel.tryRecv(widgetEv):
+    table.call(widgetEv.event, widgetEv.args)
+    table.render()
+
+
 method onUpdate*(table: ref Table, key: Key) =
   case key
   of Key.None: table.render()
@@ -454,9 +469,6 @@ method onUpdate*(table: ref Table, key: Key) =
     table.focus = false
   of Key.Enter:
     table.call("enter")
-    # if table.onEnter.isSome:
-    #   let fn = table.onEnter.get
-    #   fn(table.rows[table.cursor].value)
   else: 
     if key in forbiddenKeyBind: discard
     elif table.keyEvents.hasKey(key):

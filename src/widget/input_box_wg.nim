@@ -1,4 +1,4 @@
-import illwill, strutils, base_wg, sequtils, encodings
+import illwill, strutils, base_wg, sequtils, encodings, os
 import nimclipboard/libclipboard
 import tables, threading/channels
 
@@ -7,7 +7,7 @@ type
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
-    mode: string = "|"
+    mode: string = ">"
     events*: Table[string, EventFn[ref InputBox]]
     keyEvents*: Table[Key, EventFn[ref InputBox]]
 
@@ -31,7 +31,7 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 
 proc newInputBox*(px, py, w, h: int, title = "", val: string = "", 
-                  modeChar: char = '|', border: bool = true, statusbar: bool = false,
+                  modeChar: char = '>', border: bool = true, statusbar: bool = false,
                   fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
   var padding = if border: 1 else: 0
@@ -206,12 +206,12 @@ method onUpdate*(ib: ref InputBox, key: Key) =
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
   ib.focus = true
-  ib.mode = ">"
   case key
   of Key.None: discard
   of EscapeKeys:
     ib.focus = false
     ib.mode = "|"
+    ib.rerender()
   of Key.Backspace:
     if ib.cursor > 0:
       ib.value.delete(ib.cursor - 1..ib.cursor - 1)
@@ -375,6 +375,7 @@ method onUpdate*(ib: ref InputBox, key: Key) =
     ib.visualCursor = cursorPos 
 
   ib.render()
+  sleep(ib.refreshWaitTime)
 
 
 method onControl*(ib: ref InputBox) = 

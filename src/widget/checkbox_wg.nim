@@ -1,4 +1,5 @@
 import illwill, base_wg, os, tables
+import threading/channels
 
 type
   Checkbox* = object of BaseWidget
@@ -39,6 +40,7 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
     events: initTable[string, BoolEventFn[ref Checkbox]](),
     keyEvents: initTable[Key, BoolEventFn[ref Checkbox]]()
   )
+  checkbox.channel = newChan[WidgetBgEvent]()
   return checkbox
 
 
@@ -82,6 +84,13 @@ method render*(ch: ref Checkbox) =
     ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
   ch.tb.write(ch.posX + 6, ch.posY + 1, resetStyle, ch.label)
   ch.tb.display()
+
+
+method poll*(ch: ref Checkbox) =
+  var widgetEv: WidgetBgEvent
+  if ch.channel.tryRecv(widgetEv):
+    ch.call(widgetEv.event, widgetEv.args)
+    ch.render()
 
 
 method onUpdate*(ch: ref Checkbox, key: Key) =

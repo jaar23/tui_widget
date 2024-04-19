@@ -1,4 +1,5 @@
 import illwill, base_wg, sequtils, strutils, os, tables
+import threading/channels
 
 type
   ListRow* = object
@@ -80,10 +81,11 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     selectionStyle: selectionStyle,
     colCursor: 0,
     statusbarText: statusbarText,
-    statusbarSize: statusbarText.len()
+    statusbarSize: statusbarText.len(),
+    events: initTable[string, EventFn[ref ListView]](),
+    keyEvents: initTable[Key, EventFn[ref ListView]]()
   )
-
-
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =
@@ -279,6 +281,13 @@ proc call(lv: ref ListView, key: Key, args: varargs[string]) =
   let fn = lv.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(lv, args)
+
+
+method poll*(lv: ref ListView) =
+  var widgetEv: WidgetBgEvent
+  if lv.channel.tryRecv(widgetEv):
+    lv.call(widgetEv.event, widgetEv.args)
+    lv.render()
 
 
 method onUpdate*(lv: ref ListView, key: Key) =

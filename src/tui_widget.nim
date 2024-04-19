@@ -1,4 +1,5 @@
 import illwill, os, strutils, std/terminal
+import malebolgia, threading/channels, std/tasks, sequtils
 import 
   widget/base_wg,
   widget/display_wg,
@@ -12,7 +13,6 @@ import
   widget/chart_wg,
   widget/gauge_wg,
   widget/textarea_wg
-import malebolgia, threading/channels, std/tasks, sequtils
 
 export
   base_wg,
@@ -105,7 +105,7 @@ proc notify*(app: ptr TerminalApp, id: string, event: string, args: varargs[stri
     if w.id == id: 
       w.channel.send(WidgetBgEvent(
         widgetId: id,
-        widgetEvent: event,
+        event: event,
         args: arguments,
         error: ""
         ))

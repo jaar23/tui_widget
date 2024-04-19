@@ -1,5 +1,5 @@
 import illwill, base_wg, strformat
-
+import tables, threading/channels
 
 type
   Percent* = range[0.0..100.0]
@@ -11,6 +11,7 @@ type
     loadedBlock: string
     loadingBlock: string
     showPercentage: bool
+    events*: Table[string, EventFn[ref ProgressBar]]
 
 
 proc newProgressBar*(px, py, w, h: int,
@@ -43,8 +44,10 @@ proc newProgressBar*(px, py, w, h: int,
     style: style,
     loadedBlock: loadedBlock,
     loadingBlock: loadingBlock,
-    showPercentage: showPercentage
+    showPercentage: showPercentage,
+    events: initTable[string, EventFn[ref ProgressBar]]()
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc renderClearRow(pb: ref ProgressBar): void =
@@ -98,5 +101,30 @@ proc set*(pb: ref ProgressBar, point: float) =
 proc completed*(pb: ref ProgressBar) =
   pb.percent = 100.0
   pb.render()
+
+
+proc on*(pb: ref ProgressBar, event: string, fn: EventFn[ref ProgressBar]) =
+  pb.events[event] = fn
+
+
+method call*(pb: ref ProgressBar, event: string, args: varargs[string]) =
+  let fn = pb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(pb, args)
+
+
+method call*(pb: ProgressBar, event: string, args: varargs[string]) =
+  let fn = pb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let pbRef = pb.asRef()
+    fn(pbRef, args)
+    
+
+method poll*(pb: ref ProgressBar) =
+  var widgetEv: WidgetBgEvent
+  if pb.channel.tryRecv(widgetEv):
+    pb.call(widgetEv.event, widgetEv.args)
+    pb.render()
 
 

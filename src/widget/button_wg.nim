@@ -1,5 +1,5 @@
 import illwill, base_wg, os, strutils
-import tables
+import tables, threading/channels
 
 type
   ButtonState = enum
@@ -39,6 +39,7 @@ proc newButton*(px, py, w, h: int, label: string,
     events: initTable[string, EventFn[ref Button]](),
     keyEvents: initTable[Key, EventFn[ref Button]]()
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 proc on*(bt: ref Button, event: string, fn: EventFn[ref Button]) =
@@ -76,6 +77,12 @@ method render*(bt: ref Button) =
   bt.tb.display()
 
 
+method poll*(bt: ref Button) =
+  var widgetEv: WidgetBgEvent
+  if bt.channel.tryRecv(widgetEv):
+    bt.call(widgetEv.event, widgetEv.args)
+
+
 method onUpdate*(bt: ref Button, key: Key) =
   case key
   of Key.None: bt.render()
@@ -90,8 +97,6 @@ method onUpdate*(bt: ref Button, key: Key) =
     elif bt.keyEvents.hasKey(key):
       bt.call(key)
       
-
-
 
 method onControl*(bt: ref Button) =
   bt.focus = true
@@ -108,7 +113,6 @@ method onControl*(bt: ref Button) =
 
   bt.render()
   sleep(bt.refreshWaitTime)
-
 
 
 method wg*(bt: ref Button): ref BaseWidget = bt

@@ -1,10 +1,11 @@
 import base_wg, illwill, strutils
+import tables, threading/channels
 
 type
   Label* = object of BaseWidget
     text: string = ""
     align: Alignment = Left
-
+    events: Table[string, EventFn[ref Label]]
 
 proc newLabel*(px, py, w, h: int, text: string,
                border = false, align = Left,
@@ -28,8 +29,10 @@ proc newLabel*(px, py, w, h: int, text: string,
     text: text,
     tb: tb,
     style: style,
-    align: align
+    align: align,
+    events: initTable[string, EventFn[ref Label]]()
   )
+  result.channel = newChan[WidgetBgEvent]()
 
 
 method render*(lb: ref Label) =
@@ -64,3 +67,30 @@ proc `text=`*(lb: ref Label, text: string) =
 
 proc text*(lb: ref Label, text: string) =
   lb.val(text)
+
+
+proc on*(lb: ref Label, event: string, fn: EventFn[ref Label]) =
+  lb.events[event] = fn
+
+
+method call*(lb: ref Label, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lb, args)
+
+
+method call*(lb: Label, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let lbRef = lb.asRef()
+    fn(lbRef, args)
+    
+
+method poll*(lb: ref Label) =
+  var widgetEv: WidgetBgEvent
+  if lb.channel.tryRecv(widgetEv):
+    lb.call(widgetEv.event, widgetEv.args)
+    lb.render()
+
+
