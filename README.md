@@ -4,7 +4,7 @@ Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/
 
 These widget is <b>under development</b>, things might change or break!
 
-** widgets event has been re-worked **
+** widgets event has been re-worked and support running in non-blocking mode **
 
 ### Quick preview
 
