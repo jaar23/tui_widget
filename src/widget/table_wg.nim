@@ -100,7 +100,7 @@ proc newTableRow*(width: int, height = 1;
 proc newTable*(px, py, w, h: int, rows: seq[ref TableRow], 
                headers: Option[ref TableRow] = none(ref TableRow), 
                title: string = "", cursor = 0, rowCursor = 0, 
-               border: bool = true, statusbar: bool = true,
+               border: bool = true, statusbar: bool = true, enableHelp=false,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle, maxColWidth = w,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
@@ -138,6 +138,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
     statusbar: statusbar,
+    enableHelp: enableHelp,
     events: initTable[string, EventFn[ref Table]](),
     keyEvents: initTable[Key, EventFn[ref Table]]()
   )
@@ -149,12 +150,13 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
   if table.rows.len > 0:
     table.rows[0].selected = true
   table.channel = newChan[WidgetBgEvent]()
-  table.on(Key.QuestionMark, help)
+  if enableHelp:
+    table.on(Key.QuestionMark, help)
   return table
 
 
 proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0, 
-               border: bool = true, statusbar: bool = true,
+               border: bool = true, statusbar: bool = true, enableHelp = false,
                fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
@@ -188,11 +190,13 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
     statusbar: statusbar,
+    enableHelp: enableHelp,
     events: initTable[string, EventFn[ref Table]](),
     keyEvents: initTable[Key, EventFn[ref Table]]()
   )
   table.channel = newChan[WidgetBgEvent]()
-  table.on(Key.QuestionMark, help)
+  if enableHelp:
+    table.on(Key.QuestionMark, help)
   return table
 
 
@@ -330,8 +334,9 @@ proc renderStatusBar(table: ref Table) =
       table.tb.write(table.x1 + mode.len + 1, table.height, fgBlack, bgWhite, 
                      " size: " & $table.vrows().len & " ", 
                      resetStyle)
-      let q = "[?]"
-      table.tb.write(table.x2 - q.len, table.height, bgWhite, fgBlack, q, resetStyle)
+      if table.enableHelp:
+        let q = "[?]"
+        table.tb.write(table.x2 - q.len, table.height, bgWhite, fgBlack, q, resetStyle)
 
 
 
@@ -341,12 +346,14 @@ proc help(table: ref Table, args: varargs[string]) =
   var display = newDisplay(table.x2 - wsize, table.y2 - hsize, 
                           table.x2, table.y2, title="help",
                           bgColor=bgWhite, fgColor=fgBlack,
-                          tb=table.tb, statusbar=false)
+                          tb=table.tb, statusbar=false,
+                          enableHelp=false)
   var helpText: string
   if table.helpText == "":
     helpText = " [Enter] to select\n" &
                " [/]     to search\n" &
                " [?]     for help\n" &
+               " [Tab]   to go next widget\n " &
                " [Esc]   to exit this window"
   display.text = helpText
   display.illwillInit = true
@@ -654,3 +661,9 @@ proc loadFromSeq*(table: ref Table, rows: openArray[seq[string]]) =
     table.addRow(row)
 
 
+# proc `enableHelp=`*(table: ref Table, enable: bool) =
+#   table.enableHelp = enable
+#   if table.enableHelp:
+#     table.on(Key.QuestionMark, help)
+#   else:
+#     table.keyEvents.del(Key.QuestionMark)

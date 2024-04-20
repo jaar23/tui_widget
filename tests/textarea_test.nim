@@ -1,6 +1,7 @@
 import tui_widget
 
-var textarea = newTextArea(1, 1, consoleWidth(), 10, title="textarea", statusbar=true, enableViMode=true, cursorStyle=Ibeam)
+var textarea = newTextArea(1, 1, consoleWidth(), 10, title="textarea", statusbar=true, enableViMode=true, cursorStyle=Ibeam,
+                          enableHelp=true)
 
 let clearEv = proc (t: ref TextArea, args: varargs[string]) =
   t.value = ""

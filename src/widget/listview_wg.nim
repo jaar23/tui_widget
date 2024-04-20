@@ -45,7 +45,7 @@ proc newListRow*(index: int, text: string, value: string, align = Center,
 
 proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow](),
                   title = "", border = true, statusbar = true,
-                  statusbarText = "[?]",
+                  statusbarText = "[?]", enableHelp=false,
                   fgColor = fgWhite, bgColor = bgNone,
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
@@ -81,6 +81,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     tb: tb,
     style: style,
     statusbar: statusbar,
+    enableHelp: enableHelp,
     selectionStyle: selectionStyle,
     colCursor: 0,
     statusbarText: statusbarText,
@@ -89,7 +90,8 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     keyEvents: initTable[Key, EventFn[ref ListView]]()
   )
   result.channel = newChan[WidgetBgEvent]()
-  result.on(Key.QuestionMark, help)
+  if enableHelp:
+    result.on(Key.QuestionMark, help)
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =
@@ -170,11 +172,13 @@ proc help(lv: ref ListView, args: varargs[string]) =
   var display = newDisplay(lv.x2 - wsize, lv.y2 - hsize, 
                           lv.x2, lv.y2, title="help",
                           bgColor=bgWhite, fgColor=fgBlack,
-                          tb=lv.tb, statusbar=false)
+                          tb=lv.tb, statusbar=false,
+                          enableHelp=false)
   var helpText: string
   if lv.helpText == "":
     helpText = " [Enter] to select\n" &
                " [?]     for help\n" &
+               " [Tab]   to go next widget\n" &
                " [Esc]   to exit this window"
   display.text = helpText
   display.illwillInit = true
@@ -191,7 +195,9 @@ proc renderStatusBar(lv: ref ListView, text: string = "") =
     lv.renderCleanRect(lv.x2 - lv.statusbarSize, lv.height, lv.statusbarSize, lv.height)
     # mode
     lv.tb.write(lv.x1, lv.height, bgWhite, fgBlack, $lv.mode, resetStyle)
-    lv.tb.write(lv.x2 - lv.statusbarSize, lv.height, bgWhite, fgBlack, statusText, resetStyle)
+    if lv.enableHelp:
+      let q = "[?]"
+      lv.tb.write(lv.x2 - q.len, lv.height, bgWhite, fgBlack, q, resetStyle)
 
 
 method render*(lv: ref ListView) =
@@ -391,6 +397,14 @@ proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
   
   lv.rows = rows
 
+
+# proc `enableHelp=`*(lv: ref ListView, enable: bool) =
+#   lv.enableHelp = enable
+#   if lv.enableHelp:
+#     lv.on(Key.QuestionMark, help)
+#   else:
+#     lv.keyEvents.del(Key.QuestionMark)
+#
 # ListRow attributes
 #
 proc index*(lr: ref ListRow): int = lr.index

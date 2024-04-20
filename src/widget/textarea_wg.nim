@@ -1,4 +1,5 @@
-import illwill, base_wg, os, sequtils, strutils, deques, times, input_box_wg
+import illwill, base_wg, os, sequtils, strutils, deques, times, 
+       input_box_wg, display_wg
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
 import tables, threading/channels
@@ -47,6 +48,7 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 const cursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
 
+proc help(t: ref TextArea, args: varargs[string]): void
 
 proc newViStyle(nbg: BackgroundColor = bgBlue, tg: BackgroundColor = bgCyan,
                 vbg: BackgroundColor = bgYellow,
@@ -67,7 +69,7 @@ proc newViStyle(nbg: BackgroundColor = bgBlue, tg: BackgroundColor = bgCyan,
 
 
 proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
-                  border = true; statusbar = false;
+                  border = true; statusbar = false; enableHelp=false;
                   fgColor = fgWhite; bgColor = bgNone;
                   cursorFg = fgWhite; cursorBg = bgBlue; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
@@ -106,6 +108,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     cursorStyle: cursorStyle,
     statusbar: statusbar,
     statusbarSize: statusbarSize,
+    enableHelp: enableHelp,
     vimode: vimode,
     enableViMode: enableViMode,
     viHistory: initDeque[ViHistory](),
@@ -120,6 +123,9 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
   # to ensure key responsive, default < 50ms
   if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
   textArea.channel = newChan[WidgetBgEvent]()
+  if enableHelp:
+    textArea.normalKeyEvents[Key.QuestionMark] = help
+    textArea.visualKeyEvents[Key.QuestionMark] = help
   return textArea
 
 
@@ -439,6 +445,58 @@ proc call(t: ref TextArea, key: Key, args: varargs[string]) =
       fn(t, args)
 
 
+proc help(t: ref TextArea, args: varargs[string]) =
+  let wsize = ((t.width - t.posX).toFloat * 0.3).toInt()
+  let hsize = ((t.height - t.posY).toFloat * 0.3).toInt()
+  var display = newDisplay(t.x2 - wsize, t.y2 - hsize, 
+                          t.x2, t.y2, title="help",
+                          bgColor=bgWhite, fgColor=fgBlack,
+                          tb=t.tb, statusbar=false,
+                          enableHelp=false)
+  var helpText: string = "\n"
+  if t.enableViMode and t.vimode == Normal:
+    helpText = " [i] [Insert]    switch to insert mode\n" &
+               " [v]             switch to visual mode\n" &
+               " [A]             append at end of line\n" &
+               " [Delete]        delete at cursor \n" &
+               " [Tab]           go to next widget\n" &
+               " [Left] [<-] [h] move backward\n" &
+               " [Right] [l]     move forward\n" &
+               " [Up] [k]        move upward\n" &
+               " [Down] [j]      move downward\n" &
+               " [Home] [^]      goto beginning of line\n" &
+               " [End] [$]       goto end of line\n" &
+               " [w]             goto next word\n" &
+               " [b]             goto previous word\n" &
+               " [x]             cut text at cursor\n" &
+               " [p]             paste last history at cursor\n" &
+               " [u]             undo last change\n" &
+               " [dd]            delete whole line\n" &
+               " [Esc]           back to normal mode\n" &
+               " [?]             open help menu\n"
+  elif t.enableViMode and t.vimode == Visual:
+    helpText = " [Delete]        delete at cursor \n" &
+               " [Tab]           go to next widget\n" &
+               " [Left] [<-] [h] move backward\n" &
+               " [Right] [l]     move forward\n" &
+               " [Up] [k]        move upward\n" &
+               " [Down] [j]      move downward\n" &
+               " [Home] [^]      goto beginning of line\n" &
+               " [End] [$]       goto end of line\n" &
+               " [w]             goto next word\n" &
+               " [b]             goto previous word\n" &
+               " [x]             cut text at cursor\n" &
+               " [y]             copy/yank selected text\n" &
+               " [d]             delete selected text\n" &
+               " [Esc]           back to normal mode\n" &
+               " [?]             open help menu\n"
+  
+  display.text = helpText
+  display.illwillInit = true
+  display.onControl()
+  display.clear()
+
+
 method render*(t: ref TextArea) =
   if not t.illwillInit: return
 
@@ -518,7 +576,11 @@ method render*(t: ref TextArea) =
 
       t.tb.write(t.x1 + len($t.vimode) + 4, t.height, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
-    
+      
+      if t.enableHelp:
+        let q = "[?]"
+        t.tb.write(t.x2 - q.len, t.height, bgWhite, fgBlack, q, resetStyle)
+
       # experimantal feature
       t.experimental()
 

@@ -1,4 +1,4 @@
-import illwill, base_wg, os, std/wordwrap, strutils, options, tables
+import illwill, base_wg, os, std/wordwrap, strutils, options, tables, label_wg
 import threading/channels
 
 # Doesn't work nice when rendering a lot of character rather than 
@@ -17,6 +17,10 @@ type
     keyEvents*: Table[Key, EventFn[ref Display]]
 
 
+proc help(dp: ref Display, args: varargs[string]): void
+
+proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKeyError]}
+
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown, Key.Home,
                           Key.End, Key.Left, Key.Right, Key.ShiftW}
@@ -24,7 +28,7 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
 
 proc newDisplay*(px, py, w, h: int, id = "";
                  title: string = "", text: string = "", border: bool = true,
-                 statusbar = true, wordwrap = false,
+                 statusbar = true, wordwrap = false, enableHelp = false,
                  fgColor: ForegroundColor = fgWhite,
                  bgColor: BackgroundColor = bgNone,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
@@ -49,6 +53,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
     text: text,
     size: h - statusbarSize - py - (padding * 2),
     statusbarSize: statusbarSize,
+    enableHelp: enableHelp,
     title: title,
     statusbar: statusbar,
     tb: tb,
@@ -59,7 +64,14 @@ proc newDisplay*(px, py, w, h: int, id = "";
     events: initTable[string, EventFn[ref Display]](),
     keyEvents: initTable[Key, EventFn[ref Display]]()
   )
+  result.helpText = " [W]   toggle wordwrap\n" &
+                    " [?]   for help\n" &
+                    " [Tab]  to go next widget\n" & 
+                    " [Esc] to exit this window"
+ 
   result.channel = newChan[WidgetBgEvent]()
+  if enableHelp:
+    result.on(Key.QuestionMark, help)
 
 
 proc splitBySize(val: string, size: int, rows: int,
@@ -114,6 +126,26 @@ proc rowReCal(dp: ref Display) =
   else:
     dp.textRows = textWindow(dp.text, dp.x2 - dp.x1, dp.cursor)
 
+proc help(dp: ref Display, args: varargs[string]) = 
+  let wsize = ((dp.width - dp.posX).toFloat * 0.3).toInt()
+  let hsize = ((dp.height - dp.posY).toFloat * 0.3).toInt()
+  var display = newDisplay(dp.x2 - wsize, dp.y2 - hsize, 
+                          dp.x2, dp.y2, title="help",
+                          bgColor=bgWhite, fgColor=fgBlack,
+                          tb=dp.tb, statusbar=false, 
+                          enableHelp=false)
+  var helpText: string = if dp.helpText == "":
+    " [Enter] to select\n" &
+    " [?]     for help\n" &
+    " [Tab]   to go next widget\n" & 
+    " [Esc]   to exit this window"
+  else: dp.helpText
+  display.text = helpText
+  display.illwillInit = true
+  dp.render()
+  display.onControl()
+  display.clear()
+
 
 proc renderStatusbar(dp: ref Display) =
   ## custom statusbar rendering uses event name 'statusbar'
@@ -125,9 +157,13 @@ proc renderStatusbar(dp: ref Display) =
     dp.tb.write(dp.x1, dp.height, bgBlue, fgWhite, dp.statusbarText, 
                 resetStyle)
     
+    let ww = " W "
+    let q = "[?]"
+    if dp.enableHelp:
+      dp.tb.write(dp.x2 - len(q), dp.height, bgWhite, fgBlack,
+                  q, resetStyle)
     if dp.wordwrap:
-      let ww = " W "
-      dp.tb.write(dp.x2 - len(ww), dp.height, bgWhite, fgBlack,
+      dp.tb.write(dp.x2 - len(ww & q), dp.height, bgWhite, fgBlack,
                   ww, resetStyle)
 
 
@@ -301,3 +337,11 @@ proc add*(dp: ref Display, text: string, autoScroll=false) =
   dp.val(dp.text)
   if autoScroll and dp.textRows.len > dp.size: 
     dp.rowCursor = min(dp.textRows.len - 1, dp.rowCursor + 1)
+
+
+# proc `enableHelp=`*(dp: ref Display, enable: bool) =
+#   dp.enableHelp = enable
+#   if dp.enableHelp:
+#     dp.on(Key.QuestionMark, help)
+#   else:
+#     dp.keyEvents.del(Key.QuestionMark)

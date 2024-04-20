@@ -7,7 +7,7 @@ type
     align: Alignment = Left
     events: Table[string, EventFn[ref Label]]
 
-proc newLabel*(px, py, w, h: int, text: string,
+proc newLabel*(px, py, w, h: int, text = "",
                border = false, align = Left,
                bgColor = bgNone, fgColor = fgWhite,
                tb = newTerminalBuffer(w + 2, h + py)): ref Label =

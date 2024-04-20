@@ -66,6 +66,7 @@ type
     channel: Chan[WidgetBgEvent]
     blocking*: bool = false
     helpText*: string = ""
+    enableHelp*: bool = true
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -253,7 +254,7 @@ proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
 
 
 proc fill*(tb: var TerminalBuffer, x1, y1, x2, y2: Natural, 
-           fgColor: ForegroundColor, bgColor: BackgroundColor, ch: string = " ") =
+           bgColor: BackgroundColor, fgColor: ForegroundColor, ch: string = " ") =
   ## Override illwill fill with diff foreground and background
   ## Fills a rectangular area with the `ch` character using the current text
   ## attributes. The rectangle is clipped to the extends of the terminal
@@ -303,7 +304,7 @@ proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: Foregroun
 
 
 proc clear*(bw: ref BaseWidget) =
-  bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.fg, bw.bg, " ")
+  bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.bg, bw.fg, " ")
 
 
 proc rerender*(bw: ref BaseWidget) =
@@ -331,6 +332,25 @@ proc hide*(bw: ref BaseWidget) =
 
 proc experimental*(bw: ref BaseWidget) =
   let text = " experimental "
-  bw.tb.write(bw.x2 - len(text), bw.height, bgWhite, fgBlack, text, resetStyle)
+  bw.tb.write(bw.x2 - len(text) - 3, bw.height, bgWhite, fgBlack, text, resetStyle)
 
 
+# not available due to recursive module import
+# proc help(bw: ref BaseWidget, args: varargs[string]) = 
+#   let wsize = ((bw.width - bw.posX).toFloat * 0.3).toInt()
+#   let hsize = ((bw.height - bw.posY).toFloat * 0.3).toInt()
+#   var display = newDisplay(bw.x2 - wsize, bw.y2 - hsize, 
+#                           bw.x2, bw.y2, title="help",
+#                           bgColor=bgWhite, fgColor=fgBlack,
+#                           tb=bw.tb, statusbar=false)
+#   var helpText: string
+#   if bw.helpText == "":
+#     helpText = " [Enter] to select\n" &
+#                " [?]     for help\n" &
+#                " [Esc]   to exit this window"
+#   display.text = helpText
+#   display.illwillInit = true
+#   display.onControl()
+#   display.clear()
+#
+#

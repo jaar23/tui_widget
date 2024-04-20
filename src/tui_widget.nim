@@ -34,6 +34,8 @@ type
     width: int
     height: int
     title: string
+    bgColor: illwill.BackgroundColor 
+    fgColor: illwill.ForegroundColor
     cursor: int = 0
     fullscreen: bool = true
     border: bool = true
@@ -47,12 +49,15 @@ var bgChannel = newChan[Task]()
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
                      terminalHeight()), title: string = "", border: bool = false,
+                     bgColor = illwill.bgNone, fgColor = illwill.fgWhite,
                      refreshWaitTime: int = 20): TerminalApp =
   result = TerminalApp(
     width: terminalWidth(),
     height: terminalHeight(),
     title: title,
     border: border,
+    bgColor: bgColor,
+    fgColor: fgColor,
     refreshWaitTime: refreshWaitTime,
     widgets: newSeq[ref BaseWidget](),
     tb: tb
@@ -86,6 +91,7 @@ proc requiredSize*(app: var TerminalApp): (int, int, int) =
 
 
 proc render*(app: var TerminalApp) =
+  app.tb.fill(0, 0, app.width, app.height, app.bgColor, app.fgColor)
   for w in app.widgets:
     if w.visibility:
       try:

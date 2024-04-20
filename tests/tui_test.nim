@@ -3,7 +3,7 @@ import illwill, options
 
 var inputBox = newInputBox(1, 1, consoleWidth(), 3, "tui widget", bgColor=bgBlue)
 
-var display = newDisplay(1, 4, consoleWidth(), 16, "board") 
+var display = newDisplay(1, 4, consoleWidth(), 16, "board", enableHelp=true) 
 
 var text = """
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras quis accumsan lectus. Duis vitae rhoncus ex, at rhoncus diam. Aenean rutrum non tellus vel finibus. In hac habitasse platea dictumst. Curabitur feugiat, nibh laoreet tincidunt gravida, mi ante sagittis urna, sed ultricies lectus enim et libero. Nam tristique sem tempor lectus dignissim, ac imperdiet risus auctor. Aliquam erat volutpat. In iaculis laoreet ultrices. Curabitur pellentesque eros nec erat mattis, ac semper tortor facilisis.
