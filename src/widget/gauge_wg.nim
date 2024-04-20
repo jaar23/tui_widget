@@ -50,6 +50,7 @@ proc newGauge*(px, py, w, h: int,
     events: initTable[string, EventFn[ref Gauge]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 proc renderClearRow(g: ref Gauge): void =

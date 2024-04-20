@@ -48,6 +48,7 @@ proc newProgressBar*(px, py, w, h: int,
     events: initTable[string, EventFn[ref ProgressBar]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 proc renderClearRow(pb: ref ProgressBar): void =

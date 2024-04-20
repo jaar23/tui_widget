@@ -92,6 +92,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     result.on(Key.QuestionMark, help)
+  result.keepOriginalSize()
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =

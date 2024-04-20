@@ -74,6 +74,7 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
     ib.cursor = ib.cursor + copiedText.len
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =

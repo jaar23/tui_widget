@@ -41,6 +41,7 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
     keyEvents: initTable[Key, BoolEventFn[ref Checkbox]]()
   )
   checkbox.channel = newChan[WidgetBgEvent]()
+  checkbox.keepOriginalSize()
   return checkbox
 
 

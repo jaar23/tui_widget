@@ -152,6 +152,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
   table.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     table.on(Key.QuestionMark, help)
+  table.keepOriginalSize()
   return table
 
 
@@ -197,6 +198,7 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
   table.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     table.on(Key.QuestionMark, help)
+  table.keepOriginalSize()
   return table
 
 

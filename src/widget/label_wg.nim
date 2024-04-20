@@ -33,6 +33,7 @@ proc newLabel*(px, py, w, h: int, text = "",
     events: initTable[string, EventFn[ref Label]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 method render*(lb: ref Label) =

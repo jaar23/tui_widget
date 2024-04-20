@@ -67,6 +67,10 @@ type
     blocking*: bool = false
     helpText*: string = ""
     enableHelp*: bool = true
+    origWidth*: int
+    origHeight*: int
+    origPosX*: int
+    origPosY*: int
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -251,6 +255,13 @@ proc x2*(bw: ref BaseWidget): int = bw.widthPaddRight
 
 
 proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
+
+
+proc keepOriginalSize*(bw: ref BaseWidget) = 
+  bw.origWidth = bw.width
+  bw.origHeight = bw.height
+  bw.origPosX = bw.posX
+  bw.origPosY = bw.posY
 
 
 proc fill*(tb: var TerminalBuffer, x1, y1, x2, y2: Natural, 

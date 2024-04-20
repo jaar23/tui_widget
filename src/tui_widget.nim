@@ -43,6 +43,8 @@ type
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
     refreshWaitTime: int = 50
+    origWidth: int
+    origHeight: int
 
 
 var bgChannel = newChan[Task]() 
@@ -60,7 +62,9 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
     fgColor: fgColor,
     refreshWaitTime: refreshWaitTime,
     widgets: newSeq[ref BaseWidget](),
-    tb: tb
+    tb: tb,
+    origWidth: terminalWidth(),
+    origHeight: terminalHeight()
   )
 
 
@@ -193,8 +197,8 @@ proc nonBlockingControl(app: var TerminalApp) =
 proc resize(app: var TerminalApp): bool =
   # resize
   if not app.autoResize: return false
-  let origWidth = app.width
-  let origHeight = app.height
+  let origWidth = app.origWidth
+  let origHeight = app.origHeight
   let windWidth = terminalWidth()
   let windHeight = terminalHeight()
   if windWidth != app.width or windHeight != app.height:
@@ -202,24 +206,35 @@ proc resize(app: var TerminalApp): bool =
     app.width = windWidth
     app.height = windHeight
     app.tb = newTerminalBuffer(windWidth, windHeight)
+    var index = 0
     for w in  app.widgets:
       # ----------------w
       #                 |
       #                 |
       #                 |
       #                 h
-      let wgWidthPercent = w.width / origWidth
-      let wgHeightPercent = w.height / origHeight
+      let wgHeight = w.origHeight
+      let wgWidth = w.origWidth
+      let wgPosY = w.origPosY
+      let wgPosX = w.origPosX
+      let wgWidthPercent = wgWidth / origWidth
+      let wgHeightPercent = wgHeight / origHeight
       let newWgWidth = floor(windWidth.toFloat * wgWidthPercent).toInt()
       let newWgHeight = floor(windHeight.toFloat * wgHeightPercent).toInt()
       w.width = newWgWidth
-      w.height = max(2, newWgHeight)
+      w.height = if wgHeight < newWgHeight: wgHeight else: max(3, newWgHeight)
       # posY
-      let wgPosYPercent = w.posY / origHeight
+      let wgPosYPercent = wgPosY / origHeight
       let newWgPosY = floor(windHeight.toFloat * wgPosYPercent).toInt()
-      w.posy = newWgPosY
+      w.posy = max(wgPosY, newWgPosY)
+      # posX
+      let wgPosXPercent = wgPosX / origWidth
+      let newWgPosX = floor(windWidth.toFloat * wgPosXPercent).toInt()
+      w.posX = newWgPosX
+      
       w.tb = app.tb
-    sleep(500)
+      inc index
+    sleep(50)
     eraseScreen()
     return true
   else:

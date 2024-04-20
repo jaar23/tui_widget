@@ -53,6 +53,13 @@ Refers to `tests/tui_test.nim` for example.
 
   - chart have some limitation, it do not aggregate the data when display.
 
+
+Widgets will be auto resize when windows size changed, however, resizing widgets would not works perfectly on all the widgets. recommended to be tested the resize effect before use.
+
+For blocking mode, it required one user action to trigger the refresh, due to `onControl` block 
+
+For non-blocking mode, widget will be auto resize when windows changed.
+
 ### Event Handling
 
 Event is now more extensible, there are default "enter" event setup for the widgets. You can:

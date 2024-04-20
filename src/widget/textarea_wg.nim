@@ -126,6 +126,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
   if enableHelp:
     textArea.normalKeyEvents[Key.QuestionMark] = help
     textArea.visualKeyEvents[Key.QuestionMark] = help
+  textArea.keepOriginalSize()
   return textArea
 
 

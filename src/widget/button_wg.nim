@@ -40,6 +40,7 @@ proc newButton*(px, py, w, h: int, label: string,
     keyEvents: initTable[Key, EventFn[ref Button]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 proc on*(bt: ref Button, event: string, fn: EventFn[ref Button]) =

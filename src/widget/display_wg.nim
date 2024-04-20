@@ -72,6 +72,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     result.on(Key.QuestionMark, help)
+  result.keepOriginalSize()
 
 
 proc splitBySize(val: string, size: int, rows: int,

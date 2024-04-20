@@ -68,6 +68,7 @@ proc newChart*(px, py, w, h: int,
     keyEvents: initTable[Key, EventFn[ref Chart]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.keepOriginalSize()
 
 
 proc renderAsciiGraph(c: ref Chart) =
