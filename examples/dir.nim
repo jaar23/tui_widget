@@ -114,7 +114,7 @@ dirView.onEnter = proc (lv: ref ListView, args: varargs[string]) =
       contentDisplay.hide()
 
 
-var tuiapp = newTerminalApp(title = "DIR", border=false, refreshWaitTime=20)
+var tuiapp = newTerminalApp(title = "DIR", border=false, refreshWaitTime=100)
 
 tuiapp.addWidget(filterCb)
 
@@ -125,7 +125,7 @@ tuiapp.addWidget(metadataDisplay)
 tuiapp.addWidget(contentDisplay)
 
 ## running in non blocking mode
-# tuiapp.run(nonBlocking=true)
+tuiapp.run(nonBlocking=true)
 
 # running in blocking mdoe
-tuiapp.run()
+#tuiapp.run()

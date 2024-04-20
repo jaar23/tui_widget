@@ -7,7 +7,7 @@ import httpclient, net, os, std/tasks
 
 var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
 
-var display = newDisplay(1, 4, consoleWidth(), consoleHeight(), id="display", title="content")
+var display = newDisplay(1, 5, consoleWidth(), consoleHeight(), id="display", title="content")
 
 var app = newTerminalApp(title="curl", border=false)
 

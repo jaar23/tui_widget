@@ -188,6 +188,7 @@ method render*(dp: ref Display) =
       inc index
   if dp.statusbar:
     dp.renderStatusbar()
+  
   dp.tb.display()
   #setDoubleBuffering(true)
 
@@ -240,17 +241,17 @@ method onUpdate*(dp: ref Display, key: Key) =
     dp.rowCursor = 0
     return
   
-  dp.focus = true
-  if dp.useCustomTextRow: 
-    let customFn = dp.customRowRecal.get
-    dp.textRows = customFn(dp.text, dp)
-  else: 
-    dp.rowReCal() 
-  dp.clear()
+  # dp.focus = true
+  # if dp.useCustomTextRow: 
+  #   let customFn = dp.customRowRecal.get
+  #   dp.textRows = customFn(dp.text, dp)
+  # else: 
+  #   dp.rowReCal() 
+  #dp.clear()
 
   # key binding action
   case key
-  of Key.None: dp.render()
+  of Key.None: discard
   of Key.Up:
     dp.rowCursor = max(0, dp.rowCursor - 1)
   of Key.Down:
@@ -279,6 +280,7 @@ method onUpdate*(dp: ref Display, key: Key) =
       dp.call(key)
 
   dp.render()
+  #sleep(dp.refreshWaitTime)
 
 
 method onControl*(dp: ref Display) =

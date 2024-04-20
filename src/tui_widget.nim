@@ -1,4 +1,4 @@
-import illwill, os, strutils, std/terminal
+import illwill, os, strutils, std/terminal, math
 import malebolgia, threading/channels, std/tasks, sequtils
 import 
   widget/base_wg,
@@ -39,10 +39,10 @@ type
     cursor: int = 0
     fullscreen: bool = true
     border: bool = true
-    autoResize: bool = false # not implement yet
+    autoResize*: bool = true
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
-    refreshWaitTime: int = 20
+    refreshWaitTime: int = 50
 
 
 var bgChannel = newChan[Task]() 
@@ -90,8 +90,15 @@ proc requiredSize*(app: var TerminalApp): (int, int, int) =
   return (w, h, w * h)
 
 
-proc render*(app: var TerminalApp) =
+proc renderAppFrame(app: var TerminalApp) =
   app.tb.fill(0, 0, app.width, app.height, app.bgColor, app.fgColor)
+  let (w, h, requiredSize) = app.requiredSize()
+  if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
+  let title: string = ansiStyleCode(styleBright) & app.title
+  if app.title != "": app.tb.write(2, 0, app.bgColor, title)
+
+
+proc render*(app: var TerminalApp, nonBlocking=false) =
   for w in app.widgets:
     if w.visibility:
       try:
@@ -183,17 +190,41 @@ proc nonBlockingControl(app: var TerminalApp) =
     if app.cursor > app.widgets.len - 1: app.cursor = 0
 
 
-proc resize(app: var TerminalApp) =
+proc resize(app: var TerminalApp): bool =
   # resize
+  if not app.autoResize: return false
+  let origWidth = app.width
+  let origHeight = app.height
   let windWidth = terminalWidth()
   let windHeight = terminalHeight()
   if windWidth != app.width or windHeight != app.height:
+    eraseScreen()
     app.width = windWidth
     app.height = windHeight
-    sleep(2000)
-    app.tb.clear()
-    app.render()
-
+    app.tb = newTerminalBuffer(windWidth, windHeight)
+    for w in  app.widgets:
+      # ----------------w
+      #                 |
+      #                 |
+      #                 |
+      #                 h
+      let wgWidthPercent = w.width / origWidth
+      let wgHeightPercent = w.height / origHeight
+      let newWgWidth = floor(windWidth.toFloat * wgWidthPercent).toInt()
+      let newWgHeight = floor(windHeight.toFloat * wgHeightPercent).toInt()
+      w.width = newWgWidth
+      w.height = max(2, newWgHeight)
+      # posY
+      let wgPosYPercent = w.posY / origHeight
+      let newWgPosY = floor(windHeight.toFloat * wgPosYPercent).toInt()
+      w.posy = newWgPosY
+      w.tb = app.tb
+    sleep(500)
+    eraseScreen()
+    return true
+  else:
+    return false
+    
 
 proc exitProc() {.noconv.} =
   illwillDeinit()
@@ -224,11 +255,13 @@ proc go(app: var TerminalApp) =
   threadMaster.spawn backgroundTasks()
   
   app.tb.clear()
-  if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
-  let title: string = ansiStyleCode(styleBright) & app.title
-  if app.title != "": app.tb.write(2, 0, title)
-
+  app.renderAppFrame() 
   while true:
+    if app.resize():
+      app.tb.clear()
+      app.renderAppFrame()
+      continue
+
     app.render()
     var key = getKeyWithTimeout(app.refreshWaitTime)
     case key
@@ -242,6 +275,7 @@ proc go(app: var TerminalApp) =
       # poll for changes from other widget
       app.pollWidgetChannel()
       app.render()
+    #sleep(app.refreshWaitTime)
 
 
 proc hold(app: var TerminalApp) =
@@ -267,10 +301,12 @@ proc hold(app: var TerminalApp) =
   app.setWidgetBlocking()
 
   while true:
+    if app.resize():
+      app.tb.clear()
+      continue
+
     app.tb.clear()
-    if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
-    let title: string = ansiStyleCode(styleBright) & app.title
-    if app.title != "": app.tb.write(2, 0, title)
+    app.renderAppFrame()
     app.render()
     var key = getKeyWithTimeout(app.refreshWaitTime)
     case key
@@ -281,9 +317,6 @@ proc hold(app: var TerminalApp) =
       except:
         app.widgets[app.cursor].onError("E01")
       inc app.cursor
-    of Key.ShiftR:
-      app.tb.clear()
-      app.tb.display()
     else: discard
     
     sleep(app.refreshWaitTime)
