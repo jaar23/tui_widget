@@ -108,11 +108,27 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
 
 proc rowReCal(dp: ref Display) =
   if dp.wordwrap:
-    let rows = dp.text.len / toInt(dp.width.toFloat() * 0.5)
+    let rows = dp.text.len / toInt(dp.x2.toFloat() * 0.5)
     dp.textRows = dp.text.splitBySize(dp.x2 - dp.x1, toInt(rows) +
         dp.style.paddingX2)
   else:
     dp.textRows = textWindow(dp.text, dp.x2 - dp.x1, dp.cursor)
+
+
+proc renderStatusbar(dp: ref Display) =
+  ## custom statusbar rendering uses event name 'statusbar'
+  if dp.events.hasKey("statusbar"):
+    dp.call("statusbar")
+  else:
+    dp.statusbarText = " " & $dp.rowCursor & ":" & $(max(0, dp.textRows.len() - dp.size)) & " "
+    dp.renderCleanRect(dp.x1, dp.height, dp.statusbarText.len, dp.height)
+    dp.tb.write(dp.x1, dp.height, bgBlue, fgWhite, dp.statusbarText, 
+                resetStyle)
+    
+    if dp.wordwrap:
+      let ww = " W "
+      dp.tb.write(dp.x2 - len(ww), dp.height, bgWhite, fgBlack,
+                  ww, resetStyle)
 
 
 method render*(dp: ref Display) =
@@ -134,11 +150,8 @@ method render*(dp: ref Display) =
       dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
-  ## cursor pointer
   if dp.statusbar:
-    let statusbarText = "size: " & $(dp.text.len/1024).toInt() & "kb"
-    dp.renderCleanRect(dp.x1, dp.height, statusbarText.len, dp.height)
-    dp.tb.write(dp.x1, dp.height, fgCyan, statusbarText, resetStyle)
+    dp.renderStatusbar()
   dp.tb.display()
   #setDoubleBuffering(true)
 

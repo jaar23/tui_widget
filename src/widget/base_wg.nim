@@ -38,7 +38,7 @@ type
   # |
   # |
   # |
-  # height
+  # height control /  mode / status
   ############################
   BaseWidget* = object of RootObj
     width*: int
@@ -57,6 +57,7 @@ type
     statusbar*: bool = true
     statusbarText*: string = ""
     statusbarSize*: int = 0
+    useCustomStatusbar*: bool = false
     visibility*: bool = true
     groups*: bool = false
     debug*: bool = false
@@ -307,9 +308,9 @@ proc hide*(bw: ref BaseWidget) =
   bw.visibility = false
   bw.clear()
 
-# proc renderStatusBar*(bw: ref BaseWidget) =
-#   if bw.statusbar:
-#     let status = "x: " & $bw.tb.getCursorXPos & " y:" & $bw.tb.getCursorYPos
-#     bw.renderCleanRect(bw.x1, bw.height, len(status), bw.height)
-#     bw.tb.write(bw.x1 + 1, bw.height, fgYellow, status, resetStyle)
+
+proc experimental*(bw: ref BaseWidget) =
+  let text = " experimental "
+  bw.tb.write(bw.x2 - len(text), bw.height, bgWhite, fgBlack, text, resetStyle)
+
 

@@ -314,11 +314,14 @@ proc renderTableRow(table: ref Table, row: ref TableRow, index: int) =
 
 proc renderStatusBar(table: ref Table) =
   if table.statusbar:
-    let mode = " " & $table.mode & " "
-    table.tb.write(table.x1, table.height, fgBlack, bgWhite, mode, resetStyle)
-    table.tb.write(table.x1 + mode.len + 1, table.height, fgBlack, bgWhite, 
-                   " size: " & $table.vrows().len & " ", 
-                   resetStyle)
+    if table.events.hasKey("statusbar"):
+      table.call("statusbar")
+    else:
+      let mode = " " & $table.mode & " "
+      table.tb.write(table.x1, table.height, fgBlack, bgWhite, mode, resetStyle)
+      table.tb.write(table.x1 + mode.len + 1, table.height, fgBlack, bgWhite, 
+                     " size: " & $table.vrows().len & " ", 
+                     resetStyle)
 
 
 method render*(table: ref Table): void =
@@ -353,6 +356,7 @@ method render*(table: ref Table): void =
       table.renderClearRow(index)
       table.renderTableRow(row, index)
       index += 1
+
     table.renderStatusBar()
     table.tb.display()
   else:

@@ -31,6 +31,8 @@ export
 
 type
   TerminalApp* = object
+    width: int
+    height: int
     title: string
     cursor: int = 0
     fullscreen: bool = true
@@ -44,9 +46,11 @@ type
 var bgChannel = newChan[Task]() 
 
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
-                     terminalHeight()), title: string = "", border: bool = true,
+                     terminalHeight()), title: string = "", border: bool = false,
                      refreshWaitTime: int = 20): TerminalApp =
   result = TerminalApp(
+    width: terminalWidth(),
+    height: terminalHeight(),
     title: title,
     border: border,
     refreshWaitTime: refreshWaitTime,
@@ -95,11 +99,50 @@ proc widgetInit(app: var TerminalApp) =
     w.illwillInit = true
 
 
+proc setWidgetBlocking(app: var TerminalApp) =
+  for w in app.widgets:
+    w.blocking = true
+    
+
 proc runInBackground*(task: sink Task) =
+  ## Sending task to background thread via channel
+  ## accept only isolated variable in tasks
+  ## refers to std/tasks.
+  ##
+  ## **Example**
+  ## .. code-block::
+  ##   let httpCallTask = toTask httpCall(addr app, display.id, url)
+  ##   runInBackground(httpCallTask)
+  ##
   bgChannel.send(task) 
 
 
-proc notify*(app: ptr TerminalApp, id: string, event: string, args: varargs[string]) =
+proc notify*(app: ptr TerminalApp, id: string, event: string, 
+             args: varargs[string]) =
+  ## Notify widget via its channel, then widget will be poll
+  ## by main thread and widget event will be called
+  ## note that there is only string args supported.
+  ## 
+  ## **Example**
+  ## .. code-block::
+  ##   display.on("refresh", proc(dp: ref Display, args: varargs[string]) =
+  ##     dp.text = args[0]
+  ##   )
+  ## You may be making a http call and the call is coming back in a later 
+  ## time, the task is running in background and you want it to notify
+  ## you once the result is ready. Then, you can using notify inside
+  ## the background task
+  ##
+  ## **Example**
+  ## .. code-block::
+  ##   proc httpRequest(url: string, app: ptr TerminalApp, id: string) =
+  ##     var client = newHttpClient(sslContext=newContext(verifyMode=CVerifyPeerUseEnvVars))
+  ##     defer: client.close()
+  ##     try:
+  ##       let content = client.getContent(url)
+  ##       notify(app, id, "refresh", content) # notify the widget
+  ##     except:
+  ##       notify(app, id, "refresh", getCurrentExceptionMsg())
   let arguments = args.toSeq()
   for w in app.widgets:
     if w.id == id: 
@@ -132,6 +175,18 @@ proc nonBlockingControl(app: var TerminalApp) =
   else:
     inc app.cursor
     if app.cursor > app.widgets.len - 1: app.cursor = 0
+
+
+proc resize(app: var TerminalApp) =
+  # resize
+  let windWidth = terminalWidth()
+  let windHeight = terminalHeight()
+  if windWidth != app.width or windHeight != app.height:
+    app.width = windWidth
+    app.height = windHeight
+    sleep(2000)
+    app.tb.clear()
+    app.render()
 
 
 proc exitProc() {.noconv.} =
@@ -202,13 +257,16 @@ proc hold(app: var TerminalApp) =
   # init widgets
   app.widgetInit()
 
+  # blocking mode
+  app.setWidgetBlocking()
+
   while true:
     app.tb.clear()
     if app.border: app.tb.drawRect(0, 0, w + 1, h + 1)
     let title: string = ansiStyleCode(styleBright) & app.title
     if app.title != "": app.tb.write(2, 0, title)
     app.render()
-    var key = getKey()
+    var key = getKeyWithTimeout(app.refreshWaitTime)
     case key
     of Key.Tab, Key.None:
       try:

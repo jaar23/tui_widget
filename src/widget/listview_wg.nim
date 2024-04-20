@@ -162,10 +162,13 @@ proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
 
 
 proc renderStatusBar(lv: ref ListView, text: string = "") =
-  let statusText = if text.len == 0: lv.statusbarText else: text
-  lv.statusbarSize = statusText.len()
-  lv.renderCleanRect(lv.x1, lv.height, lv.statusbarSize, lv.height)
-  lv.tb.write(lv.x1, lv.height, fgCyan, statusText, resetStyle)
+  if lv.events.hasKey("statusbar"):
+    lv.call("statusbar")
+  else: 
+    let statusText = if text.len == 0: lv.statusbarText else: text
+    lv.statusbarSize = statusText.len()
+    lv.renderCleanRect(lv.x2 - lv.statusbarSize, lv.height, lv.statusbarSize, lv.height)
+    lv.tb.write(lv.x2 - lv.statusbarSize, lv.height, bgWhite, fgBlack, statusText, resetStyle)
 
 
 method render*(lv: ref ListView) =

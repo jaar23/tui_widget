@@ -485,9 +485,12 @@ method render*(t: ref TextArea) =
     # let cval = if t.value.len > 0: $t.value[t.cursor] else: " "
     # let statusbarText = $t.cursor & "|" & $t.rowCursor & "|" & cval & "|len:" & $t.value.len
     if not t.enableViMode:
-      let statusbarText = " size: " & $(t.value.len - 1) & " character(s)"
-      t.renderCleanRect(t.x1, t.height, statusbarText.len, t.height)
-      t.tb.write(t.x1, t.height, fgCyan, statusbarText, resetStyle)
+      if t.events.hasKey("statusbar"):
+        t.call("statusbar")
+      else:
+        let statusbarText = " " & $t.cursor & ":" & $(t.value.len - 1) & " "
+        t.renderCleanRect(t.x1, t.height, statusbarText.len, t.height)
+        t.tb.write(t.x1, t.height, fgCyan, statusbarText, resetStyle)
 
     else:
       # vi mode style for statusbar
@@ -512,6 +515,9 @@ method render*(t: ref TextArea) =
 
       t.tb.write(t.x1 + len($t.vimode) + 4, t.height, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
+    
+      # experimantal feature
+      t.experimental()
 
   t.tb.display()
 

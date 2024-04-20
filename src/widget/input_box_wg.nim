@@ -1,6 +1,6 @@
 import illwill, strutils, base_wg, sequtils, encodings, os
-import nimclipboard/libclipboard
 import tables, threading/channels
+import nimclipboard/libclipboard
 
 type
   InputBox* = object of BaseWidget
@@ -14,6 +14,11 @@ type
   CursorDirection = enum
     Left, Right
 
+var cb = clipboard_new(nil)
+
+cb.clipboard_clear(LCB_CLIPBOARD)
+
+
 const allowKeyBind = {Key.Up, Key.Down}
 
 const allowFnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
@@ -23,12 +28,11 @@ const allowCtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF,
                        Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL, 
                        Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR, 
                        Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX, 
-                       Key.CtrlY, Key.CtrlZ}
+                       Key.CtrlV, Key.CtrlY, Key.CtrlZ}
 
-var cb = clipboard_new(nil)
+proc formatText(val: string): string
 
-cb.clipboard_clear(LCB_CLIPBOARD)
-
+proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]):void {.raises: [EventKeyError]} 
 
 proc newInputBox*(px, py, w, h: int, title = "", val: string = "", 
                   modeChar: char = '>', border: bool = true, statusbar: bool = false,
@@ -63,6 +67,12 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
   )
   # to ensure key responsive, default to < 50  
   if result.refreshWaitTime > 50: result.refreshWaitTime = 50
+  # register paste event
+  result.on(Key.CtrlV, proc(ib: ref InputBox, args:varargs[string]) =
+    let copiedText = $cb.clipboard_text()
+    ib.value.insert(formatText(copiedText), ib.cursor)
+    ib.cursor = ib.cursor + copiedText.len
+  )
   result.channel = newChan[WidgetBgEvent]()
 
 
@@ -113,6 +123,15 @@ proc clear(ib: ref InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
 
 
+proc renderStatusbar(ib: ref InputBox) =
+  if ib.events.hasKey("statusbar"):
+    ib.call("statusbar")
+  else:
+    let cursorStr = " " & $ib.cursor & ":" & $ib.value.len & " "
+    ib.tb.fill(ib.x2 - cursorStr.len, ib.height, cursorStr.len, ib.height, " ")
+    ib.tb.write(ib.x2 - cursorStr.len, ib.height, bgBlue, fgWhite, cursorStr, resetStyle)
+
+
 method render*(ib: ref InputBox) =
   if not ib.illwillInit: return
   ib.clear()
@@ -129,9 +148,7 @@ method render*(ib: ref InputBox) =
     ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
                 resetStyle, ib.visualVal, ib.style.bgColor, styleBlink, "_", resetStyle)
   if ib.statusbar:
-    let sizeStr = $ib.value.len
-    ib.tb.fill(ib.posX + 2, ib.posY + 2, sizeStr.len, ib.posY + 2, " ")
-    ib.tb.write(ib.posX + 2, ib.posY + 2, fgYellow, $ib.value.len, resetStyle)
+    ib.renderStatusbar()
   ib.tb.display()
 
 
@@ -343,10 +360,6 @@ method onUpdate*(ib: ref InputBox, key: Key) =
   of Key.Right: 
     ib.cursorMove(Right)
     ib.rerender()
-  of Key.CtrlV:
-    let copiedText = $cb.clipboard_text()
-    ib.value.insert(formatText(copiedText), ib.cursor)
-    ib.cursor = ib.cursor + copiedText.len
   of Key.Enter:
     ib.call("enter")
   of allowKeyBind:
@@ -375,7 +388,6 @@ method onUpdate*(ib: ref InputBox, key: Key) =
     ib.visualCursor = cursorPos 
 
   ib.render()
-  sleep(ib.refreshWaitTime)
 
 
 method onControl*(ib: ref InputBox) = 
