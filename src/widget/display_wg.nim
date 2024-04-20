@@ -147,7 +147,7 @@ method render*(dp: ref Display) =
     let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
     #setDoubleBuffering(false)
     for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
-      dp.renderCleanRow(index)
+      #dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
   if dp.statusbar:

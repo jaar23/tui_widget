@@ -1,4 +1,4 @@
-import illwill, threading/channels
+import illwill, threading/channels, unicode
 
 type
   Alignment* = enum
@@ -251,6 +251,25 @@ proc x2*(bw: ref BaseWidget): int = bw.widthPaddRight
 proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
 
 
+proc fill*(tb: var TerminalBuffer, x1, y1, x2, y2: Natural, 
+           fgColor: ForegroundColor, bgColor: BackgroundColor, ch: string = " ") =
+  ## Override illwill fill with diff foreground and background
+  ## Fills a rectangular area with the `ch` character using the current text
+  ## attributes. The rectangle is clipped to the extends of the terminal
+  ## buffer and the call can never fail.
+  if x1 < tb.width and y1 < tb.height:
+    let
+      c = TerminalChar(ch: ch.runeAt(0), fg: fgColor, bg: bgColor,
+                       style: tb.getStyle)
+
+      xe = min(x2, tb.width-1)
+      ye = min(y2, tb.height-1)
+
+    for y in y1..ye:
+      for x in x1..xe:
+        tb[x, y] = c
+
+
 proc renderBorder*(bw: ref BaseWidget) =
   if bw.style.border:
     bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
@@ -260,6 +279,7 @@ proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
     bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.title, resetStyle)
 
 
+# deprecated
 proc renderCleanRow*(bw: ref BaseWidget, index = 0, cleanWith=" ") =
   bw.tb.fill(bw.x1, bw.posY + index, bw.x2, bw.posY + index, cleanWith)
   # for y in bw.posY + index..bw.posY + index:
@@ -272,7 +292,7 @@ proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int, cleanWith=" ") =
 
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
-  bw.tb.write(bw.x1, bw.posY + index, bw.style.bgColor, bw.style.fgColor, content, resetStyle)
+  bw.tb.write(bw.x1, bw.posY + index, bw.fg, bw.bg, content)
 
 
 proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: ForegroundColor, 
@@ -282,8 +302,7 @@ proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: Foregroun
 
 
 proc clear*(bw: ref BaseWidget) =
-  bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, " ")
-  #bw.tb.fill(bw.x1, bw.y1, bw.tb.width - 1, bw.tb.height - 1, "*")
+  bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.fg, bw.bg, " ")
 
 
 proc rerender*(bw: ref BaseWidget) =

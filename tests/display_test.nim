@@ -16,7 +16,8 @@ this is line 12
 
 var textWithNextLine = "This is line 1\nThis is line 2\nThis is line 3\n"
 
-var dp1 = newDisplay(1, 1, 30, 10, title="raw text with next line", text=rawtextWithNextLine)
+var dp1 = newDisplay(1, 1, 30, 10, title="raw text with next line", text=rawtextWithNextLine,
+                    bgColor=bgBlack, fgColor=fgWhite)
 
 var dp2 = newDisplay(1, 11, 30, 21, title="text with next line", text=textWithNextLine,
                     bgColor=bgBlack, fgColor=fgWhite)

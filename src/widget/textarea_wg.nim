@@ -456,9 +456,10 @@ method render*(t: ref TextArea) =
     var vcursor = if rowStart > 0: rowStart * t.cols else: 0
 
     for row in t.textRows[rowStart .. min(rowEnd, t.textRows.len)]:
-      t.renderCleanRow(index)
+      #t.renderCleanRow(index)
       for i, c in enumerate(row.items()):
         if t.enableViMode and t.vimode == Visual:
+          # render selection
           var bgColor = bgWhite
           var fgColor = fgBlack
           if vcursor >= t.viSelection.startat and vcursor <=
@@ -468,6 +469,7 @@ method render*(t: ref TextArea) =
             t.tb.write(t.x1 + i, t.posY + index, $c, resetStyle)
         else:
           if vcursor == t.cursor:
+            # render cursor style
             let ch = if c == ' ': cursorStyleArr[t.cursorStyle] else: $c
             if t.cursorStyle == Ibeam:
               t.tb.write(t.x1 + i, t.posY + index, styleBlink,
@@ -476,7 +478,8 @@ method render*(t: ref TextArea) =
               t.tb.write(t.x1 + i, t.posY + index, styleBlink,
                          styleUnderscore, t.cursorBg, t.cursorFg, ch, resetStyle)
           else:
-            t.tb.write(t.x1 + i, t.posY + index, $c, resetStyle)
+            # render character
+            t.tb.write(t.x1 + i, t.posY + index, $c, t.bg, t.fg)
         inc vcursor
       inc index
 
