@@ -105,7 +105,8 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     var seqCol = newTableColumn(seqColWidth, 1, text = $(i + 1), key = $i, index = i)
     rows[i].columns.insert(seqCol, 0)
     rows[i].index = i
-  let padding = if border: 2 else: 1
+  let padding = if border: 1 else: 0
+  let statusbarSize = if statusbar: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -126,7 +127,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     title: title,
     cursor: cursor,
     rowCursor: rowCursor,
-    size: h - py - style.paddingY1 - style.paddingY2,
+    size: h - py - style.paddingY1 - style.paddingY2 - statusbarSize,
     tb: tb,
     style: style,
     colCursor: 0,
@@ -153,7 +154,8 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[ref TableRow]()
-  let padding = if border: 2 else: 1
+  let padding = if border: 1 else: 0
+  let statusbarSize = if statusbar: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -174,7 +176,7 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     title: title,
     cursor: cursor,
     rowCursor: rowCursor,
-    size: h - py - style.paddingY1 - style.paddingY2,
+    size: h - py - style.paddingY1 - style.paddingY2 - statusbarSize,
     tb: tb,
     style: style,
     colCursor: 0,
