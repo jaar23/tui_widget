@@ -65,6 +65,7 @@ type
     illwillInit*: bool = false
     channel: Chan[WidgetBgEvent]
     blocking*: bool = false
+    helpText*: string = ""
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 

@@ -1,4 +1,4 @@
-import illwill, base_wg, sequtils, strutils, os, tables
+import illwill, base_wg, sequtils, strutils, os, tables, display_wg
 import threading/channels
 
 type
@@ -25,6 +25,9 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown,
                           Key.Left, Key.Right}
 
+proc help(lv: ref ListView, args: varargs[string]): void
+
+proc on*(lv: ref ListView, key: Key, fn: EventFn[ref ListView]) {.raises: [EventKeyError]}
 
 proc newListRow*(index: int, text: string, value: string, align = Center,
                  bgColor = bgNone, fgColor = fgWhite, visible = true,
@@ -42,7 +45,7 @@ proc newListRow*(index: int, text: string, value: string, align = Center,
 
 proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow](),
                   title = "", border = true, statusbar = true,
-                  statusbarText = "<!> Enter to select",
+                  statusbarText = "[?]",
                   fgColor = fgWhite, bgColor = bgNone,
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
@@ -86,6 +89,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     keyEvents: initTable[Key, EventFn[ref ListView]]()
   )
   result.channel = newChan[WidgetBgEvent]()
+  result.on(Key.QuestionMark, help)
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =
@@ -159,6 +163,23 @@ proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
     lv.tb.write(lv.posX + posX, lv.posY + index, resetStyle,
                 row.bgColor, row.fgColor, text, resetStyle)
 
+
+proc help(lv: ref ListView, args: varargs[string]) = 
+  let wsize = ((lv.width - lv.posX).toFloat * 0.3).toInt()
+  let hsize = ((lv.height - lv.posY).toFloat * 0.3).toInt()
+  var display = newDisplay(lv.x2 - wsize, lv.y2 - hsize, 
+                          lv.x2, lv.y2, title="help",
+                          bgColor=bgWhite, fgColor=fgBlack,
+                          tb=lv.tb, statusbar=false)
+  var helpText: string
+  if lv.helpText == "":
+    helpText = " [Enter] to select\n" &
+               " [?]     for help\n" &
+               " [Esc]   to exit this window"
+  display.text = helpText
+  display.illwillInit = true
+  display.onControl()
+  display.clear()
 
 
 proc renderStatusBar(lv: ref ListView, text: string = "") =

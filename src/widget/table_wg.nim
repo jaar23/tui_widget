@@ -1,4 +1,5 @@
-import illwill, sequtils, base_wg, os, options, strutils, parsecsv, input_box_wg
+import illwill, sequtils, base_wg, os, options, strutils, parsecsv, 
+       input_box_wg, display_wg
 from std/streams import newFileStream
 import tables as systable
 import threading/channels
@@ -51,6 +52,10 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.Slash, Key.Up, Key.Down,
                           Key.Left, Key.Right}
 
 
+proc help(table: ref Table, args: varargs[string]): void
+
+proc on*(table: ref Table, key: Key, fn: EventFn[ref Table]) {.raises: [EventKeyError]} 
+
 proc newTableColumn*(width: int, height: int = 1; text = ""; key = ""; 
                      index = 0; overflow: bool = false;
                      bgColor = bgNone; fgColor = fgWhite;
@@ -68,7 +73,6 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
     columnType: columnType,
   )
   return tc
-
 
 
 proc newTableRow*(width: int, height = 1; 
@@ -145,6 +149,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
   if table.rows.len > 0:
     table.rows[0].selected = true
   table.channel = newChan[WidgetBgEvent]()
+  table.on(Key.QuestionMark, help)
   return table
 
 
@@ -187,6 +192,7 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     keyEvents: initTable[Key, EventFn[ref Table]]()
   )
   table.channel = newChan[WidgetBgEvent]()
+  table.on(Key.QuestionMark, help)
   return table
 
 
@@ -324,6 +330,28 @@ proc renderStatusBar(table: ref Table) =
       table.tb.write(table.x1 + mode.len + 1, table.height, fgBlack, bgWhite, 
                      " size: " & $table.vrows().len & " ", 
                      resetStyle)
+      let q = "[?]"
+      table.tb.write(table.x2 - q.len, table.height, bgWhite, fgBlack, q, resetStyle)
+
+
+
+proc help(table: ref Table, args: varargs[string]) = 
+  let wsize = ((table.width - table.posX).toFloat * 0.3).toInt()
+  let hsize = ((table.height - table.posY).toFloat * 0.3).toInt()
+  var display = newDisplay(table.x2 - wsize, table.y2 - hsize, 
+                          table.x2, table.y2, title="help",
+                          bgColor=bgWhite, fgColor=fgBlack,
+                          tb=table.tb, statusbar=false)
+  var helpText: string
+  if table.helpText == "":
+    helpText = " [Enter] to select\n" &
+               " [/]     to search\n" &
+               " [?]     for help\n" &
+               " [Esc]   to exit this window"
+  display.text = helpText
+  display.illwillInit = true
+  display.onControl()
+  display.clear()
 
 
 method render*(table: ref Table): void =

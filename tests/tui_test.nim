@@ -49,7 +49,7 @@ for key in keys:
   var listRow = newListRow(i, $key, $key)
   list.add(listRow)
 
-var label = newLabel(1, 50, 20, 52, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
+var label = newLabel(1, 50, 20, 50, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
 
 let selectEv = proc(lv: ref ListView, args: varargs[string]) =
   label.text = args[0]
