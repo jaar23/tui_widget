@@ -16,6 +16,8 @@ type
   CursorStyle* = enum 
     Block, Ibeam, Underline
 
+  WidgetSize* = range[0.0..1.0]
+  
   WidgetStyle* = object
     fgColor*: ForegroundColor
     bgColor*: BackgroundColor

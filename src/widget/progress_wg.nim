@@ -14,13 +14,14 @@ type
     events*: Table[string, EventFn[ref ProgressBar]]
 
 
-proc newProgressBar*(px, py, w, h: int,
-                     tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py),
+proc newProgressBar*(px, py, w, h: int, id = "",
                      border = true, percent: Percent = 0.0,
-                     fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
                      loadedBlock = "█",
                      loadingBlock = "-",
-                     showPercentage = true): ref ProgressBar =
+                     showPercentage = true,
+                     bgColor = bgNone,
+                     fgColor = fgWhite,                      
+                     tb = newTerminalBuffer(w + 2, h + py)): ref ProgressBar =
   let padding = if border: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
@@ -37,6 +38,7 @@ proc newProgressBar*(px, py, w, h: int,
     height: h,
     posX: px,
     posY: py,
+    id: id,
     fgLoading: fgNone,
     fgLoaded: fgGreen,
     percent: percent,
@@ -49,6 +51,21 @@ proc newProgressBar*(px, py, w, h: int,
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
+
+
+proc newProgressBar*(px, py: int, w, h: WidgetSize, id = "",
+                     border = true, percent: Percent = 0.0,
+                     loadedBlock = "█",
+                     loadingBlock = "-",
+                     showPercentage = true,
+                     bgColor = bgNone,
+                     fgColor = fgWhite,                      
+                     tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref ProgressBar =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newProgressBar(px, py, width, height, id, border, percent,
+                        loadedBlock, loadingBlock, showPercentage,
+                        bgColor, fgColor, tb)
 
 
 proc renderClearRow(pb: ref ProgressBar): void =

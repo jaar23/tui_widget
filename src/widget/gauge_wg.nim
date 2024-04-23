@@ -15,16 +15,15 @@ type
     events*: Table[string, EventFn[ref Gauge]]
 
 
-proc newGauge*(px, py, w, h: int,
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py),
+proc newGauge*(px, py, w, h: int, id = "",
                border = true, percent: GaugePercent = 0.0,
-               fgColor: ForegroundColor = fgWhite, 
-               bgColor: BackgroundColor = bgNone,
                loadingBlock: char = ' ',
                loadedBlock: char = '|',
+               bgColor: BackgroundColor = bgNone,
+               fgColor: ForegroundColor = fgWhite, 
                percentileColor: array[PercentileColor, ForegroundColor] = [
-                fgGreen, fgBlue, fgYellow, fgMagenta, fgRed
-               ]): ref Gauge =
+                fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Gauge =
   let padding = if border: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
@@ -41,6 +40,7 @@ proc newGauge*(px, py, w, h: int,
     height: h,
     posX: px,
     posY: py,
+    id: id,
     percent: percent,
     tb: tb,
     style: style,
@@ -51,6 +51,22 @@ proc newGauge*(px, py, w, h: int,
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
+
+
+proc newGauge*(px, py: int, w, h: WidgetSize, id = "",
+               border = true, percent: GaugePercent = 0.0,
+               loadingBlock: char = ' ',
+               loadedBlock: char = '|',
+               bgColor = bgNone,
+               fgColor = fgWhite, 
+               percentileColor: array[PercentileColor, ForegroundColor] = [
+                fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Gauge =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newGauge(px, py, width, height, id, border,
+                  percent, loadingBlock, loadedBlock, bgColor, fgColor,
+                  percentileColor, tb) 
 
 
 proc renderClearRow(g: ref Gauge): void =

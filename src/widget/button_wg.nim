@@ -15,9 +15,9 @@ type
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None}
 
-proc newButton*(px, py, w, h: int, label: string, 
+proc newButton*(px, py, w, h: int, label: string, id = "",
                 disabled = false, bgColor = bgGreen, fgColor = fgWhite,
-                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Button =
+                tb = newTerminalBuffer(w + 2, h + py)): ref Button =
   let style = WidgetStyle(
     paddingX1: 1,
     paddingX2: 1,
@@ -32,6 +32,7 @@ proc newButton*(px, py, w, h: int, label: string,
     height: h,
     posX: px,
     posY: py,
+    id: id,
     label: label,
     tb: tb,
     disabled: disabled,
@@ -41,6 +42,15 @@ proc newButton*(px, py, w, h: int, label: string,
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
+
+
+proc newButton*(px, py: int, w, h: WidgetSize, label: string, id = "",
+                disabled = false, bgColor = bgGreen, fgColor = fgWhite,
+                tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Button =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newButton(px, py, width, height, label, id,
+                  disabled, bgColor, fgColor, tb)
 
 
 proc on*(bt: ref Button, event: string, fn: EventFn[ref Button]) =

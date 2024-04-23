@@ -70,8 +70,8 @@ proc newViStyle(nbg: BackgroundColor = bgBlue, tg: BackgroundColor = bgCyan,
 
 proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
                   border = true; statusbar = false; enableHelp=false;
-                  fgColor = fgWhite; bgColor = bgNone;
-                  cursorFg = fgWhite; cursorBg = bgBlue; cursorStyle = Block,
+                  bgColor = bgNone; fgColor = fgWhite;
+                  cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
                   tb = newTerminalBuffer(w+2, h+py)): ref TextArea =
@@ -129,6 +129,20 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
   textArea.keepOriginalSize()
   return textArea
 
+
+proc newTextArea*(px, py: int, w, h: WidgetSize, title = ""; val = " ";
+                  border = true; statusbar = false; enableHelp=false;
+                  bgColor = bgNone; fgColor = fgWhite; 
+                  cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
+                  enableViMode = false; vimode: ViMode = Normal;
+                  viStyle: ViStyle = newViStyle();
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref TextArea =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newTextArea(px, py, width, height, title, val, border, statusbar, enableHelp,
+                     bgColor, fgColor, cursorBg, cursorFg, cursorStyle, enableViMode,
+                     viMode, viStyle, tb) 
+ 
 
 func splitBySize(val: string, size: int, rows: int): seq[string] =
   result = newSeq[string]()

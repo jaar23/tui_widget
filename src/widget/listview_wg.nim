@@ -43,10 +43,11 @@ proc newListRow*(index: int, text: string, value: string, align = Center,
   )
 
 
-proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow](),
+proc newListView*(px, py, w, h: int, id = "", 
                   title = "", border = true, statusbar = true,
                   statusbarText = "[?]", enableHelp=false,
-                  fgColor = fgWhite, bgColor = bgNone,
+                  rows: seq[ref ListRow] = newSeq[ref ListRow](),
+                  bgColor = bgNone, fgColor = fgWhite,
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
   let padding = if border: 1 else: 0
@@ -73,6 +74,7 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
     height: h,
     posX: px,
     posY: py,
+    id: id,
     rows: rows,
     title: title,
     cursor: 0,
@@ -93,6 +95,21 @@ proc newListView*(px, py, w, h: int, rows: seq[ref ListRow] = newSeq[ref ListRow
   if enableHelp:
     result.on(Key.QuestionMark, help)
   result.keepOriginalSize()
+
+
+proc newListView*(px, py: int, w, h: WidgetSize, id = "", 
+                  title = "", border = true, statusbar = true,
+                  statusbarText = "[?]", enableHelp=false,
+                  rows: seq[ref ListRow] = newSeq[ref ListRow](),
+                  bgColor = bgNone, fgColor = fgWhite,
+                  selectionStyle: SelectionStyle = Highlight,
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ref ListView =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newListView(px, py, width, height, id, title, border, statusbar,
+                    statusbarText, enableHelp, rows,bgColor, fgColor,
+                    selectionStyle, tb)
+
 
 
 proc vrows(lv: ref ListView): seq[ref ListRow] =

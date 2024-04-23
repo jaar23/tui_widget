@@ -34,9 +34,9 @@ proc formatText(val: string): string
 
 proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]):void {.raises: [EventKeyError]} 
 
-proc newInputBox*(px, py, w, h: int, title = "", val: string = "", 
-                  modeChar: char = '>', border: bool = true, statusbar: bool = false,
-                  fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+proc newInputBox*(px, py, w, h: int, title = "", val = "", 
+                  modeChar = '>', border = true, statusbar = false,
+                  bgColor = bgNone, fgColor = fgWhite,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
   var padding = if border: 1 else: 0
   padding = if modeChar != ' ': padding + 1 else: padding + 0
@@ -75,6 +75,16 @@ proc newInputBox*(px, py, w, h: int, title = "", val: string = "",
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
+
+
+proc newInputBox*(px, py: int, w, h: WidgetSize, title = "", val = "", 
+                  modeChar = '>', border = true, statusbar = false,
+                  bgColor = bgNone,fgColor = fgWhite,                   
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref InputBox =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newInputBox(px, py, width, height, title, val, modeChar, border, 
+                     statusbar, bgColor, fgColor, tb)
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
@@ -176,7 +186,8 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
       ib.cursor = ib.cursor - 1
     else:
       ib.cursor = 0
-    let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.posX - ib.paddingX1 - 1), ib.cursor)
+    #let (s, e, vcursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
   of Right:
@@ -184,7 +195,8 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
       ib.cursor = ib.cursor + 1
     else:
       ib.cursor = ib.value.len
-    let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.posX - ib.paddingX1 - 1), ib.cursor)
+    #let (s, e, vcursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = vcursorPos
 
@@ -380,11 +392,13 @@ method onUpdate*(ib: ref InputBox, key: Key) =
   if ib.value.len >= ib.width - ib.paddingX1 - 1:
     # visualSkip for 2 bytes on the ui border and mode
     # 1 byte to push cursor at last
-    let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
+    #let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = cursorPos 
   else:
-    let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
+    let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
+    #let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
     ib.visualCursor = cursorPos 
 

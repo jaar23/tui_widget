@@ -7,7 +7,7 @@ type
     align: Alignment = Left
     events: Table[string, EventFn[ref Label]]
 
-proc newLabel*(px, py, w, h: int, text = "",
+proc newLabel*(px, py, w, h: int, id = "", text = "",
                border = false, align = Left,
                bgColor = bgNone, fgColor = fgWhite,
                tb = newTerminalBuffer(w + 2, h + py)): ref Label =
@@ -26,6 +26,7 @@ proc newLabel*(px, py, w, h: int, text = "",
     height: h,
     posX: px,
     posY: py,
+    id: id,
     text: text,
     tb: tb,
     style: style,
@@ -34,6 +35,16 @@ proc newLabel*(px, py, w, h: int, text = "",
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
+
+
+proc newLabel*(px, py: int, w, h: WidgetSize, id = "", 
+               text = "", border = false, align = Left,
+               bgColor = bgNone, fgColor = fgWhite,
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Label =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newLabel(px, py, width, height, id, text, border, align,
+                  bgColor, fgColor, tb) 
 
 
 method render*(lb: ref Label) =

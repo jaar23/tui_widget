@@ -37,13 +37,12 @@ proc newAxis*(lb: float64 = 0.0, ub: float64 = 0.0, title: string = "",
   )
 
 
-proc newChart*(px, py, w, h: int,
+proc newChart*(px, py, w, h: int, id = "",
               axis: ref Axis = newAxis(),
-              tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py),
-              title: string = "", border: bool = true,
-              fgColor: ForegroundColor = fgWhite,
-              bgColor: BackgroundColor = bgNone,
-              marker: char = '*'): ref Chart =
+              title = "", border = true,
+              bgColor = bgNone,
+              fgColor = fgWhite,
+              tb = newTerminalBuffer(w + 2, h + py)): ref Chart =
   let padding = if border: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
@@ -59,9 +58,9 @@ proc newChart*(px, py, w, h: int,
     height: if h > axis.data.len() + 8: h else: axis.data.len() + 8,
     posX: px,
     posY: if py mod 2 >= 2: min(axis.data.len() * 2, consoleHeight()) else: min(py, consoleHeight()),
+    id: id,
     tb: tb,
     style: style,
-    marker: marker,
     axis: axis,
     title: title,
     events: initTable[string, EventFn[ref Chart]](),
@@ -70,6 +69,18 @@ proc newChart*(px, py, w, h: int,
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
 
+
+proc newChart*(px, py: int, w, h: WidgetSize, id = "",
+              axis: ref Axis = newAxis(),
+              title = "", border = true,
+              bgColor = bgNone,
+              fgColor = fgWhite,
+              tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Chart =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newChart(px, py, width, height, id, axis, title, border,
+                  bgColor, fgColor, tb)
+ 
 
 proc renderAsciiGraph(c: ref Chart) =
   try:

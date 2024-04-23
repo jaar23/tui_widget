@@ -99,11 +99,11 @@ proc newTableRow*(width: int, height = 1;
 
 proc newTable*(px, py, w, h: int, rows: seq[ref TableRow], 
                headers: Option[ref TableRow] = none(ref TableRow), 
-               title: string = "", cursor = 0, rowCursor = 0, 
-               border: bool = true, statusbar: bool = true, enableHelp=false,
-               fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+               id = "", title = "", border = true, 
+               statusbar = true, enableHelp=false,
+               bgColor = bgNone, fgColor = fgWhite,
                selectionStyle: SelectionStyle, maxColWidth = w,
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
+               tb = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
     var seqCol = newTableColumn(seqColWidth, 1, text = $(i + 1), key = $i, index = i)
@@ -126,15 +126,13 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     height: h,
     posX: px,
     posY: py,
+    id: id,
     headers: headers,
     rows: rows,
     title: title,
-    cursor: cursor,
-    rowCursor: rowCursor,
     size: h - py - style.paddingY1 - style.paddingY2 - statusbarSize,
     tb: tb,
     style: style,
-    colCursor: 0,
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
     statusbar: statusbar,
@@ -156,11 +154,11 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
   return table
 
 
-proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0, 
-               border: bool = true, statusbar: bool = true, enableHelp = false,
-               fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
+proc newTable*(px, py, w, h: int, id = "", title = "", border = true, 
+               statusbar = true, enableHelp = false,
+               bgColor = bgNone, fgColor = fgWhite,                
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
+               tb = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
   var rows = newSeq[ref TableRow]()
   let padding = if border: 1 else: 0
   let statusbarSize = if statusbar: 2 else: 1
@@ -179,15 +177,13 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     height: h,
     posX: px,
     posY: py,
+    id: id,
     headers: none(ref TableRow),
     rows: rows,
     title: title,
-    cursor: cursor,
-    rowCursor: rowCursor,
     size: h - py - style.paddingY1 - style.paddingY2 - statusbarSize,
     tb: tb,
     style: style,
-    colCursor: 0,
     maxColWidth: maxColWidth,
     selectionStyle: selectionStyle,
     statusbar: statusbar,
@@ -200,6 +196,18 @@ proc newTable*(px, py, w, h: int, title: string = "", cursor = 0, rowCursor = 0,
     table.on(Key.QuestionMark, help)
   table.keepOriginalSize()
   return table
+
+
+proc newTable*(px, py: int, w, h: WidgetSize, rows: seq[ref TableRow],
+               headers: Option[ref TableRow] = none(ref TableRow), 
+               id = "", title = "", border = true, statusbar = true, 
+               enableHelp = false, bgColor = bgNone, fgColor = fgWhite,
+               selectionStyle: SelectionStyle = Highlight, maxColWidth=w.toInt,
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ref Table =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newTable(px, py, width, height, rows, headers, id, title, border, statusbar,
+                  enableHelp, bgColor, fgColor, selectionStyle, maxColWidth, tb) 
 
 
 proc rowMaxWidth(table: ref Table): int =

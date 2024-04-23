@@ -29,8 +29,8 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
 proc newDisplay*(px, py, w, h: int, id = "";
                  title: string = "", text: string = "", border: bool = true,
                  statusbar = true, wordwrap = false, enableHelp = false,
-                 fgColor: ForegroundColor = fgWhite,
                  bgColor: BackgroundColor = bgNone,
+                 fgColor: ForegroundColor = fgWhite,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Display =
   let padding = if border: 1 else: 0
@@ -75,6 +75,20 @@ proc newDisplay*(px, py, w, h: int, id = "";
   result.keepOriginalSize()
 
 
+proc newDisplay*(px, py: int, w, h: WidgetSize, id = "";
+                 title = "", text = "", border = true,
+                 statusbar = true, wordwrap = false, enableHelp = false,
+                 bgColor = bgNone,
+                 fgColor = fgWhite,
+                 customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
+                 tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Display =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newDisplay(px, py, width, height, id, title, text, border,
+                    statusbar, wordwrap, enableHelp, bgColor, fgColor,
+                    customRowRecal, tb)
+
+ 
 proc splitBySize(val: string, size: int, rows: int,
                  visualSkip = 2): seq[string] =
   if val.len() > size:

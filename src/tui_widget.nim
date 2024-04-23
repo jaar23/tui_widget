@@ -12,7 +12,8 @@ import
   widget/label_wg,
   widget/chart_wg,
   widget/gauge_wg,
-  widget/textarea_wg
+  widget/textarea_wg,
+  widget/container_wg
 
 export
   base_wg,
@@ -27,6 +28,7 @@ export
   chart_wg,
   gauge_wg,
   textarea_wg,
+  container_wg,
   illwill
 
 type
@@ -231,7 +233,7 @@ proc resize(app: var TerminalApp): bool =
       let wgPosXPercent = wgPosX / origWidth
       let newWgPosX = floor(windWidth.toFloat * wgPosXPercent).toInt()
       w.posX = newWgPosX
-      
+      # calculate widget size (y) 
       w.tb = app.tb
       inc index
     sleep(50)

@@ -11,10 +11,14 @@ type
     keyEvents*: Table[Key, BoolEventFn[ref Checkbox]]
 
 
-proc newCheckbox*(px, py, w, h: int, title = "", label = "", 
+const forbiddenKeyBind = {Key.Tab, Key.None, Key.Escape}
+
+
+proc newCheckbox*(px, py, w, h: int, id = "", 
+                  title = "", label = "", 
                   value = "", checked = false, checkMark = 'X',
-                  fgColor: ForegroundColor = fgWhite, bgColor: BackgroundColor = bgNone,
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Checkbox =
+                  bgColor = bgNone, fgColor = fgWhite,
+                  tb = newTerminalBuffer(w + 2, h + py)): ref Checkbox =
   let style = WidgetStyle(
     paddingX1: 1,
     paddingX2: 1,
@@ -30,6 +34,7 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
     height: h,
     posX: px,
     posY: py,
+    id: id,
     title: title,
     label: label,
     value: value,
@@ -45,7 +50,19 @@ proc newCheckbox*(px, py, w, h: int, title = "", label = "",
   return checkbox
 
 
-const forbiddenKeyBind = {Key.Tab, Key.None, Key.Escape}
+proc newCheckbox*(px, py: int, w, h: WidgetSize, 
+                  id = "", title = "", label = "", 
+                  value = "", checked = false, 
+                  checkMark = 'X',
+                  bgColor = bgNone,
+                  fgColor = fgWhite,
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Checkbox =
+  let width = (consoleWidth().toFloat * w).toInt
+  let height = (consoleHeight().toFloat * h).toInt
+  return newCheckbox(px, py, width, height, id, title, label,
+                     value, checked, checkMark,
+                     bgColor, fgColor, tb)
+
 
 
 proc on*(ch: ref Checkbox, event: string, fn: BoolEventFn[ref Checkbox]) =
