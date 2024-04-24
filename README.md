@@ -18,22 +18,22 @@ You can use the widget with illwill or bootstrap with `TerminalApp`.
 
 ```nim
 import tui_widget, illwill
-# 1
+
 var inputBox = newInputBox(1, 1, consoleWidth(), 3, "message")
-# 2
+
 var display = newDisplay(1, 4, consoleWidth(), 16, "display panel") 
-# 3
+
 let enterEv = proc(ib: InputBox, arg: varargs[string]) =
   display.add(inputBox.value & "\n")
   inputBox.value("")
 
 inputBox.onEnter = enterEv
-# 4
+
 var app = newTerminalApp(title="tui widget")
 
 app.addWidget(inputBox)
 app.addWidget(display)
-# 5
+
 app.run()
 ```
 
