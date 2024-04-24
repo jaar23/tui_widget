@@ -36,11 +36,11 @@ table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 
 var progress = newProgressBar(1, 35, consoleWidth(), 37, percent=0.0)
 
-let enterEv = proc(btn: ref Button, args: varargs[string]) =
+let enterEv = proc(btn: Button, args: varargs[string]) =
   progress.update(5.0)
 button.onEnter = enterEv
 
-var list = newSeq[ref ListRow]()
+var list = newSeq[ListRow]()
 var i = 0
 const keys = {Key.A..Key.Z}
 var listRow = newListRow(0, "rhoncus feugiat. Integer quis tempus tortor, dictum maximus nulla.Nulla feugiat convallis magna,", "ttt", align=Center)
@@ -51,7 +51,7 @@ for key in keys:
 
 var label = newLabel(1, 50, 20, 50, "hello tui", bgColor=bgWhite, fgColor=fgBlack, align=Center)
 
-let selectEv = proc(lv: ref ListView, args: varargs[string]) =
+let selectEv = proc(lv: ListView, args: varargs[string]) =
   label.text = args[0]
 
 

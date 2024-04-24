@@ -6,6 +6,8 @@
 
 [ ] examples
 
+[x] auto resize
+
 [ ] error handling
     
     Ideas :thinking

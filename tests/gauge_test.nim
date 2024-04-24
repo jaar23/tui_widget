@@ -9,13 +9,13 @@ var btn = newButton(1, 4, 10, 6, "hit!")
 #btn.onEnter = proc ( _: string) = gauge.set(rand(0..100).toFloat())
 
 
-btn.onEnter = proc (btn: ref Button, args: varargs[string]) = 
+btn.onEnter = proc (btn: Button, args: varargs[string]) = 
   gauge.set(rand(0..100).toFloat())
 
-let evtFn = proc (g: ref Button, nums: varargs[string]) =
+let evtFn = proc (g: Button, nums: varargs[string]) =
   gauge.set(rand(0..100).toFloat())
 
-let keyFn = proc (b: ref Button, args: varargs[string]) =
+let keyFn = proc (b: Button, args: varargs[string]) =
   b.label = "clicked"
 
 
