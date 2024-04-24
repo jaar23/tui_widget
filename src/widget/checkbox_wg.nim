@@ -2,14 +2,15 @@ import illwill, base_wg, os, tables
 import threading/channels
 
 type
-  Checkbox* = object of BaseWidget
+  CheckboxObj* = object of BaseWidget
     label: string = ""
-    value: string= ""
-    checkMark: char = 'X'
+    value*: string= ""
+    checkMark*: char = 'X'
     checked: bool
-    events: Table[string, BoolEventFn[ref Checkbox]]
-    keyEvents*: Table[Key, BoolEventFn[ref Checkbox]]
+    events: Table[string, BoolEventFn[ref CheckboxObj]]
+    keyEvents*: Table[Key, BoolEventFn[ref CheckboxObj]]
 
+  Checkbox* = ref CheckboxObj
 
 const forbiddenKeyBind = {Key.Tab, Key.None, Key.Escape}
 
@@ -18,7 +19,7 @@ proc newCheckbox*(px, py, w, h: int, id = "",
                   title = "", label = "", 
                   value = "", checked = false, checkMark = 'X',
                   bgColor = bgNone, fgColor = fgWhite,
-                  tb = newTerminalBuffer(w + 2, h + py)): ref Checkbox =
+                  tb = newTerminalBuffer(w + 2, h + py)): Checkbox =
   let style = WidgetStyle(
     paddingX1: 1,
     paddingX2: 1,
@@ -29,7 +30,7 @@ proc newCheckbox*(px, py, w, h: int, id = "",
     bgColor: bgColor
   )
 
-  var checkbox = (ref Checkbox)(
+  var checkbox = Checkbox(
     width: w,
     height: h,
     posX: px,
@@ -42,8 +43,8 @@ proc newCheckbox*(px, py, w, h: int, id = "",
     checked: checked,
     style: style,
     checkMark: checkMark,
-    events: initTable[string, BoolEventFn[ref Checkbox]](),
-    keyEvents: initTable[Key, BoolEventFn[ref Checkbox]]()
+    events: initTable[string, BoolEventFn[Checkbox]](),
+    keyEvents: initTable[Key, BoolEventFn[Checkbox]]()
   )
   checkbox.channel = newChan[WidgetBgEvent]()
   checkbox.keepOriginalSize()
@@ -56,7 +57,7 @@ proc newCheckbox*(px, py: int, w, h: WidgetSize,
                   checkMark = 'X',
                   bgColor = bgNone,
                   fgColor = fgWhite,
-                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Checkbox =
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Checkbox =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newCheckbox(px, py, width, height, id, title, label,
@@ -64,31 +65,51 @@ proc newCheckbox*(px, py: int, w, h: WidgetSize,
                      bgColor, fgColor, tb)
 
 
+proc newCheckbox*(id: string): Checkbox =
+  var checkbox = Checkbox(
+    id: id,
+    checked: false,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    events: initTable[string, BoolEventFn[Checkbox]](),
+    keyEvents: initTable[Key, BoolEventFn[Checkbox]]()
+  )
+  checkbox.channel = newChan[WidgetBgEvent]()
+  return checkbox
 
-proc on*(ch: ref Checkbox, event: string, fn: BoolEventFn[ref Checkbox]) =
+
+proc on*(ch: Checkbox, event: string, fn: BoolEventFn[Checkbox]) =
   ch.events[event] = fn
 
 
-proc on*(ch: ref Checkbox, key: Key, fn: BoolEventFn[ref Checkbox]) {.raises: [EventKeyError]} =
+proc on*(ch: Checkbox, key: Key, fn: BoolEventFn[Checkbox]) {.raises: [EventKeyError]} =
   if key in forbiddenKeyBind: 
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   ch.keyEvents[key] = fn
     
 
-proc call*(ch: ref Checkbox, event: string, arg: bool) =
+proc call*(ch: Checkbox, event: string, arg: bool) =
   let fn = ch.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ch, arg)
 
 
-proc call(ch: ref Checkbox, key: Key, arg: bool) =
+proc call(ch: Checkbox, key: Key, arg: bool) =
   let fn = ch.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(ch, arg)
 
 
-method render*(ch: ref Checkbox) =
+method render*(ch: Checkbox) =
   if not ch.illwillInit: return
+  ch.clear()
   ch.renderBorder()
   if ch.title != "":
     ch.renderTitle()
@@ -100,18 +121,18 @@ method render*(ch: ref Checkbox) =
     ch.tb.fill(ch.posX + 2, ch.posY + 1, ch.posX + 2, ch.posY + 1, "[")
     ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, " ")
     ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
-  ch.tb.write(ch.posX + 6, ch.posY + 1, resetStyle, ch.label)
+  ch.tb.write(ch.posX + 6, ch.posY + 1, ch.bg, ch.fg, ch.label, resetStyle)
   ch.tb.display()
 
 
-method poll*(ch: ref Checkbox) =
+method poll*(ch: Checkbox) =
   var widgetEv: WidgetBgEvent
   if ch.channel.tryRecv(widgetEv):
     ch.call(widgetEv.event, widgetEv.args)
     ch.render()
 
 
-method onUpdate*(ch: ref Checkbox, key: Key) =
+method onUpdate*(ch: Checkbox, key: Key) =
   case key
   of Key.None: ch.render()
   of Key.Escape, Key.Tab: ch.focus = false
@@ -127,44 +148,44 @@ method onUpdate*(ch: ref Checkbox, key: Key) =
   sleep(ch.refreshWaitTime)
 
 
-method onControl*(ch: ref Checkbox) =
+method onControl*(ch: Checkbox) =
   ch.focus = true
   while ch.focus:
     var key = getKeyWithTimeout(ch.refreshWaitTime)
     ch.onUpdate(key)
 
 
-method wg*(ch: ref Checkbox): ref BaseWidget = ch
+method wg*(ch: Checkbox): ref BaseWidget = ch
 
 
-proc checked*(ch: ref Checkbox): bool = ch.checked
+proc checked*(ch: Checkbox): bool = ch.checked
 
 
-proc checked*(ch: ref Checkbox, state: bool) = ch.checked = state
+proc checked*(ch: Checkbox, state: bool) = ch.checked = state
 
 
-proc `checked=`*(ch: ref Checkbox, state: bool) = ch.checked = state
+proc `checked=`*(ch: Checkbox, state: bool) = ch.checked = state
 
 
-proc `onEnter=`*(ch: ref Checkbox, enterEv: BoolEventFn[ref Checkbox]) =
+proc `onEnter=`*(ch: Checkbox, enterEv: BoolEventFn[Checkbox]) =
   ch.on("enter", enterEv)
 
 
-proc onEnter*(ch: ref Checkbox, enterEv: BoolEventFn[ref Checkbox]) =
+proc onEnter*(ch: Checkbox, enterEv: BoolEventFn[Checkbox]) =
   ch.on("enter", enterEv)
 
 
-proc val*(ch: ref Checkbox, label: string) = 
+proc val*(ch: Checkbox, label: string) = 
   ch.label = label
   ch.render()
 
 
-proc label*(ch: ref Checkbox): string = ch.label
+proc label*(ch: Checkbox): string = ch.label
 
 
-proc `label=`*(ch: ref Checkbox, label: string) =
+proc `label=`*(ch: Checkbox, label: string) =
   ch.val(label)
 
 
-proc label*(ch: ref Checkbox, label: string) =
+proc label*(ch: Checkbox, label: string) =
   ch.val(label)

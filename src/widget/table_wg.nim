@@ -9,7 +9,7 @@ type
   ColumnType* = enum
     Header, Column
 
-  TableColumn* = object
+  TableColumnObj* = object
     index*: int
     width: int
     height: int
@@ -23,28 +23,34 @@ type
     value*: string = ""
     visible: bool = true
 
-  TableRow* = object
+  TableColumn* = ref TableColumnObj
+
+  TableRowObj* = object
     index*: int
     width: int
     height: int
     maxColWidth: int
-    columns*: seq[ref TableColumn]
+    columns*: seq[TableColumn]
     bgColor: BackgroundColor
     fgColor: ForegroundColor
     visible: bool = true
     selected*: bool = false
     value*: string = ""
 
-  Table* = object of BaseWidget
-    headers: Option[ref TableRow]
-    rows: seq[ref TableRow]
+  TableRow* = ref TableRowObj
+
+  TableObj* = object of BaseWidget
+    headers: Option[TableRow]
+    rows: seq[TableRow]
     mode: Mode = Normal
     filteredSize: int = 0
     selectedRow: int = 0
-    selectionStyle: SelectionStyle
+    selectionStyle*: SelectionStyle
     maxColWidth: int = 64
-    events*: systable.Table[string, EventFn[ref Table]]
-    keyEvents*: systable.Table[Key, EventFn[ref Table]]
+    events*: systable.Table[string, EventFn[ref TableObj]]
+    keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
+
+  Table* = ref TableObj
 
   SizeDiffError = object of CatchableError
 
@@ -52,15 +58,15 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.Slash, Key.Up, Key.Down,
                           Key.Left, Key.Right}
 
 
-proc help(table: ref Table, args: varargs[string]): void
+proc help(table: Table, args: varargs[string]): void
 
-proc on*(table: ref Table, key: Key, fn: EventFn[ref Table]) {.raises: [EventKeyError]} 
+proc on*(table: Table, key: Key, fn: EventFn[Table]) {.raises: [EventKeyError]} 
 
 proc newTableColumn*(width: int, height: int = 1; text = ""; key = ""; 
                      index = 0; overflow: bool = false;
                      bgColor = bgNone; fgColor = fgWhite;
-                     align = Left; columnType = Column): ref TableColumn =
-  var tc = (ref TableColumn)(
+                     align = Left; columnType = Column): TableColumn =
+  var tc = TableColumn(
     index: index,
     width: max(width, text.len),
     height: height,
@@ -76,15 +82,15 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
 
 
 proc newTableRow*(width: int, height = 1; 
-                  columns: seq[ref TableColumn] = newSeq[ref TableColumn](), 
+                  columns: seq[TableColumn] = newSeq[TableColumn](), 
                   index = 0,bgColor = bgNone, fgColor = fgWhite,
-                  selected = false): ref TableRow =
+                  selected = false): TableRow =
   var maxColWidth = 0
   for i in 0..<columns.len:
     columns[i].index = i
     maxColWidth = min(columns[i].width, maxColWidth)
 
-  var tr = (ref TableRow)(
+  var tr = TableRow(
     index: index,
     width: width,
     height: height,
@@ -97,19 +103,19 @@ proc newTableRow*(width: int, height = 1;
   return tr
 
 
-proc newTable*(px, py, w, h: int, rows: seq[ref TableRow], 
-               headers: Option[ref TableRow] = none(ref TableRow), 
+proc newTable*(px, py, w, h: int, rows: seq[TableRow], 
+               headers: Option[TableRow] = none(TableRow), 
                id = "", title = "", border = true, 
                statusbar = true, enableHelp=false,
                bgColor = bgNone, fgColor = fgWhite,
                selectionStyle: SelectionStyle, maxColWidth = w,
-               tb = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
+               tb = newTerminalBuffer(w + 2, h + py + 4)): Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
     var seqCol = newTableColumn(seqColWidth, 1, text = $(i + 1), key = $i, index = i)
     rows[i].columns.insert(seqCol, 0)
     rows[i].index = i
-  let padding = if border: 1 else: 0
+  let padding = 1
   let statusbarSize = if statusbar: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
@@ -121,7 +127,7 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     bgColor: bgColor
   )
 
-  var table = (ref Table)(
+  var table = (Table)(
     width: min(w + seqColWidth, w),
     height: h,
     posX: px,
@@ -137,8 +143,8 @@ proc newTable*(px, py, w, h: int, rows: seq[ref TableRow],
     selectionStyle: selectionStyle,
     statusbar: statusbar,
     enableHelp: enableHelp,
-    events: initTable[string, EventFn[ref Table]](),
-    keyEvents: initTable[Key, EventFn[ref Table]]()
+    events: initTable[string, EventFn[Table]](),
+    keyEvents: initTable[Key, EventFn[Table]]()
   )
   if headers.isSome: 
     table.size -= 1
@@ -158,9 +164,9 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
                statusbar = true, enableHelp = false,
                bgColor = bgNone, fgColor = fgWhite,                
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
-               tb = newTerminalBuffer(w + 2, h + py + 4)): ref Table =
-  var rows = newSeq[ref TableRow]()
-  let padding = if border: 1 else: 0
+               tb = newTerminalBuffer(w + 2, h + py + 4)): Table =
+  var rows = newSeq[TableRow]()
+  let padding = 1
   let statusbarSize = if statusbar: 2 else: 1
   let style = WidgetStyle(
     paddingX1: padding,
@@ -172,13 +178,13 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
     bgColor: bgColor
   )
   ##  size tp remove border, table title
-  var table = (ref Table)(
+  var table = (Table)(
     width: w,
     height: h,
     posX: px,
     posY: py,
     id: id,
-    headers: none(ref TableRow),
+    headers: none(TableRow),
     rows: rows,
     title: title,
     size: h - py - style.paddingY1 - style.paddingY2 - statusbarSize,
@@ -188,8 +194,8 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
     selectionStyle: selectionStyle,
     statusbar: statusbar,
     enableHelp: enableHelp,
-    events: initTable[string, EventFn[ref Table]](),
-    keyEvents: initTable[Key, EventFn[ref Table]]()
+    events: initTable[string, EventFn[Table]](),
+    keyEvents: initTable[Key, EventFn[Table]]()
   )
   table.channel = newChan[WidgetBgEvent]()
   if enableHelp:
@@ -198,19 +204,40 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
   return table
 
 
-proc newTable*(px, py: int, w, h: WidgetSize, rows: seq[ref TableRow],
-               headers: Option[ref TableRow] = none(ref TableRow), 
+proc newTable*(px, py: int, w, h: WidgetSize, rows: seq[TableRow],
+               headers: Option[TableRow] = none(TableRow), 
                id = "", title = "", border = true, statusbar = true, 
                enableHelp = false, bgColor = bgNone, fgColor = fgWhite,
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w.toInt,
-               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ref Table =
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): Table =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newTable(px, py, width, height, rows, headers, id, title, border, statusbar,
                   enableHelp, bgColor, fgColor, selectionStyle, maxColWidth, tb) 
 
 
-proc rowMaxWidth(table: ref Table): int =
+proc newTable*(id: string): Table =
+  let padding = 1
+  var table = Table(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: padding,
+      paddingX2: padding,
+      paddingY1: padding,
+      paddingY2: padding,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    events: initTable[string, EventFn[Table]](),
+    keyEvents: initTable[Key, EventFn[Table]]()
+  )
+  table.channel = newChan[WidgetBgEvent]()
+  table.on(Key.QuestionMark, help)
+  return table
+
+
+proc rowMaxWidth(table: Table): int =
   result = 0
   if table.headers.isSome:
     for col in table.headers.get.columns:
@@ -220,11 +247,11 @@ proc rowMaxWidth(table: ref Table): int =
       result += col.width
 
 
-proc vrows(table: ref Table): seq[ref TableRow] = 
-  table.rows.filter(proc(r: ref TableRow): bool = r.visible)
+proc vrows(table: Table): seq[TableRow] = 
+  table.rows.filter(proc(r: TableRow): bool = r.visible)
 
 
-proc dtmColumnToDisplay(table: ref Table) =
+proc dtmColumnToDisplay(table: Table) =
   var posX = table.paddingX1
   for i in table.colCursor..<table.headers.get.columns.len:
     if posX + table.headers.get.columns[i].width < table.x2:
@@ -236,7 +263,7 @@ proc dtmColumnToDisplay(table: ref Table) =
     table.headers.get.columns[i].visible = false
 
 
-proc prevSelection(table: ref Table, size: int = 1) =
+proc prevSelection(table: Table, size: int = 1) =
   let rows = table.vrows()
   if table.cursor == 0:
     table.cursor = 0
@@ -252,7 +279,7 @@ proc prevSelection(table: ref Table, size: int = 1) =
         table.rows[r].selected = false
 
 
-proc nextSelection(table: ref Table, size: int = 1) =
+proc nextSelection(table: Table, size: int = 1) =
   let rows = table.vrows()
   if table.cursor >= rows.len - size:
     table.cursor = rows.len - size
@@ -268,13 +295,13 @@ proc nextSelection(table: ref Table, size: int = 1) =
         table.rows[r].selected = false
 
 
-proc emptyRows(table: ref Table, emptyMessage = "No records") =
+proc emptyRows(table: Table, emptyMessage = "No records") =
   table.tb.write(table.posX + table.paddingX1,
                  table.posY + 3, bgRed, fgWhite, 
                  center(emptyMessage, table.width - table.paddingX1 - 2), resetStyle)
 
 
-proc renderClearRow(table: ref Table, index: int, full = false) =
+proc renderClearRow(table: Table, index: int, full = false) =
   if full:
     let totalWidth = table.rowMaxWidth()
     table.tb.fill(table.posX, table.posY,
@@ -284,7 +311,7 @@ proc renderClearRow(table: ref Table, index: int, full = false) =
                   table.width - table.paddingX1, table.posY + index, " ")
 
 
-proc renderTableHeader(table: ref Table): int =
+proc renderTableHeader(table: Table): int =
   result = 1
   let borderX = if table.border: 1 else: 2
   if table.headers.isSome:
@@ -301,14 +328,14 @@ proc renderTableHeader(table: ref Table): int =
     result += 1
 
 
-proc calColWidth(table: ref Table, cindex: int, defaultWidth: int): int =
+proc calColWidth(table: Table, cindex: int, defaultWidth: int): int =
   if table.headers.isSome:
     result = table.headers.get.columns[cindex].width
   else:
     result = defaultWidth
 
 
-proc renderTableRow(table: ref Table, row: ref TableRow, index: int) =
+proc renderTableRow(table: Table, row: TableRow, index: int) =
   var posX = table.paddingX1
   var borderX = if table.border: 1 else: 0
   for i in 0..<row.columns.len:
@@ -334,7 +361,7 @@ proc renderTableRow(table: ref Table, row: ref TableRow, index: int) =
       posX += width + 1
 
 
-proc renderStatusBar(table: ref Table) =
+proc renderStatusBar(table: Table) =
   if table.statusbar:
     if table.events.hasKey("statusbar"):
       table.call("statusbar")
@@ -350,7 +377,7 @@ proc renderStatusBar(table: ref Table) =
 
 
 
-proc help(table: ref Table, args: varargs[string]) = 
+proc help(table: Table, args: varargs[string]) = 
   let wsize = ((table.width - table.posX).toFloat * 0.3).toInt()
   let hsize = ((table.height - table.posY).toFloat * 0.3).toInt()
   var display = newDisplay(table.x2 - wsize, table.y2 - hsize, 
@@ -371,13 +398,14 @@ proc help(table: ref Table, args: varargs[string]) =
   display.clear()
 
 
-method resize*(table: ref Table) =
+method resize*(table: Table) =
   let statusbarSize = if table.statusbar: 2 else: 1
+  let padding = 1
   table.size = table.height - table.posY - 
-    table.paddingY2 - table.paddingY1 - statusbarSize
+    padding - padding - statusbarSize
 
 
-method render*(table: ref Table): void =
+method render*(table: Table): void =
   if not table.illwillInit: return
   #table.renderClearRow(0, true)
   table.clear()
@@ -417,7 +445,7 @@ method render*(table: ref Table): void =
     table.tb.display()
 
 
-proc filter(table: ref Table, filterStr: string) =
+proc filter(table: Table, filterStr: string) =
   for r in 0..<table.rows.len:
     for col in table.rows[r].columns:
       if col.text.toLower().contains(filterStr.strip().toLower()): 
@@ -427,7 +455,7 @@ proc filter(table: ref Table, filterStr: string) =
         table.rows[r].visible = false
 
 
-proc onFilter(table: ref Table) =
+proc onFilter(table: Table) =
   table.resetCursor()
   table.renderStatusBar()
   table.renderClearRow(table.size + 5)
@@ -435,7 +463,7 @@ proc onFilter(table: ref Table) =
                           table.x2, table.y1 + 2, 
                           title="search", 
                           tb=table.tb)
-  let enterEv = proc(ib: ref InputBox, x: varargs[string]) = 
+  let enterEv = proc(ib: InputBox, x: varargs[string]) = 
     table.filter(ib.value)
     table.prevSelection()
     input.focus = false
@@ -448,10 +476,11 @@ proc onFilter(table: ref Table) =
   
   
 
-proc resetFilter(table: ref Table) =
+proc resetFilter(table: Table) =
   for r in 0..<table.rows.len:
     table.rows[r].visible = true
-  table.size = table.height - table.posY - table.paddingY1 - table.paddingY2
+  table.resize()
+  #table.size = table.height - table.posY - table.paddingY1 - table.paddingY2
   table.rowCursor = 0
   table.cursor = 0
   table.colCursor = 0
@@ -459,36 +488,36 @@ proc resetFilter(table: ref Table) =
   table.prevSelection()
 
 
-proc on*(table: ref Table, event: string, fn: EventFn[ref Table]) =
+proc on*(table: Table, event: string, fn: EventFn[Table]) =
   table.events[event] = fn
 
 
-proc on*(table: ref Table, key: Key, fn: EventFn[ref Table]) {.raises: [EventKeyError]} =
+proc on*(table: Table, key: Key, fn: EventFn[Table]) {.raises: [EventKeyError]} =
   if key in forbiddenKeyBind: 
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   table.keyEvents[key] = fn
     
 
-proc call*(table: ref Table, event: string, args: varargs[string]) =
+proc call*(table: Table, event: string, args: varargs[string]) =
   let fn = table.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(table, args)
 
 
-proc call(table: ref Table, key: Key, args: varargs[string]) =
+proc call(table: Table, key: Key, args: varargs[string]) =
   let fn = table.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(table, args)
 
 
-method poll*(table: ref Table) =
+method poll*(table: Table) =
   var widgetEv: WidgetBgEvent
   if table.channel.tryRecv(widgetEv):
     table.call(widgetEv.event, widgetEv.args)
     table.render()
 
 
-method onUpdate*(table: ref Table, key: Key) =
+method onUpdate*(table: Table, key: Key) =
   case key
   of Key.None: 
     #table.dtmColumnToDisplay()
@@ -559,28 +588,28 @@ method onUpdate*(table: ref Table, key: Key) =
   sleep(table.refreshWaitTime)
 
 
-method onControl*(table: ref Table): void =
+method onControl*(table: Table): void =
   table.focus = true
   while table.focus:
     var key = getKeyWithTimeout(table.refreshWaitTime)
     table.onUpdate(key) 
 
 
-method wg*(table: ref Table): ref BaseWidget = table
+method wg*(table: Table): ref BaseWidget = table
 
 
-proc `header=`*(table: ref Table, header: ref TableRow) =
+proc `header=`*(table: Table, header: TableRow) =
   table.headers = some(header)
 
 
-proc header*(table: ref Table, header: ref TableRow) =
+proc header*(table: Table, header: TableRow) =
   table.headers = some(header)
 
 
-proc header*(table: ref Table): Option[ ref TableRow] = table.headers
+proc header*(table: Table): Option[ TableRow] = table.headers
 
 
-proc addRow*(table: ref Table, tablerow: ref TableRow, index: Option[int] = none(int)): void =
+proc addRow*(table: Table, tablerow: TableRow, index: Option[int] = none(int)): void =
   for i in 0..<tablerow.columns.len:
     if tablerow.columns[i].text.len >= table.headers.get.columns[i].width:
       table.headers.get.columns[i].width = min(table.maxColWidth, 
@@ -600,20 +629,20 @@ proc addRow*(table: ref Table, tablerow: ref TableRow, index: Option[int] = none
     tablerow.selected = false
 
 
-proc removeRow*(table: ref Table, index: int) =
+proc removeRow*(table: Table, index: int) =
   table.rows.delete(index)
 
 
-proc selected*(table: ref Table): ref TableRow =
+proc selected*(table: Table): TableRow =
   return table.rows[table.cursor]
 
 
-proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false, 
+proc loadFromCsv*(table: Table, filepath: string, withHeader = false, 
                   withIndex = false): void {.raises: [IOError].} =
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")
-    table.rows = newSeq[ref TableRow]()
+    table.rows = newSeq[TableRow]()
     var stream = newFileStream(filepath, fmRead)
     if stream == nil:
       raise newException(IOError, "Unable to open file")
@@ -621,7 +650,7 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false,
     open(csvparser, stream, filepath)
     var rindex = 0
     while readRow(csvparser):
-      var row = newSeq[ref TableColumn]()
+      var row = newSeq[TableColumn]()
       if rindex == 0:
         var headerWidth = 0
         if not withIndex:
@@ -653,7 +682,7 @@ proc loadFromCsv*(table: ref Table, filepath: string, withHeader = false,
     echo "failed to open file"
 
 
-proc headerFromArray*(table: ref Table, header: openArray[string]) =
+proc headerFromArray*(table: Table, header: openArray[string]) =
   var headers = newTableRow(table.width)
   for h in header:
     let column = newTableColumn(h.len, 1, h, h)
@@ -661,7 +690,7 @@ proc headerFromArray*(table: ref Table, header: openArray[string]) =
   table.header = headers
 
 
-proc loadFromSeq*(table: ref Table, rows: openArray[seq[string]]) =
+proc loadFromSeq*(table: Table, rows: openArray[seq[string]]) =
   if rows.len == 0:
     raise newException(ValueError, "rows cannot be empty.")
 
@@ -677,7 +706,7 @@ proc loadFromSeq*(table: ref Table, rows: openArray[seq[string]]) =
     table.addRow(row)
 
 
-# proc `enableHelp=`*(table: ref Table, enable: bool) =
+# proc `enableHelp=`*(table: Table, enable: bool) =
 #   table.enableHelp = enable
 #   if table.enableHelp:
 #     table.on(Key.QuestionMark, help)

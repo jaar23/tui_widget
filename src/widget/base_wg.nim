@@ -26,6 +26,7 @@ type
     paddingX2*: int
     paddingY1*: int
     paddingY2*: int
+    pressedBgcolor*: BackgroundColor
 
   WidgetBgEvent* = object
     widgetId*: string
@@ -172,6 +173,20 @@ proc border*(bw: ref BaseWidget, bordered: bool) =
 proc border*(bw: ref BaseWidget): bool = bw.style.border
 
 
+proc `border=`*(bw: ref BaseWidget, bordered: bool) = 
+  bw.style.border = bordered
+  if bordered:
+    bw.style.paddingX1 = 1
+    bw.style.paddingX2 = 1
+    bw.style.paddingY1 = 1
+    bw.style.paddingY2 = 1 
+  else:
+    bw.style.paddingX1 = 0
+    bw.style.paddingX2 = 0
+    bw.style.paddingY1 = 0
+    bw.style.paddingY2 = 0 
+
+
 proc padding*(bw: ref BaseWidget, x1:int, x2: int, y1: int, y2: int) =
   bw.style.paddingX1 = x1
   bw.style.paddingX2 = x2
@@ -301,9 +316,14 @@ proc renderBorder*(bw: ref BaseWidget) =
   if bw.style.border:
     bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
 
+
 proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
   if bw.title != "":
-    bw.tb.write(bw.widthPaddLeft, bw.posY + index, bw.title, resetStyle)
+    if bw.focus:
+      bw.tb.write(bw.widthPaddLeft, bw.posY + index, styleBright, bw.bg, bw.fg, bw.title, resetStyle)
+    else:
+      bw.tb.write(bw.widthPaddLeft, bw.posY + index, styleDim, bw.title, resetStyle)
+
 
 
 # deprecated
@@ -316,6 +336,11 @@ proc renderCleanRow*(bw: ref BaseWidget, index = 0, cleanWith=" ") =
 
 proc renderCleanRect*(bw: ref BaseWidget, x1, y1, x2, y2: int, cleanWith=" ") =
   bw.tb.fill(x1, y1, x2, y2, cleanWith)
+
+
+proc renderRect*(bw: ref BaseWidget, x1, y1, x2, y2: int, 
+                 bgColor: BackgroundColor, fgColor: ForegroundColor, fillWith=" ") =
+  bw.tb.fill(x1, y1, x2, y2, bgColor, fgColor, fillWith)
 
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =

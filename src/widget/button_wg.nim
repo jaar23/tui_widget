@@ -18,7 +18,8 @@ type
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None}
 
 proc newButton*(px, py, w, h: int, label: string, id = "",
-                disabled = false, bgColor = bgGreen, fgColor = fgWhite,
+                disabled = false, bgColor = bgBlue, fgColor = fgWhite,
+                pressedBgColor = bgGreen,
                 tb = newTerminalBuffer(w + 2, h + py)): Button =
   let style = WidgetStyle(
     paddingX1: 1,
@@ -27,7 +28,8 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
     paddingY2: 1,
     border: true,
     fgColor: fgColor,
-    bgColor: bgColor
+    bgColor: bgColor,
+    pressedBgColor: pressedBgColor
   )
   result = Button(
     width: w,
@@ -36,6 +38,7 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
     posY: py,
     id: id,
     label: label,
+    size: h - py - style.paddingY2 - style.paddingY1,
     tb: tb,
     disabled: disabled,
     style: style,
@@ -47,16 +50,32 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
 
 
 proc newButton*(px, py: int, w, h: WidgetSize, label: string, id = "",
-                disabled = false, bgColor = bgGreen, fgColor = fgWhite,
+                disabled = false, bgColor = bgBlue, fgColor = fgWhite,
+                pressedBgColor = bgGreen,
                 tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Button =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newButton(px, py, width, height, label, id,
-                  disabled, bgColor, fgColor, tb)
+                  disabled, bgColor, fgColor, pressedBgColor, tb)
 
 
 proc newButton*(id: string): Button =
-  var button = Button(id: id)
+  var button = Button(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgBlue,
+      fgColor: fgWhite,
+      pressedBgColor: bgGreen
+    ),
+    events: initTable[string, EventFn[Button]](),
+    keyEvents: initTable[Key, EventFn[Button]]()
+  )
+  button.channel = newChan[WidgetBgEvent]()
   return button
 
 
@@ -83,14 +102,23 @@ proc call(bt: Button, key: Key) =
     fn(bt)
 
 
+method resize*(bt: Button) =
+  bt.size = bt.height - bt.posY - bt.paddingY2 - bt.paddingY1
+
+
 method render*(bt: Button) =
   if not bt.illwillInit: return
+  bt.clear()
+  bt.renderBorder()
   if bt.state == Pressed:
-    bt.renderBorder()
-    bt.tb.write(bt.x1, bt.y1, bt.bg, center(bt.label, bt.width - 2), resetStyle)
+    bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, 
+                  bt.style.pressedBgcolor, bt.fg)
+    bt.tb.write(bt.x1, bt.y1, bt.style.pressedBgcolor, bt.fg, 
+
+                center(bt.label, bt.width - 2), resetStyle)
   else:
-    bt.renderBorder()
-    bt.tb.write(bt.x1, bt.y1, bgBlue, fgBlack, 
+    bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, bt.bg, bt.fg)
+    bt.tb.write(bt.x1, bt.y1, bt.bg, bt.fg, 
                 center(bt.label, bt.width - 2), resetStyle)
   bt.tb.display()
 

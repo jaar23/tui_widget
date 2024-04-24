@@ -3,16 +3,18 @@ import tables, threading/channels
 import nimclipboard/libclipboard
 
 type
-  InputBox* = object of BaseWidget
+  InputBoxObj* = object of BaseWidget
     value: string = ""
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = ">"
-    events*: Table[string, EventFn[ref InputBox]]
-    keyEvents*: Table[Key, EventFn[ref InputBox]]
+    events*: Table[string, EventFn[InputBox]]
+    keyEvents*: Table[Key, EventFn[InputBox]]
 
   CursorDirection = enum
     Left, Right
+
+  InputBox* = ref InputBoxObj
 
 var cb = clipboard_new(nil)
 
@@ -32,12 +34,12 @@ const allowCtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF,
 
 proc formatText(val: string): string
 
-proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]):void {.raises: [EventKeyError]} 
+proc on*(ib: InputBox, key: Key, fn: EventFn[InputBox]):void {.raises: [EventKeyError]} 
 
 proc newInputBox*(px, py, w, h: int, title = "", val = "", 
                   modeChar = '>', border = true, statusbar = false,
                   bgColor = bgNone, fgColor = fgWhite,
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref InputBox =
+                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): InputBox =
   var padding = if border: 1 else: 0
   padding = if modeChar != ' ': padding + 1 else: padding + 0
   let statusbarSize = if statusbar: 1 else: 0
@@ -50,7 +52,7 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
     fgColor: fgColor,
     bgColor: bgColor
   )
-  result = (ref InputBox)(
+  result = InputBox(
     width: w,
     height: h,
     posX: px,
@@ -62,13 +64,13 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
     style: style,
     statusbar: statusbar,
     statusbarSize: statusbarSize,
-    events: initTable[string, EventFn[ref InputBox]](),
-    keyEvents: initTable[Key, EventFn[ref InputBox]]()
+    events: initTable[string, EventFn[InputBox]](),
+    keyEvents: initTable[Key, EventFn[InputBox]]()
   )
   # to ensure key responsive, default to < 50  
   if result.refreshWaitTime > 50: result.refreshWaitTime = 50
   # register paste event
-  result.on(Key.CtrlV, proc(ib: ref InputBox, args:varargs[string]) =
+  result.on(Key.CtrlV, proc(ib: InputBox, args:varargs[string]) =
     let copiedText = $cb.clipboard_text()
     ib.value.insert(formatText(copiedText), ib.cursor)
     ib.cursor = ib.cursor + copiedText.len
@@ -80,11 +82,32 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
 proc newInputBox*(px, py: int, w, h: WidgetSize, title = "", val = "", 
                   modeChar = '>', border = true, statusbar = false,
                   bgColor = bgNone,fgColor = fgWhite,                   
-                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref InputBox =
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): InputBox =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newInputBox(px, py, width, height, title, val, modeChar, border, 
                      statusbar, bgColor, fgColor, tb)
+
+
+proc newInputBox*(id: string): InputBox =
+  var input = InputBox(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    events: initTable[string, EventFn[InputBox]](),
+    keyEvents: initTable[Key, EventFn[InputBox]]()
+  )
+  # to ensure key responsive, default to < 50  
+  if input.refreshWaitTime > 50: input.refreshWaitTime = 50
+  input.channel = newChan[WidgetBgEvent]()
+  return input
 
 
 proc rtlRange(val: string, size: int, cursor: int): (int, int, int) =
@@ -130,11 +153,11 @@ proc formatText(val: string): string =
   return replaced
 
 
-proc clear(ib: ref InputBox) =
+proc clear(ib: InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
 
 
-proc renderStatusbar(ib: ref InputBox) =
+proc renderStatusbar(ib: InputBox) =
   if ib.events.hasKey("statusbar"):
     ib.call("statusbar")
   else:
@@ -143,7 +166,7 @@ proc renderStatusbar(ib: ref InputBox) =
     ib.tb.write(ib.x2 - cursorStr.len, ib.height, bgBlue, fgWhite, cursorStr, resetStyle)
 
 
-method render*(ib: ref InputBox) =
+method render*(ib: InputBox) =
   if not ib.illwillInit: return
   ib.clear()
   ib.renderBorder()
@@ -163,23 +186,23 @@ method render*(ib: ref InputBox) =
   ib.tb.display()
 
 
-proc remove*(ib : ref InputBox) =
+proc remove*(ib : InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 1, " ")
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 2, " ")
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.posY + 3, " ")
   ib.clear()
 
 
-proc rerender(ib: ref InputBox) =
+proc rerender(ib: InputBox) =
   ib.tb.fill(ib.posX, ib.posY, ib.width, ib.height, " ")
   ib.render()
 
 
-proc overflowWidth(ib: ref InputBox, moved = 1) =
+proc overflowWidth(ib: InputBox, moved = 1) =
   ib.cursor = ib.cursor + moved
 
 
-proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
+proc cursorMove(ib: InputBox, direction: CursorDirection) =
   case direction
   of Left:
     if ib.cursor >= 1:
@@ -201,11 +224,11 @@ proc cursorMove(ib: ref InputBox, direction: CursorDirection) =
     ib.visualCursor = vcursorPos
 
 
-proc on*(ib: ref InputBox, event: string, fn: EventFn[ref InputBox]) =
+proc on*(ib: InputBox, event: string, fn: EventFn[InputBox]) =
   ib.events[event] = fn
 
 
-proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]) {.raises: [EventKeyError]} =
+proc on*(ib: InputBox, key: Key, fn: EventFn[InputBox]) {.raises: [EventKeyError]} =
   if key in allowKeyBind or key in allowFnKeys or key in allowCtrlKeys: 
     ib.keyEvents[key] = fn
   else:
@@ -213,25 +236,25 @@ proc on*(ib: ref InputBox, key: Key, fn: EventFn[ref InputBox]) {.raises: [Event
     
 
 
-method call*(ib: ref InputBox, event: string, args: varargs[string]) =
+method call*(ib: InputBox, event: string, args: varargs[string]) =
   let fn = ib.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ib, args)
 
 
-method call*(ib: InputBox, event: string, args: varargs[string]) =
+method call*(ib: InputBoxObj, event: string, args: varargs[string]) =
   let fn = ib.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(ib.asRef(), args)
 
 
-proc call(ib: ref InputBox, key: Key, args: varargs[string]) =
+proc call(ib: InputBox, key: Key, args: varargs[string]) =
   let fn = ib.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(ib, args)
 
 
-method onUpdate*(ib: ref InputBox, key: Key) = 
+method onUpdate*(ib: InputBox, key: Key) = 
   const EscapeKeys = {Key.Escape, Key.Tab}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
@@ -405,7 +428,7 @@ method onUpdate*(ib: ref InputBox, key: Key) =
   ib.render()
 
 
-method onControl*(ib: ref InputBox) = 
+method onControl*(ib: InputBox) = 
   ib.focus = true
   ib.mode = ">"
   while ib.focus:
@@ -413,31 +436,31 @@ method onControl*(ib: ref InputBox) =
     ib.onUpdate(key)
  
 
-method wg*(ib: ref InputBox): ref BaseWidget = ib
+method wg*(ib: InputBox): ref BaseWidget = ib
 
 
-proc val(ib: ref InputBox, val: string) =
+proc val(ib: InputBox, val: string) =
   ib.value = formatText(val)
   ib.cursor = val.len
   ib.render()
 
 
-proc `value=`*(ib: ref InputBox, val: string) = 
+proc `value=`*(ib: InputBox, val: string) = 
   ib.val(val)
 
 
-proc value*(ib: ref InputBox, val: string) = 
+proc value*(ib: InputBox, val: string) = 
   ib.val(val)
 
 
-proc value*(ib: ref InputBox): string = ib.value
+proc value*(ib: InputBox): string = ib.value
 
 
-proc onEnter*(ib: ref InputBox, enterEv: EventFn[ref InputBox]) =
+proc onEnter*(ib: InputBox, enterEv: EventFn[InputBox]) =
   ib.on("enter", enterEv)
 
 
-proc `onEnter=`*(ib: ref InputBox, enterEv: EventFn[ref InputBox]) =
+proc `onEnter=`*(ib: InputBox, enterEv: EventFn[InputBox]) =
   ib.on("enter", enterEv)
 
 

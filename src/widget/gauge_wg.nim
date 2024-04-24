@@ -7,13 +7,14 @@ type
   PercentileColor* = enum
     Tweenty, Fourthy, Sixty, Eighty, Hundred
 
-  Gauge* = object of BaseWidget
+  GaugeObj* = object of BaseWidget
     percent: GaugePercent
-    loadedBlock: char
-    loadingBlock: char
-    percentileColor: array[PercentileColor, ForegroundColor]
-    events*: Table[string, EventFn[ref Gauge]]
+    loadedBlock*: char = ' '
+    loadingBlock*: char = '|'
+    percentileColor*: array[PercentileColor, ForegroundColor]
+    events*: Table[string, EventFn[Gauge]]
 
+  Gauge* = ref GaugeObj
 
 proc newGauge*(px, py, w, h: int, id = "",
                border = true, percent: GaugePercent = 0.0,
@@ -23,7 +24,7 @@ proc newGauge*(px, py, w, h: int, id = "",
                fgColor: ForegroundColor = fgWhite, 
                percentileColor: array[PercentileColor, ForegroundColor] = [
                 fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
-               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Gauge =
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Gauge =
   let padding = if border: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
@@ -35,7 +36,7 @@ proc newGauge*(px, py, w, h: int, id = "",
     bgColor: bgColor
   )
 
-  result = (ref Gauge)(
+  result = Gauge(
     width: w,
     height: h,
     posX: px,
@@ -47,7 +48,7 @@ proc newGauge*(px, py, w, h: int, id = "",
     loadedBlock: loadedBlock,
     loadingBlock: loadingBlock,
     percentileColor: percentileColor,
-    events: initTable[string, EventFn[ref Gauge]]()
+    events: initTable[string, EventFn[Gauge]]()
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
@@ -61,7 +62,7 @@ proc newGauge*(px, py: int, w, h: WidgetSize, id = "",
                fgColor = fgWhite, 
                percentileColor: array[PercentileColor, ForegroundColor] = [
                 fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
-               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Gauge =
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Gauge =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newGauge(px, py, width, height, id, border,
@@ -69,11 +70,22 @@ proc newGauge*(px, py: int, w, h: WidgetSize, id = "",
                   percentileColor, tb) 
 
 
-proc renderClearRow(g: ref Gauge): void =
+proc newGauge*(id: string): Gauge =
+  var gauge = Gauge(
+    id: id,
+    percent: 0.0,
+    percentileColor: [fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
+    events: initTable[string, EventFn[Gauge]]()
+  )
+  gauge.channel = newChan[WidgetBgEvent]()
+  return gauge
+
+
+proc renderClearRow(g: Gauge): void =
   g.tb.fill(g.x1, g.posY, g.x2, g.height, " ")
 
 
-method render*(g: ref Gauge) =
+method render*(g: Gauge) =
   if not g.illwillInit: return
   g.renderClearRow()
   var fullGauge = g.x2 - 8
@@ -106,10 +118,10 @@ method render*(g: ref Gauge) =
   g.tb.display()
 
 
-method wg*(g: ref Gauge): ref BaseWidget = g
+method wg*(g: Gauge): ref BaseWidget = g
 
 
-proc set*(g: ref Gauge, point: float) =
+proc set*(g: Gauge, point: float) =
   if point >= GaugePercent.high:
     g.percent = GaugePercent.high
   elif point <= 0.0:
@@ -119,22 +131,22 @@ proc set*(g: ref Gauge, point: float) =
   g.render()
 
 
-proc completed*(g: ref Gauge) =
+proc completed*(g: Gauge) =
   g.percent = 100.0
   g.render()
 
 
-proc on*(g: ref Gauge, event: string, fn: EventFn[ref Gauge]) =
+proc on*(g: Gauge, event: string, fn: EventFn[Gauge]) =
   g.events[event] = fn
 
 
-method call*(g: ref Gauge, event: string, args: varargs[string]) =
+method call*(g: Gauge, event: string, args: varargs[string]) =
   let fn = g.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(g, args)
 
 
-method call*(g: Gauge, event: string, args: varargs[string]) =
+method call*(g: GaugeObj, event: string, args: varargs[string]) =
   let fn = g.events.getOrDefault(event, nil)
   if not fn.isNil:
     # new reference will be created
@@ -142,10 +154,11 @@ method call*(g: Gauge, event: string, args: varargs[string]) =
     fn(gRef, args)
     
 
-method poll*(g: ref Gauge) =
+method poll*(g: Gauge) =
   var widgetEv: WidgetBgEvent
   if g.channel.tryRecv(widgetEv):
     g.call(widgetEv.event, widgetEv.args)
     g.render()
+
 
 

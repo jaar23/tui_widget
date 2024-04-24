@@ -22,8 +22,7 @@ type
     cursorAtLineBg*: BackgroundColor
     cursorAtLineFg*: ForegroundColor
 
-
-  TextArea* = object of BaseWidget
+  TextAreaObj* = object of BaseWidget
     textRows: seq[string] = newSeq[string]()
     value: string = ""
     rows: int = 0
@@ -36,11 +35,12 @@ type
     viHistory: Deque[ViHistory]
     viStyle*: ViStyle
     viSelection: ViSelection
-    events*: Table[string, EventFn[ref TextArea]]
-    editKeyEvents*: Table[Key, EventFn[ref TextArea]]
-    normalKeyEvents*: Table[Key, EventFn[ref TextArea]]
-    visualKeyEvents*: Table[Key, EventFn[ref TextArea]]
+    events*: Table[string, EventFn[TextArea]]
+    editKeyEvents*: Table[Key, EventFn[TextArea]]
+    normalKeyEvents*: Table[Key, EventFn[TextArea]]
+    visualKeyEvents*: Table[Key, EventFn[TextArea]]
 
+  TextArea* = ref TextAreaObj
 
 var cb = clipboard_new(nil)
 
@@ -48,14 +48,14 @@ cb.clipboard_clear(LCB_CLIPBOARD)
 
 const cursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
 
-proc help(t: ref TextArea, args: varargs[string]): void
+proc help(t: TextArea, args: varargs[string]): void
 
 proc newViStyle(nbg: BackgroundColor = bgBlue, tg: BackgroundColor = bgCyan,
                 vbg: BackgroundColor = bgYellow,
                 nfg: ForegroundColor = fgWhite, ifg: ForegroundColor = fgWhite,
                 vfg: ForegroundColor = fgWhite,
                 calBg: BackgroundColor = bgWhite,
-                    calFg: ForegroundColor = fgBlack): ViStyle =
+                calFg: ForegroundColor = fgBlack): ViStyle =
   result = ViStyle(
     normalBg: nbg,
     insertBg: tg,
@@ -74,7 +74,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
                   cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
-                  tb = newTerminalBuffer(w+2, h+py)): ref TextArea =
+                  tb = newTerminalBuffer(w+2, h+py)): TextArea =
   ## works like a HTML textarea
   ## x1---------------x2
   ## |
@@ -91,7 +91,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     fgColor: fgColor,
     bgColor: bgColor
   )
-  var textArea = (ref TextArea)(
+  var textArea = TextArea(
     width: w,
     height: h,
     posX: px,
@@ -114,10 +114,10 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     viHistory: initDeque[ViHistory](),
     viStyle: viStyle,
     viSelection: (startat: 0, endat: 0, direction: Right),
-    events: initTable[string, EventFn[ref TextArea]](),
-    editKeyEvents: initTable[Key, EventFn[ref TextArea]](),
-    normalKeyEvents: initTable[Key, EventFn[ref TextArea]](),
-    visualKeyEvents: initTable[Key, EventFn[ref TextArea]](),
+    events: initTable[string, EventFn[TextArea]](),
+    editKeyEvents: initTable[Key, EventFn[TextArea]](),
+    normalKeyEvents: initTable[Key, EventFn[TextArea]](),
+    visualKeyEvents: initTable[Key, EventFn[TextArea]](),
     blocking: true
   )
   # to ensure key responsive, default < 50ms
@@ -136,13 +136,45 @@ proc newTextArea*(px, py: int, w, h: WidgetSize, title = ""; val = " ";
                   cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
-                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref TextArea =
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): TextArea =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newTextArea(px, py, width, height, title, val, border, statusbar, enableHelp,
                      bgColor, fgColor, cursorBg, cursorFg, cursorStyle, enableViMode,
                      viMode, viStyle, tb) 
- 
+
+
+proc newTextArea*(id: string): TextArea =
+  var textarea = TextArea(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    cursorBg: bgBlue,
+    cursorFg: fgWhite,
+    cursorStyle: Block,
+    viHistory: initDeque[ViHistory](),
+    viStyle: newViStyle(),
+    viSelection: (startat: 0, endat: 0, direction: Right),
+    events: initTable[string, EventFn[TextArea]](),
+    editKeyEvents: initTable[Key, EventFn[TextArea]](),
+    normalKeyEvents: initTable[Key, EventFn[TextArea]](),
+    visualKeyEvents: initTable[Key, EventFn[TextArea]](),
+    blocking: true
+  )
+  # to ensure key responsive, default < 50ms
+  if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
+  textArea.channel = newChan[WidgetBgEvent]()
+  textArea.normalKeyEvents[Key.QuestionMark] = help
+  textArea.visualKeyEvents[Key.QuestionMark] = help
+  return textarea
+
 
 func splitBySize(val: string, size: int, rows: int): seq[string] =
   result = newSeq[string]()
@@ -155,11 +187,11 @@ func splitBySize(val: string, size: int, rows: int): seq[string] =
     result.add(val)
 
 
-func rowReCal(t: ref TextArea) =
+func rowReCal(t: TextArea) =
   t.textRows = splitBySize(t.value, t.cols, t.rows)
 
 
-func cursorMove(t: ref TextArea, moved: int) =
+func cursorMove(t: TextArea, moved: int) =
   t.cursor = t.cursor + moved
   if t.cursor > t.value.len: t.cursor = t.value.len - 1
   if t.cursor < 0: t.cursor = 0
@@ -168,7 +200,7 @@ func cursorMove(t: ref TextArea, moved: int) =
   elif t.cursor < t.cols * max(t.rowCursor, 1):
     t.rowCursor = max(0, t.rowCursor - 1)
 
-func enter(t: ref TextArea) =
+func enter(t: TextArea) =
   # find out remaining space until next line
   var rem = t.cursor - ((t.rowCursor + 1) * t.cols)
   # make rem positive
@@ -180,36 +212,36 @@ func enter(t: ref TextArea) =
   t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
-func moveUp(t: ref TextArea) =
+func moveUp(t: TextArea) =
   t.cursor = max(0, t.cursor - t.cols)
   if t.cursor < t.cols * max(t.rowCursor, 1):
     t.rowCursor = max(0, t.rowCursor - 1)
 
 
-func moveDown(t: ref TextArea) =
+func moveDown(t: TextArea) =
   t.cursor = min(t.value.len - 1, t.cursor + t.cols)
   if t.cursor > t.cols * max(t.rowCursor, 1):
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
-func moveLeft(t: ref TextArea) =
+func moveLeft(t: TextArea) =
   t.cursor = max(0, t.cursor - 1)
   if t.cursor < t.cols * t.rowCursor:
     t.rowCursor = max(0, t.rowCursor - 1)
 
 
-func moveRight(t: ref TextArea) =
+func moveRight(t: TextArea) =
   t.cursor = min(t.value.len - 1, t.cursor + 1)
   if t.cursor > t.cols * (t.rowCursor + 1):
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
-func moveToBegin(t: ref TextArea) =
+func moveToBegin(t: TextArea) =
   let beginCursor = t.rowCursor * t.cols
   t.cursor = max(0, beginCursor)
 
 
-func moveToEnd(t: ref TextArea) =
+func moveToEnd(t: TextArea) =
   let endCursor = ((t.rowCursor + 1) * t.cols) - 1
   t.cursor = min(t.value.len - 1, endCursor)
   for p in countdown(t.cursor, 0):
@@ -217,7 +249,7 @@ func moveToEnd(t: ref TextArea) =
     else: break
 
 
-func moveToNextWord(t: ref TextArea) =
+func moveToNextWord(t: TextArea) =
   var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
                     '(', ')', '*', '&', '^', '%', '$',
@@ -246,7 +278,7 @@ func moveToNextWord(t: ref TextArea) =
 
 
 
-func moveToPrevWord(t: ref TextArea) =
+func moveToPrevWord(t: TextArea) =
   var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
                     '(', ')', '*', '&', '^', '%', '$',
@@ -275,12 +307,12 @@ func moveToPrevWord(t: ref TextArea) =
 
 
 
-func select(t: ref TextArea) =
+func select(t: TextArea) =
   t.viSelection.startat = t.cursor
   t.viSelection.endat = t.cursor
 
 
-func selectMoveLeft(t: ref TextArea, key: Key) =
+func selectMoveLeft(t: TextArea, key: Key) =
   if key in {Key.Left, Key.H}:
     t.moveLeft()
   elif key in {Key.Home, Key.Caret}:
@@ -298,7 +330,7 @@ func selectMoveLeft(t: ref TextArea, key: Key) =
     t.viSelection.direction = Left
 
 
-func selectMoveRight(t: ref TextArea, key: Key) =
+func selectMoveRight(t: TextArea, key: Key) =
   if key in {Key.Right, Key.L}:
     t.moveRight()
   elif key in {Key.End, Key.Dollar}:
@@ -316,13 +348,13 @@ func selectMoveRight(t: ref TextArea, key: Key) =
     t.viSelection.direction = Right
 
 
-func delAtCursor(t: ref TextArea) =
+func delAtCursor(t: TextArea) =
   if t.value.len > 0:
     t.value.delete(t.cursor .. t.cursor)
   if t.cursor == t.value.len: t.value &= " "
 
 
-func delAtStartEndCursor(t: ref TextArea, startat, endat: int) =
+func delAtStartEndCursor(t: TextArea, startat, endat: int) =
   try:
     if t.value.len > 0:
       let endat2 = if endat == t.value.len - 1: endat - 1 else: endat
@@ -336,7 +368,7 @@ func delAtStartEndCursor(t: ref TextArea, startat, endat: int) =
     t.statusbarText = "failed to delete selected string"
 
 
-func delLine(t: ref TextArea) =
+func delLine(t: TextArea) =
   try:
     if t.value.len > 0:
       t.moveToEnd()
@@ -352,13 +384,13 @@ func delLine(t: ref TextArea) =
     t.statusbarText = "failed to delete line"
 
 
-func putAtCursor(t: ref TextArea, content: string) =
+func putAtCursor(t: TextArea, content: string) =
   t.value.insert(content, t.cursor)
   t.cursor = t.cursor + content.len
   t.rowReCal()
 
 
-func putAtCursor(t: ref TextArea, content: string, cursor: int,
+func putAtCursor(t: TextArea, content: string, cursor: int,
                  updateCursor = true) =
   try:
     t.value.insert(content, cursor)
@@ -369,17 +401,17 @@ func putAtCursor(t: ref TextArea, content: string, cursor: int,
   return
 
 
-func cursorAtLine(t: ref TextArea): (int, int) =
+func cursorAtLine(t: TextArea): (int, int) =
   let r = t.rowCursor * t.cols
   let lineCursor = t.cursor - r
   return (t.rowCursor + 1, lineCursor)
 
 
-proc on*(t: ref TextArea, event: string, fn: EventFn[ref TextArea]) =
+proc on*(t: TextArea, event: string, fn: EventFn[TextArea]) =
   t.events[event] = fn
 
 
-proc onNormalMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+proc onNormalMode(t: TextArea, key: Key, fn: EventFn[TextArea]) =
   const forbiddenKeys = {Key.I, Key.Insert, Key.V, Key.ShiftA, Key.Delete,
                         Key.Left, Key.Right, Key.Backspace, Key.H,
                         Key.L, Key.Up, Key.K, Key.Down, Key.J, Key.Home,
@@ -392,7 +424,7 @@ proc onNormalMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
     t.normalKeyEvents[key] = fn
 
 
-proc onEditMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+proc onEditMode(t: TextArea, key: Key, fn: EventFn[TextArea]) =
   const allowFnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
                        Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
 
@@ -408,7 +440,7 @@ proc onEditMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
 
 
-proc onVisualMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
+proc onVisualMode(t: TextArea, key: Key, fn: EventFn[TextArea]) =
   const forbiddenKeys = {Key.Escape, Key.Tab, Key.V, Key.Y, Key.P,
                         Key.Left, Key.Right, Key.Backspace, Key.H,
                         Key.L, Key.Up, Key.K, Key.Down, Key.J, Key.Home,
@@ -420,7 +452,7 @@ proc onVisualMode(t: ref TextArea, key: Key, fn: EventFn[ref TextArea]) =
     t.visualKeyEvents[key] = fn
 
 
-proc on*(t: ref TextArea, key: Key, fn: EventFn[ref TextArea],
+proc on*(t: TextArea, key: Key, fn: EventFn[TextArea],
     vimode: ViMode = Insert) {.raises: [EventKeyError].} =
   if t.enableViMode:
     if vimode == Normal:
@@ -434,13 +466,13 @@ proc on*(t: ref TextArea, key: Key, fn: EventFn[ref TextArea],
 
 
 
-proc call*(t: ref TextArea, event: string, args: varargs[string]) =
+proc call*(t: TextArea, event: string, args: varargs[string]) =
   let fn = t.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(t, args)
 
 
-proc call(t: ref TextArea, key: Key, args: varargs[string]) =
+proc call(t: TextArea, key: Key, args: varargs[string]) =
   if t.enableViMode:
     if t.vimode == Normal:
       let fn = t.normalKeyEvents.getOrDefault(key, nil)
@@ -460,7 +492,7 @@ proc call(t: ref TextArea, key: Key, args: varargs[string]) =
       fn(t, args)
 
 
-proc help(t: ref TextArea, args: varargs[string]) =
+proc help(t: TextArea, args: varargs[string]) =
   let wsize = ((t.width - t.posX).toFloat * 0.3).toInt()
   let hsize = ((t.height - t.posY).toFloat * 0.3).toInt()
   var display = newDisplay(t.x2 - wsize, t.y2 - hsize, 
@@ -512,7 +544,7 @@ proc help(t: ref TextArea, args: varargs[string]) =
   display.clear()
 
 
-method render*(t: ref TextArea) =
+method render*(t: TextArea) =
   if not t.illwillInit: return
 
   t.clear()
@@ -602,17 +634,17 @@ method render*(t: ref TextArea) =
   t.tb.display()
 
 
-proc resetCursor*(t: ref TextArea) =
+proc resetCursor*(t: TextArea) =
   t.rowCursor = 0
   t.cursor = 0
   t.statusbarText = ""
 
 
-proc commandEvent*(t: ref TextArea) =
+proc commandEvent*(t: TextArea) =
   var input = newInputBox(t.x1 + 9, t.y2,
                           t.x1 + 9 + 12, t.y2,
                          tb = t.tb, border = true)
-  let enterEv = proc(ib: ref InputBox, x: varargs[string]) =
+  let enterEv = proc(ib: InputBox, x: varargs[string]) =
     if t.events.hasKey(ib.value()):
       t.call(ib.value())
     input.focus = false
@@ -649,7 +681,7 @@ proc identifyKey(keys: seq[Key]): Key =
       return Key.None
 
 
-proc normalMode(t: ref TextArea) =
+proc normalMode(t: TextArea) =
   ## minimal supported of vi keybinding
   ##
   ## .. code-block::
@@ -780,7 +812,7 @@ proc normalMode(t: ref TextArea) =
       t.render()
 
 
-proc visualMode(t: ref TextArea) =
+proc visualMode(t: TextArea) =
   ## minimal supported of vi keybinding
   ##
   ## .. code-block::
@@ -853,7 +885,7 @@ proc visualMode(t: ref TextArea) =
     sleep(t.refreshWaitTime)
 
 
-method onUpdate*(t: ref TextArea, key: Key) =
+method onUpdate*(t: TextArea, key: Key) =
   const FnKeys = {Key.F1, Key.F2, Key.F3, Key.F4, Key.F5, Key.F6,
                   Key.F7, Key.F8, Key.F9, Key.F10, Key.F11, Key.F12}
   const CtrlKeys = {Key.CtrlA, Key.CtrlB, Key.CtrlC, Key.CtrlD, Key.CtrlF,
@@ -1030,7 +1062,7 @@ method onUpdate*(t: ref TextArea, key: Key) =
   sleep(t.refreshWaitTime)
 
 
-proc editMode(t: ref TextArea) =
+proc editMode(t: TextArea) =
   while t.focus:
     var key = getKeyWithTimeout(t.refreshWaitTime)
     if t.enableViMode and t.vimode == Normal and key in {Key.I, Key.ShiftI, Key.Insert}:
@@ -1045,7 +1077,7 @@ proc editMode(t: ref TextArea) =
     else: t.onUpdate(key)
    
 
-method onControl*(t: ref TextArea) =
+method onControl*(t: TextArea) =
   t.focus = true
   while t.focus:
     if t.enableViMode and t.vimode == Insert:
@@ -1061,14 +1093,14 @@ method onControl*(t: ref TextArea) =
     sleep(t.refreshWaitTime)
 
 
-method wg*(t: ref TextArea): ref BaseWidget = t
+method wg*(t: TextArea): ref BaseWidget = t
 
 
-proc value*(t: ref TextArea): string =
+proc value*(t: TextArea): string =
   return t.value[0 ..< t.value.len - 1]
 
 
-proc val(t: ref TextArea, val: string) =
+proc val(t: TextArea, val: string) =
   t.clear()
   t.value = val & " "
   t.rowReCal()
@@ -1078,9 +1110,9 @@ proc val(t: ref TextArea, val: string) =
   t.render()
 
 
-proc `value=`*(t: ref TextArea, val: string) =
+proc `value=`*(t: TextArea, val: string) =
   t.val(val)
 
-proc value*(t: ref TextArea, val: string) =
+proc value*(t: TextArea, val: string) =
   t.val(val)
 

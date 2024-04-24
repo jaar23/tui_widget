@@ -54,7 +54,22 @@ proc newContainer*(px, py: int, w, h: WidgetSize, id = "", title = "",
 
 
 proc newContainer*(id: string): Container =
-  var container = Container(id: id)
+  var container = Container(
+    id: id,
+    groups: true,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgWhite,
+      fgColor: fgBlack
+    ),
+    events: initTable[string, EventFn[Container]](),
+    keyEvents: initTable[Key, EventFn[Container]]()
+  )
+  container.channel = newChan[WidgetBgEvent]()
   return container
 
 

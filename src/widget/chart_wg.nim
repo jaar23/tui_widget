@@ -84,7 +84,26 @@ proc newChart*(px, py: int, w, h: WidgetSize, id = "",
   let height = (consoleHeight().toFloat * h).toInt
   return newChart(px, py, width, height, id, axis, title, border,
                   bgColor, fgColor, tb)
- 
+
+
+proc newChart*(id: string): Chart =
+  var chart = Chart(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    events: initTable[string, EventFn[Chart]](),
+    keyEvents: initTable[Key, EventFn[Chart]]()
+  )
+  chart.channel = newChan[WidgetBgEvent]()
+  return chart
+
 
 proc renderAsciiGraph(c: Chart) =
   try:

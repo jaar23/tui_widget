@@ -5,21 +5,22 @@ import threading/channels
 # alphanumeric text.
 # Try to convert the source text to alphanumeric text before run it
 type
-  CustomRowRecal* = proc(text: string, dp: ref Display): seq[string]
+  CustomRowRecal* = proc(text: string, dp: Display): seq[string]
 
-  Display* = object of BaseWidget
+  DisplayObj* = object of BaseWidget
     text: string = ""
     textRows: seq[string] = newSeq[string]()
     wordwrap*: bool = false
     useCustomTextRow* = false
-    customRowRecal: Option[CustomRowRecal]
-    events*: Table[string, EventFn[ref Display]]
-    keyEvents*: Table[Key, EventFn[ref Display]]
+    customRowRecal*: Option[CustomRowRecal]
+    events*: Table[string, EventFn[Display]]
+    keyEvents*: Table[Key, EventFn[Display]]
 
+  Display* = ref DisplayObj
 
-proc help(dp: ref Display, args: varargs[string]): void
+proc help(dp: Display, args: varargs[string]): void
 
-proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKeyError]}
+proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].}
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown, Key.Home,
@@ -32,7 +33,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
                  bgColor: BackgroundColor = bgNone,
                  fgColor: ForegroundColor = fgWhite,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
-                 tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): ref Display =
+                 tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Display =
   let padding = if border: 1 else: 0
   let statusbarSize = if statusbar: 1 else: 0
   let style = WidgetStyle(
@@ -44,7 +45,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
     fgColor: fgColor,
     bgColor: bgColor
   )
-  result = (ref Display)(
+  result = (Display)(
     width: w,
     height: h,
     posX: px,
@@ -61,8 +62,8 @@ proc newDisplay*(px, py, w, h: int, id = "";
     wordwrap: wordwrap,
     customRowRecal: customRowRecal,
     useCustomTextRow: if customRowRecal.isSome: true else: false,
-    events: initTable[string, EventFn[ref Display]](),
-    keyEvents: initTable[Key, EventFn[ref Display]]()
+    events: initTable[string, EventFn[Display]](),
+    keyEvents: initTable[Key, EventFn[Display]]()
   )
   result.helpText = " [W]   toggle wordwrap\n" &
                     " [?]   for help\n" &
@@ -81,14 +82,40 @@ proc newDisplay*(px, py: int, w, h: WidgetSize, id = "";
                  bgColor = bgNone,
                  fgColor = fgWhite,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
-                 tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Display =
+                 tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Display =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newDisplay(px, py, width, height, id, title, text, border,
                     statusbar, wordwrap, enableHelp, bgColor, fgColor,
                     customRowRecal, tb)
 
+
+proc newDisplay*(id: string): Display =
+  var display = Display(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    events: initTable[string, EventFn[Display]](),
+    keyEvents: initTable[Key, EventFn[Display]]()
+  )
+
+  display.helpText = " [W]   toggle wordwrap\n" &
+                     " [?]   for help\n" &
+                     " [Tab]  to go next widget\n" & 
+                     " [Esc] to exit this window"
+  display.on(Key.QuestionMark, help)
+  display.channel = newChan[WidgetBgEvent]()
+  return display
  
+
+
 proc splitBySize(val: string, size: int, rows: int,
                  visualSkip = 2): seq[string] =
   if val.len() > size:
@@ -133,7 +160,7 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
   return formattedText
 
 
-proc rowReCal(dp: ref Display) =
+proc rowReCal(dp: Display) =
   if dp.wordwrap:
     let rows = dp.text.len / toInt(dp.x2.toFloat() * 0.5)
     dp.textRows = dp.text.splitBySize(dp.x2 - dp.x1, toInt(rows) +
@@ -141,7 +168,8 @@ proc rowReCal(dp: ref Display) =
   else:
     dp.textRows = textWindow(dp.text, dp.x2 - dp.x1, dp.cursor)
 
-proc help(dp: ref Display, args: varargs[string]) = 
+
+proc help(dp: Display, args: varargs[string]) = 
   let wsize = ((dp.width - dp.posX).toFloat * 0.3).toInt()
   let hsize = ((dp.height - dp.posY).toFloat * 0.3).toInt()
   var display = newDisplay(dp.x2 - wsize, dp.y2 - hsize, 
@@ -162,7 +190,7 @@ proc help(dp: ref Display, args: varargs[string]) =
   display.clear()
 
 
-proc renderStatusbar(dp: ref Display) =
+proc renderStatusbar(dp: Display) =
   ## custom statusbar rendering uses event name 'statusbar'
   if dp.events.hasKey("statusbar"):
     dp.call("statusbar")
@@ -182,12 +210,12 @@ proc renderStatusbar(dp: ref Display) =
                   ww, resetStyle)
 
 
-method resize*(dp: ref Display) =
+method resize*(dp: Display) =
   let statusbarSize = if dp.statusbar: 1 else: 0
   dp.size = dp.height - statusbarSize - dp.posY - (dp.paddingY1 * 2)
 
 
-method render*(dp: ref Display) =
+method render*(dp: Display) =
   if not dp.illwillInit: return
   if dp.useCustomTextRow: 
     let customFn = dp.customRowRecal.get
@@ -213,48 +241,48 @@ method render*(dp: ref Display) =
   #setDoubleBuffering(true)
 
 
-proc resetCursor*(dp: ref Display) =
+proc resetCursor*(dp: Display) =
   dp.rowCursor = 0
   dp.cursor = 0
 
 
-proc on*(dp: ref Display, event: string, fn: EventFn[ref Display]) =
+proc on*(dp: Display, event: string, fn: EventFn[Display]) =
   dp.events[event] = fn
 
 
-proc on*(dp: ref Display, key: Key, fn: EventFn[ref Display]) {.raises: [EventKeyError]} =
+proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].} =
   if key in forbiddenKeyBind: 
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   dp.keyEvents[key] = fn
     
 
-method call*(dp: ref Display, event: string, args: varargs[string]) =
+method call*(dp: Display, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(dp, args)
 
 
-method call*(dp: Display, event: string, args: varargs[string]) =
+method call*(dp: DisplayObj, event: string, args: varargs[string]) =
   let fn = dp.events.getOrDefault(event, nil)
   if not fn.isNil:
     let dpRef = dp.asRef()
     fn(dpRef, args)
     
 
-proc call(dp: ref Display, key: Key) =
+proc call(dp: Display, key: Key) =
   let fn = dp.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(dp)
 
 
-method poll*(dp: ref Display) =
+method poll*(dp: Display) =
   var widgetEv: WidgetBgEvent
   if dp.channel.tryRecv(widgetEv):
     dp.call(widgetEv.event, widgetEv.args)
     dp.render()
 
 
-method onUpdate*(dp: ref Display, key: Key) =
+method onUpdate*(dp: Display, key: Key) =
   # reset
   if dp.visibility == false: 
     dp.cursor = 0
@@ -303,7 +331,7 @@ method onUpdate*(dp: ref Display, key: Key) =
   #sleep(dp.refreshWaitTime)
 
 
-method onControl*(dp: ref Display) =
+method onControl*(dp: Display) =
   if dp.visibility == false: 
     dp.cursor = 0
     dp.rowCursor = 0
@@ -321,49 +349,43 @@ method onControl*(dp: ref Display) =
     sleep(dp.refreshWaitTime)
 
 
-method wg*(dp: ref Display): ref BaseWidget = dp
+method wg*(dp: Display): ref BaseWidget = dp
 
 
-proc text*(dp: ref Display): string = dp.text
+proc text*(dp: Display): string = dp.text
 
 
-proc val(dp: ref Display, val: string) =
-  dp.clear()
+proc val(dp: Display, val: string) =
   dp.text = val
-  if dp.useCustomTextRow: 
-    let customFn = dp.customRowRecal.get
-    dp.textRows = customFn(dp.text, dp)
-  else: 
-    dp.rowReCal()
-  dp.render()
+  if dp.width > 0:
+    if dp.useCustomTextRow: 
+      let customFn = dp.customRowRecal.get
+      dp.textRows = customFn(dp.text, dp)
+    else: 
+      dp.rowReCal()
+    dp.render()
 
 
-proc `text=`*(dp: ref Display, text: string) =
+proc `text=`*(dp: Display, text: string) =
   dp.val(text)
 
 
-proc `text=`*(dp: ref Display, text: string, customRowRecal: proc(text: string, dp: ref Display): seq[string]) =
+proc `text=`*(dp: Display, text: string, customRowRecal: proc(text: string, dp: Display): seq[string]) =
   dp.textRows = customRowRecal(text, dp)
   dp.useCustomTextRow = true
   dp.val(text)
 
 
-proc `wordwrap=`*(dp: ref Display, wrap: bool) =
+proc `wordwrap=`*(dp: Display, wrap: bool) =
   if dp.visibility:
     dp.wordwrap = wrap
     dp.render()
 
 
-proc add*(dp: ref Display, text: string, autoScroll=false) =
+proc add*(dp: Display, text: string, autoScroll=false) =
   dp.text &= text
   dp.val(dp.text)
   if autoScroll and dp.textRows.len > dp.size: 
     dp.rowCursor = min(dp.textRows.len - 1, dp.rowCursor + 1)
 
 
-# proc `enableHelp=`*(dp: ref Display, enable: bool) =
-#   dp.enableHelp = enable
-#   if dp.enableHelp:
-#     dp.on(Key.QuestionMark, help)
-#   else:
-#     dp.keyEvents.del(Key.QuestionMark)

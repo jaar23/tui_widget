@@ -2,7 +2,7 @@ import illwill, base_wg, sequtils, strutils, os, tables, display_wg
 import threading/channels
 
 type
-  ListRow* = object
+  ListRowObj* = object
     index: int
     text: string
     value*: string
@@ -12,27 +12,32 @@ type
     selected: bool = false
     align: Alignment
 
-  ListView* = object of BaseWidget
-    rows: seq[ref ListRow]
+  ListRow* = ref ListRowObj
+
+  ListViewObj* = object of BaseWidget
+    rows: seq[ListRow]
     selectedRow: int = 0
     mode: Mode = Normal
     filteredSize: int = 0
-    selectionStyle: SelectionStyle
-    events*: Table[string, EventFn[ref ListView]]
-    keyEvents*: Table[Key, EventFn[ref ListView]]
+    selectionStyle*: SelectionStyle
+    events*: Table[string, EventFn[ListView]]
+    keyEvents*: Table[Key, EventFn[ListView]]
+
+  ListView* = ref ListViewObj
+
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown,
                           Key.Left, Key.Right}
 
-proc help(lv: ref ListView, args: varargs[string]): void
+proc help(lv: ListView, args: varargs[string]): void
 
-proc on*(lv: ref ListView, key: Key, fn: EventFn[ref ListView]) {.raises: [EventKeyError]}
+proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]}
 
 proc newListRow*(index: int, text: string, value: string, align = Center,
                  bgColor = bgNone, fgColor = fgWhite, visible = true,
-                 selected = false): ref ListRow =
-  result = (ref ListRow)(
+                 selected = false): ListRow =
+  result = ListRow(
     index: index,
     text: text,
     value: value,
@@ -46,10 +51,10 @@ proc newListRow*(index: int, text: string, value: string, align = Center,
 proc newListView*(px, py, w, h: int, id = "", 
                   title = "", border = true, statusbar = true,
                   statusbarText = "[?]", enableHelp=false,
-                  rows: seq[ref ListRow] = newSeq[ref ListRow](),
+                  rows: seq[ListRow] = newSeq[ListRow](),
                   bgColor = bgNone, fgColor = fgWhite,
                   selectionStyle: SelectionStyle = Highlight,
-                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ref ListView =
+                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ListView =
   let padding = if border: 1 else: 0
   let statusbarSize = if statusbar: 1 else: 0
   let style = WidgetStyle(
@@ -69,7 +74,7 @@ proc newListView*(px, py, w, h: int, id = "",
   if rows.len > 0:
     rows[0].selected = true
 
-  result = (ref ListView)(
+  result = ListView(
     width: w,
     height: h,
     posX: px,
@@ -88,8 +93,8 @@ proc newListView*(px, py, w, h: int, id = "",
     colCursor: 0,
     statusbarText: statusbarText,
     statusbarSize: statusbarText.len(),
-    events: initTable[string, EventFn[ref ListView]](),
-    keyEvents: initTable[Key, EventFn[ref ListView]]()
+    events: initTable[string, EventFn[ListView]](),
+    keyEvents: initTable[Key, EventFn[ListView]]()
   )
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
@@ -100,10 +105,10 @@ proc newListView*(px, py, w, h: int, id = "",
 proc newListView*(px, py: int, w, h: WidgetSize, id = "", 
                   title = "", border = true, statusbar = true,
                   statusbarText = "[?]", enableHelp=false,
-                  rows: seq[ref ListRow] = newSeq[ref ListRow](),
+                  rows: seq[ListRow] = newSeq[ListRow](),
                   bgColor = bgNone, fgColor = fgWhite,
                   selectionStyle: SelectionStyle = Highlight,
-                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ref ListView =
+                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ListView =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newListView(px, py, width, height, id, title, border, statusbar,
@@ -111,18 +116,38 @@ proc newListView*(px, py: int, w, h: WidgetSize, id = "",
                     selectionStyle, tb)
 
 
+proc newListView*(id: string): ListView =
+  var lv = ListView(
+    id: id,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
+    selectionStyle: SelectionStyle.Arrow,
+    events: initTable[string, EventFn[ListView]](),
+    keyEvents: initTable[Key, EventFn[ListView]]()
+  )
+  lv.channel = newChan[WidgetBgEvent]()
+  lv.on(Key.QuestionMark, help)
+  return lv
 
-proc vrows(lv: ref ListView): seq[ref ListRow] =
-  lv.rows.filter(proc(r: ref ListRow): bool = r.visible)
+
+proc vrows(lv: ListView): seq[ListRow] =
+  lv.rows.filter(proc(r: ListRow): bool = r.visible)
 
 
-proc emptyRows(lv: ref ListView, emptyMessage = "No records") =
+proc emptyRows(lv: ListView, emptyMessage = "No records") =
   lv.tb.write(lv.posX + lv.paddingX1,
                  lv.posY + 3, bgRed, fgWhite,
                  center(emptyMessage, lv.width - lv.paddingX1 - 2), resetStyle)
 
 
-proc scrollRow(lv: ref ListView, startIndex: int): string =
+proc scrollRow(lv: ListView, startIndex: int): string =
   let selected = lv.selectedRow
   var extraPadd = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: 1 else: 0
   #if lv.border: extraPadd += 2
@@ -141,7 +166,7 @@ proc scrollRow(lv: ref ListView, startIndex: int): string =
   return lv.rows[selected].text[actualStartIndex ..< min(lv.rows[selected].text.len, endIndex - extraPadd)]
 
 
-proc renderClearRow(lv: ref ListView, index: int, full = false) =
+proc renderClearRow(lv: ListView, index: int, full = false) =
   if full:
     let totalWidth = lv.width
     lv.tb.fill(lv.posX, lv.posY,
@@ -151,7 +176,7 @@ proc renderClearRow(lv: ref ListView, index: int, full = false) =
                lv.width - lv.paddingX1, lv.posY + index, " ")
 
 
-proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
+proc renderListRow(lv: ListView, row: ListRow, index: int) =
   var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
   var borderX = if lv.border: 0 else: 0
   # if lv.rows.len <= lv.selectedRow: 
@@ -184,7 +209,7 @@ proc renderListRow(lv: ref ListView, row: ref ListRow, index: int) =
                 row.bgColor, row.fgColor, text, resetStyle)
 
 
-proc help(lv: ref ListView, args: varargs[string]) = 
+proc help(lv: ListView, args: varargs[string]) = 
   let wsize = ((lv.width - lv.posX).toFloat * 0.3).toInt()
   let hsize = ((lv.height - lv.posY).toFloat * 0.3).toInt()
   var display = newDisplay(lv.x2 - wsize, lv.y2 - hsize, 
@@ -204,7 +229,7 @@ proc help(lv: ref ListView, args: varargs[string]) =
   display.clear()
 
 
-proc renderStatusBar(lv: ref ListView, text: string = "") =
+proc renderStatusBar(lv: ListView, text: string = "") =
   if lv.events.hasKey("statusbar"):
     lv.call("statusbar")
   else: 
@@ -218,12 +243,12 @@ proc renderStatusBar(lv: ref ListView, text: string = "") =
       lv.tb.write(lv.x2 - q.len, lv.height, bgWhite, fgBlack, q, resetStyle)
 
 
-method resize*(lv: ref ListView) =
+method resize*(lv: ListView) =
   let statusbarSize = if lv.statusbar: 1 else: 0
   lv.size = lv.height - lv.posY - lv.paddingY2 - lv.paddingY1 - statusbarSize
 
 
-method render*(lv: ref ListView) =
+method render*(lv: ListView) =
   if not lv.illwillInit: return
   lv.renderClearRow(0, true)
   lv.renderBorder()
@@ -262,7 +287,7 @@ method render*(lv: ref ListView) =
     lv.tb.display()
 
 
-proc prevSelection(lv: ref ListView) =
+proc prevSelection(lv: ListView) =
   let rows = lv.vrows()
   if lv.cursor == 0:
     lv.cursor = 0
@@ -278,7 +303,7 @@ proc prevSelection(lv: ref ListView) =
         lv.rows[r].selected = false
 
 
-proc nextSelection(lv: ref ListView) =
+proc nextSelection(lv: ListView) =
   let rows = lv.vrows()
   if lv.cursor >= rows.len - 1:
     lv.cursor = rows.len - 1
@@ -294,16 +319,16 @@ proc nextSelection(lv: ref ListView) =
         lv.rows[r].selected = false
 
 
-proc selected*(lv: ref ListView): ref ListRow =
+proc selected*(lv: ListView): ListRow =
   # previously using lv.cursor
   return lv.rows[lv.selectedRow]
 
 
-proc `selectedRow=`*(lv: ref ListView, i: int) =
+proc `selectedRow=`*(lv: ListView, i: int) =
   lv.selectedRow = i
 
 
-proc resetCursor*(lv: ref ListView) =
+proc resetCursor*(lv: ListView) =
   lv.selectedRow = 0 
   lv.rowCursor = 0
   lv.colCursor = 0
@@ -316,36 +341,36 @@ proc resetCursor*(lv: ref ListView) =
       #lv.rows[r].visible = true
 
 
-proc on*(lv: ref ListView, event: string, fn: EventFn[ref ListView]) =
+proc on*(lv: ListView, event: string, fn: EventFn[ListView]) =
   lv.events[event] = fn
 
 
-proc on*(lv: ref ListView, key: Key, fn: EventFn[ref ListView]) {.raises: [EventKeyError]} =
+proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]} =
   if key in forbiddenKeyBind: 
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   lv.keyEvents[key] = fn
     
 
-proc call*(lv: ref ListView, event: string, args: varargs[string]) =
+proc call*(lv: ListView, event: string, args: varargs[string]) =
   let fn = lv.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(lv, args)
 
 
-proc call(lv: ref ListView, key: Key, args: varargs[string]) =
+proc call(lv: ListView, key: Key, args: varargs[string]) =
   let fn = lv.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(lv, args)
 
 
-method poll*(lv: ref ListView) =
+method poll*(lv: ListView) =
   var widgetEv: WidgetBgEvent
   if lv.channel.tryRecv(widgetEv):
     lv.call(widgetEv.event, widgetEv.args)
     lv.render()
 
 
-method onUpdate*(lv: ref ListView, key: Key) =
+method onUpdate*(lv: ListView, key: Key) =
   case key
   of Key.None: lv.render()
   of Key.Up:
@@ -379,7 +404,7 @@ method onUpdate*(lv: ref ListView, key: Key) =
   sleep(lv.refreshWaitTime)
 
 
-method onControl*(lv: ref ListView): void =
+method onControl*(lv: ListView): void =
   if lv.visibility == false: 
     lv.cursor = 0
     lv.rowCursor = 0
@@ -396,22 +421,22 @@ method onControl*(lv: ref ListView): void =
     lv.onUpdate(key)  
 
 
-method wg*(lv: ref ListView): ref BaseWidget = lv
+method wg*(lv: ListView): ref BaseWidget = lv
 
 
-proc `onEnter=`*(lv: ref ListView, enterEv: EventFn[ref ListView]) =
+proc `onEnter=`*(lv: ListView, enterEv: EventFn[ListView]) =
   lv.on("enter", enterEv)
 
 
-proc onEnter*(lv: ref ListView, enterEv: EventFn[ref ListView]) =
+proc onEnter*(lv: ListView, enterEv: EventFn[ListView]) =
   lv.on("enter", enterEv)
 
 
-proc rows*(lv: ref ListView): seq[ref ListRow] =
+proc rows*(lv: ListView): seq[ListRow] =
   return lv.rows
 
 
-proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
+proc `rows=`*(lv: ListView, rows: seq[ListRow]) =
   for r in 0 ..< rows.len:
     rows[r].index = r
   
@@ -421,7 +446,7 @@ proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
   lv.rows = rows
 
 
-# proc `enableHelp=`*(lv: ref ListView, enable: bool) =
+# proc `enableHelp=`*(lv: ListView, enable: bool) =
 #   lv.enableHelp = enable
 #   if lv.enableHelp:
 #     lv.on(Key.QuestionMark, help)
@@ -430,41 +455,41 @@ proc `rows=`*(lv: ref ListView, rows: seq[ref ListRow]) =
 #
 # ListRow attributes
 #
-proc index*(lr: ref ListRow): int = lr.index
+proc index*(lr: ListRow): int = lr.index
 
-proc text*(lr: ref ListRow): string = lr.text
+proc text*(lr: ListRow): string = lr.text
 
-proc value*(lr: ref ListRow): string = lr.value
+proc value*(lr: ListRow): string = lr.value
 
-proc bgColor*(lr: ref ListRow): BackgroundColor = lr.bgColor
+proc bgColor*(lr: ListRow): BackgroundColor = lr.bgColor
 
-proc fgColor*(lr: ref ListRow): ForegroundColor = lr.fgColor  
+proc fgColor*(lr: ListRow): ForegroundColor = lr.fgColor  
 
-proc visible*(lr: ref ListRow): bool = lr.visible
+proc visible*(lr: ListRow): bool = lr.visible
 
-proc selected*(lr: ref ListRow): bool = lr.selected
+proc selected*(lr: ListRow): bool = lr.selected
 
-proc align*(lr: ref ListRow): Alignment = lr.align
+proc align*(lr: ListRow): Alignment = lr.align
 
-proc `text=`*(lr: ref ListRow, text: string) = 
+proc `text=`*(lr: ListRow, text: string) = 
   lr.text = text
 
-proc `value=`*(lr: ref ListRow, value: string) =
+proc `value=`*(lr: ListRow, value: string) =
   lr.value = value
 
-proc `bgColor=`*(lr: ref ListRow, bgColor: BackgroundColor)= 
+proc `bgColor=`*(lr: ListRow, bgColor: BackgroundColor)= 
   lr.bgColor = bgColor
 
-proc `fgColor=`*(lr: ref ListRow, fgColor: ForegroundColor) = 
+proc `fgColor=`*(lr: ListRow, fgColor: ForegroundColor) = 
   lr.fgColor = fgColor
 
-proc `visible=`*(lr: ref ListRow, visible: bool) = 
+proc `visible=`*(lr: ListRow, visible: bool) = 
   lr.visible = visible
 
-proc `selected=`*(lr: ref ListRow, selected: bool) =
+proc `selected=`*(lr: ListRow, selected: bool) =
   lr.selected = selected
 
-proc `align=`*(lr: ref ListRow, align: Alignment) = 
+proc `align=`*(lr: ListRow, align: Alignment) = 
   lr.align = align
 
 

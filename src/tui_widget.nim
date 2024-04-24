@@ -118,9 +118,10 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
 
 
 proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
-                width: WidgetSize, height: int) =
+                width: WidgetSize, height: int = 0) =
   let w = toConsoleWidth(width)
-  app.addWidget(widget, w, height)
+  let h = if height == 1: 0 else: height
+  app.addWidget(widget, w, h)
 
 
 proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
@@ -278,11 +279,13 @@ proc resize(app: var TerminalApp): bool =
       let newWgWidth = floor(windWidth.toFloat * wgWidthPercent).toInt()
       let newWgHeight = floor(windHeight.toFloat * wgHeightPercent).toInt()
       w.width = newWgWidth
-      w.height = if wgHeight < newWgHeight: wgHeight else: max(3, newWgHeight)
+      #w.height = if wgHeight < newWgHeight: wgHeight else: max(3, newWgHeight)
+      w.height = newWgHeight
       # posY
       let wgPosYPercent = wgPosY / origHeight
       let newWgPosY = floor(windHeight.toFloat * wgPosYPercent).toInt()
       w.posy = max(wgPosY, newWgPosY)
+      #w.posY = newWgPosY
       # posX
       let wgPosXPercent = wgPosX / origWidth
       let newWgPosX = floor(windWidth.toFloat * wgPosXPercent).toInt()
