@@ -1,4 +1,4 @@
-import illwill, os, strutils, std/terminal, math
+import illwill, os, strutils, std/terminal, math, options
 import malebolgia, threading/channels, std/tasks, sequtils
 import 
   widget/base_wg,
@@ -79,11 +79,65 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   if widget.groups:
     widget.setChildTb(app.terminalBuffer)
   widget.refreshWaitTime = app.refreshWaitTime
+  widget.keepOriginalSize()
   app.widgets.add(widget)
+
+
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+                width: int, height: int) =
+  if app.widgets.len == 0:
+    widget.posX = 1
+    widget.posY = 1
+    widget.width = width
+    widget.height = height
+  else:
+    if (app.widgets[^1].width / consoleWidth()) > 0.95:
+      widget.posX = min(app.widgets[^1].posX, 1)
+      widget.posY = app.widgets[^1].height + 1
+    else:
+      widget.posX = app.widgets[^1].width + 1
+      widget.posY = app.widgets[^1].posY
+
+  widget.width = min(widget.posX + width, consoleWidth())
+  widget.height = min(widget.posY + height, consoleHeight())
+  widget.resize()
+  app.addWidget(widget) 
+
+
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+                width, height: WidgetSize ) =
+  let w = toConsoleWidth(width)
+  let h = toConsoleHeight(height)
+  app.addWidget(widget, w, h)
+
+
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+                width: int, height: WidgetSize) =
+  let h = toConsoleHeight(height)
+  app.addWidget(widget, width, h)
+
+
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+                width: WidgetSize, height: int) =
+  let w = toConsoleWidth(width)
+  app.addWidget(widget, w, height)
 
 
 proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
   app.widgets
+
+
+proc `[]=`*(app: var TerminalApp, id: string, widget: ref BaseWidget) =
+  widget.id = id
+  app.addWidget(widget)
+
+
+proc `[]`*(app: var TerminalApp, id: string): Option[ref BaseWidget] =
+  result = none(ref BaseWidget) 
+  for w in app.widgets:
+    if w.id == id:
+      result = some(w.wg)
+      break
 
 
 proc requiredSize*(app: var TerminalApp): (int, int, int) =
@@ -233,6 +287,8 @@ proc resize(app: var TerminalApp): bool =
       let wgPosXPercent = wgPosX / origWidth
       let newWgPosX = floor(windWidth.toFloat * wgPosXPercent).toInt()
       w.posX = newWgPosX
+      # resize
+      w.resize()
       # calculate widget size (y) 
       w.tb = app.tb
       inc index

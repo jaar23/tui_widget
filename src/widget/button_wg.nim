@@ -5,19 +5,21 @@ type
   ButtonState = enum
     Pressed, Unpressed
 
-  Button* = object of BaseWidget
+  ButtonObj* = object of BaseWidget
     label: string = ""
     disabled*: bool = false
     state: ButtonState = Unpressed
-    events*: Table[string, EventFn[ref Button]]
-    keyEvents*: Table[Key, EventFn[ref Button]]
+    events*: Table[string, EventFn[ref ButtonObj]]
+    keyEvents*: Table[Key, EventFn[ref ButtonObj]]
+
+  Button* = ref ButtonObj
 
 
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None}
 
 proc newButton*(px, py, w, h: int, label: string, id = "",
                 disabled = false, bgColor = bgGreen, fgColor = fgWhite,
-                tb = newTerminalBuffer(w + 2, h + py)): ref Button =
+                tb = newTerminalBuffer(w + 2, h + py)): Button =
   let style = WidgetStyle(
     paddingX1: 1,
     paddingX2: 1,
@@ -27,7 +29,7 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
     fgColor: fgColor,
     bgColor: bgColor
   )
-  result = (ref Button)(
+  result = Button(
     width: w,
     height: h,
     posX: px,
@@ -37,8 +39,8 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
     tb: tb,
     disabled: disabled,
     style: style,
-    events: initTable[string, EventFn[ref Button]](),
-    keyEvents: initTable[Key, EventFn[ref Button]]()
+    events: initTable[string, EventFn[Button]](),
+    keyEvents: initTable[Key, EventFn[Button]]()
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
@@ -46,37 +48,42 @@ proc newButton*(px, py, w, h: int, label: string, id = "",
 
 proc newButton*(px, py: int, w, h: WidgetSize, label: string, id = "",
                 disabled = false, bgColor = bgGreen, fgColor = fgWhite,
-                tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): ref Button =
+                tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Button =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newButton(px, py, width, height, label, id,
                   disabled, bgColor, fgColor, tb)
 
 
-proc on*(bt: ref Button, event: string, fn: EventFn[ref Button]) =
+proc newButton*(id: string): Button =
+  var button = Button(id: id)
+  return button
+
+
+proc on*(bt: Button, event: string, fn: EventFn[Button]) =
   bt.events[event] = fn
 
 
-proc on*(bt: ref Button, key: Key, fn: EventFn[ref Button]) {.raises: [EventKeyError]} =
+proc on*(bt: Button, key: Key, fn: EventFn[Button]) {.raises: [EventKeyError]} =
   if key in forbiddenKeyBind: 
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   bt.keyEvents[key] = fn
     
 
 
-proc call*(bt: ref Button, event: string) =
+proc call*(bt: Button, event: string) =
   let fn = bt.events.getOrDefault(event, nil)
   if not fn.isNil:
     fn(bt)
 
 
-proc call(bt: ref Button, key: Key) =
+proc call(bt: Button, key: Key) =
   let fn = bt.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
     fn(bt)
 
 
-method render*(bt: ref Button) =
+method render*(bt: Button) =
   if not bt.illwillInit: return
   if bt.state == Pressed:
     bt.renderBorder()
@@ -88,13 +95,13 @@ method render*(bt: ref Button) =
   bt.tb.display()
 
 
-method poll*(bt: ref Button) =
+method poll*(bt: Button) =
   var widgetEv: WidgetBgEvent
   if bt.channel.tryRecv(widgetEv):
     bt.call(widgetEv.event, widgetEv.args)
 
 
-method onUpdate*(bt: ref Button, key: Key) =
+method onUpdate*(bt: Button, key: Key) =
   case key
   of Key.None: bt.render()
   of Key.Escape, Key.Tab: bt.focus = false
@@ -109,7 +116,7 @@ method onUpdate*(bt: ref Button, key: Key) =
       bt.call(key)
       
 
-method onControl*(bt: ref Button) =
+method onControl*(bt: Button) =
   bt.focus = true
   var delay = 10
   while bt.focus:
@@ -126,29 +133,30 @@ method onControl*(bt: ref Button) =
   sleep(bt.refreshWaitTime)
 
 
-method wg*(bt: ref Button): ref BaseWidget = bt
+method wg*(bt: Button): ref BaseWidget = bt
 
 
-proc onEnter*(bt: ref Button, eventFn: EventFn[ref Button]) =
+proc onEnter*(bt: Button, eventFn: EventFn[Button]) =
   bt.on("enter", eventFn)
 
 
-proc `onEnter=`*(bt: ref Button, eventFn: EventFn[ref Button]) =
+proc `onEnter=`*(bt: Button, eventFn: EventFn[Button]) =
   bt.on("enter", eventFn)
 
 
-proc val(bt: ref Button, label: string) =
+proc val(bt: Button, label: string) =
   bt.label = label
   bt.render()
 
 
-proc label*(bt: ref Button): string = bt.label
+proc label*(bt: Button): string = bt.label
 
 
-proc `label=`*(bt: ref Button, label: string) =
+proc `label=`*(bt: Button, label: string) =
   bt.val(label)
 
-proc label*(bt: ref Button, label: string) =
+
+proc label*(bt: Button, label: string) =
   bt.val(label)
 
 

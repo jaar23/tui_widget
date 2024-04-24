@@ -80,6 +80,8 @@ type
 
   EventKeyError* = object of CatchableError
 
+  XYInitError* = object of CatchableError
+
 
 proc consoleWidth*(): int =
   return terminalWidth() - 2
@@ -259,6 +261,16 @@ proc x2*(bw: ref BaseWidget): int = bw.widthPaddRight
 proc y2*(bw: ref BaseWidget): int = bw.heightPaddBottom
 
 
+proc toConsoleWidth*(w: float): int = (consoleWidth().toFloat * w).toInt
+
+
+proc toConsoleHeight*(h: float): int = (consoleHeight().toFloat * h).toInt
+
+
+method resize*(bw: ref BaseWidget): void {.base.} =
+  return
+
+
 proc keepOriginalSize*(bw: ref BaseWidget) = 
   bw.origWidth = bw.width
   bw.origHeight = bw.height
@@ -320,7 +332,10 @@ proc clear*(bw: ref BaseWidget) =
   bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.bg, bw.fg, " ")
 
 
-proc rerender*(bw: ref BaseWidget) =
+proc rerender*(bw: ref BaseWidget)  =
+  # not to render widget without valid x,y
+  if bw.posX == 0 and bw.posY == 0:
+    return
   bw.clear()
   bw.render()
 

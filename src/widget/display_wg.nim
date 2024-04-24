@@ -182,6 +182,11 @@ proc renderStatusbar(dp: ref Display) =
                   ww, resetStyle)
 
 
+method resize*(dp: ref Display) =
+  let statusbarSize = if dp.statusbar: 1 else: 0
+  dp.size = dp.height - statusbarSize - dp.posY - (dp.paddingY1 * 2)
+
+
 method render*(dp: ref Display) =
   if not dp.illwillInit: return
   if dp.useCustomTextRow: 

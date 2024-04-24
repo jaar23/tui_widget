@@ -371,6 +371,12 @@ proc help(table: ref Table, args: varargs[string]) =
   display.clear()
 
 
+method resize*(table: ref Table) =
+  let statusbarSize = if table.statusbar: 2 else: 1
+  table.size = table.height - table.posY - 
+    table.paddingY2 - table.paddingY1 - statusbarSize
+
+
 method render*(table: ref Table): void =
   if not table.illwillInit: return
   #table.renderClearRow(0, true)

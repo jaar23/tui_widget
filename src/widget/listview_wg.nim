@@ -218,6 +218,11 @@ proc renderStatusBar(lv: ref ListView, text: string = "") =
       lv.tb.write(lv.x2 - q.len, lv.height, bgWhite, fgBlack, q, resetStyle)
 
 
+method resize*(lv: ref ListView) =
+  let statusbarSize = if lv.statusbar: 1 else: 0
+  lv.size = lv.height - lv.posY - lv.paddingY2 - lv.paddingY1 - statusbarSize
+
+
 method render*(lv: ref ListView) =
   if not lv.illwillInit: return
   lv.renderClearRow(0, true)
