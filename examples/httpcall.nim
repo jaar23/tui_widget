@@ -19,7 +19,7 @@ var input = newInputBox(1, 1, consoleWidth(), 3, title="url")
 
 var display = newDisplay(1, 4, consoleWidth(), consoleHeight(), title="content")
 
-let asyncEnterEv = proc (ib: ref InputBox, args: varargs[string]) =
+let asyncEnterEv = proc (ib: InputBox, args: varargs[string]) =
   let url = ib.value
   var curlResult: (bool, string) = httpCall(url)
   ib.value = ""

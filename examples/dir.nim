@@ -41,8 +41,8 @@ proc permissionStr(permissions: set[FilePermission]): string =
   if permissions.contains(fpOthersExec): result &= "x" else: result &= "-"
 
 
-proc createList(path: string, hide = false, dd = true): seq[ref ListRow] =
-  result = newSeq[ref ListRow]()
+proc createList(path: string, hide = false, dd = true): seq[ListRow] =
+  result = newSeq[ListRow]()
   for d in folder(path):
     let visible = if d.hidden and hide: false else: true
     var lr = newListRow(0, d.name, $$d, visible=visible)
@@ -60,7 +60,7 @@ var dirView = newListView(1, 4, 30, consoleHeight(), title=home, rows = rows, bg
 
 var filterCb = newCheckbox(1, 1, 30, 3, label="hide hidden files")
 
-filterCb.onEnter = proc (ch: ref Checkbox, checked: bool) =
+filterCb.onEnter = proc (ch: Checkbox, checked: bool) =
   var i = 0
   for r in dirView.rows():
     if r.value == "..": continue 
@@ -75,7 +75,7 @@ filterCb.onEnter = proc (ch: ref Checkbox, checked: bool) =
   dirView.render()
 
 
-dirView.onEnter = proc (lv: ref ListView, args: varargs[string]) =
+dirView.onEnter = proc (lv: ListView, args: varargs[string]) =
   let val = args[0]
   if val == "..":
     currDir = parentDir(currDir)

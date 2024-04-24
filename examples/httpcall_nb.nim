@@ -11,7 +11,7 @@ var display = newDisplay(1, 5, consoleWidth(), consoleHeight(), id="display", ti
 
 var app = newTerminalApp(title="curl", border=false)
 
-display.on("display", proc(dp: ref Display, args: varargs[string]) =
+display.on("display", proc(dp: Display, args: varargs[string]) =
   dp.text = args[0]
 )
 
@@ -31,7 +31,7 @@ let httpCall = proc (appPtr: ptr TerminalApp, id: string, url: string) {.gcsafe.
     notify(appPtr, id, "display", err)
 
 
-let asyncEnterEv = proc (ib: ref InputBox, args: varargs[string]) =
+let asyncEnterEv = proc (ib: InputBox, args: varargs[string]) =
   try:
     let url = ib.value
     ib.value = ""

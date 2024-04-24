@@ -74,6 +74,15 @@ proc newGauge*(id: string): Gauge =
   var gauge = Gauge(
     id: id,
     percent: 0.0,
+    style: WidgetStyle(
+      paddingX1: 1,
+      paddingX2: 1,
+      paddingY1: 1,
+      paddingY2: 1,
+      border: true,
+      bgColor: bgNone,
+      fgColor: fgWhite
+    ),
     percentileColor: [fgGreen, fgBlue, fgYellow, fgMagenta, fgRed],
     events: initTable[string, EventFn[Gauge]]()
   )
