@@ -4,7 +4,7 @@ Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/
 
 These widget is <b>under development</b>, things might change or break!
 
-** widgets event has been re-worked and support running in non-blocking mode **
+** docs work in progress **
 
 ### Quick preview
 
@@ -14,93 +14,31 @@ It feels like an old school software, let's stick with the keyboard :D, it is na
 
 You can use the widget with illwill or bootstrap with `TerminalApp`.
 
-Refers to `tests/tui_test.nim` for example.
-
-### Widgets:
-- input box (y)
-
-- display panel (y)
-  
-  - some text content does not work well with the default text split, you can define custom text rows split and re-cal on your own
-
-- textarea (y)
-  
-  - works like a textarea in HTML
-
-  - a naive vi mode implemented, can be enable during init of widget
-    
-    - pending for `:` implementation
-
-- button (y)
-
-- list view (y)
-
-- table (y)
-
-- checkbox (y)
-
-- progressbar (y)
-
-- label (y)
-
-- radio button
-
-- select (y), listview with onEnter can be used for select widget.
-
-- gauge (y)
-
-- charts (y), powered by [asciigraph](https://github.com/Yardanico/asciigraph/tree/master). It is an awesomeeeeeee library
-
-  - chart have some limitation, it do not aggregate the data when display.
-
-
-Widgets will be auto resize when windows size changed, however, resizing widgets would not works perfectly on all the widgets. recommended to be tested the resize effect before use.
-
-For blocking mode, it required one user action to trigger the refresh, due to `onControl` block 
-
-For non-blocking mode, widget will be auto resize when windows changed.
-
-### Event Handling
-
-Event is now more extensible, there are default "enter" event setup for the widgets. You can:
+### Simple Example
 
 ```nim
-let enterEv = proc(ib: ref InputBox, arg: varargs[string]) =
-  # reset input
+import tui_widget, illwill
+# 1
+var inputBox = newInputBox(1, 1, consoleWidth(), 3, "message")
+# 2
+var display = newDisplay(1, 4, consoleWidth(), 16, "display panel") 
+# 3
+let enterEv = proc(ib: InputBox, arg: varargs[string]) =
+  display.add(inputBox.value & "\n")
   inputBox.value("")
 
 inputBox.onEnter = enterEv
+# 4
+var app = newTerminalApp(title="tui widget")
+
+app.addWidget(inputBox)
+app.addWidget(display)
+# 5
+app.run()
 ```
 
-or with a event name:
-
-```nim
-let enterEv = proc(ib: ref InputBox, arg: varargs[string]) =
-  # reset input
-  inputBox.value("")
-
-inputBox.on("enter", enterEv)
-```
-Do note that, if "enter" is passed as the event key to `.on` proc, it will override the default behavior. 
-
-With this changes, you can have `on("forward")`, `on("scroll")`, etc...
-
-Nevertheless, widget also support for custom key binding, there are some key has been map for default behavior in the widgets.
-
-You can bind an event to a key that is currently unuse. It works similarly to `on()` event. 
-
-```nim
-inputBox.on(Key.C, clertEv)
-```
-
-Further documentation is still work in progress
-
-### Todo
-
-[todo list](./todo.md)
 
 ### Usage
-
 ```shell
 git clone https://github.com/jaar23/tui_widget.git
 
@@ -109,7 +47,17 @@ cd tui_widget && nimble install
 
 ### Doc (WIP)
 
-Refers to tests folder for example.
+[Getting Started](./docs/getting-started.md)
+
+[Widgets](./docs/widgets.md)
+
+[Events](./docs/events.md)
+
+[TerminalApp](./docs/terminal-app.md)
+
+### Examples
+
+Refers to tests / examples folder for example.
 
 - basic [example](./tests/tui_test.nim)
 

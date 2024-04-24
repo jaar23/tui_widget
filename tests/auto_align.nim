@@ -24,8 +24,8 @@ amet sagittis nibh. Proin in ultricies elit. Donec euismod luctus turpis, a ultr
 In mauris dui, sagittis et tortor sed, cursus sodales lectus. Aenean mollis velit nec purus blandit, eu 
 scelerisque velit venenatis. Cras ipsum urna, hendrerit volutpat ullamcorper a, vulputate et neque.
 """
-display.bg(bgWhite)
-display.fg(fgBlack)
+# display.bg(bgWhite)
+# display.fg(fgBlack)
 
 var button = newButton(id="btn")
 button.label = "Confirm"
@@ -40,8 +40,8 @@ checkbox2.title = "accept"
 checkbox2.label = "yes" 
 checkbox2.value = "y" 
 checkbox2.checkMark = '*'
-checkbox2.bg(bgWhite)
-checkbox2.fg(fgBlack)
+# checkbox2.bg(bgWhite)
+# checkbox2.fg(fgBlack)
 
 var table = newTable(id="leadtable")
 table.title = "table"
@@ -49,8 +49,8 @@ table.selectionStyle = Highlight
 table.loadFromCsv("./leads-1000.csv", withHeader=true, withIndex=true)
 table.border = false
 table.statusbar = true
-table.bg(bgWhite)
-table.fg(fgBlack)
+# table.bg(bgWhite)
+# table.fg(fgBlack)
 
 var progress = newProgressBar(id="pb1")
 

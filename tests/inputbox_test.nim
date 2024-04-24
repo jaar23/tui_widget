@@ -1,8 +1,8 @@
 import tui_widget
 import illwill, options
 
-var inputBox = newInputBox(1, 1, consoleWidth(), 3, "message", bgColor=bgBlue, statusbar=true)
-var display = newDisplay(1, 4, consoleWidth(), 16, "board", statusbar=false) 
+var inputBox = newInputBox(1, 1, consoleWidth(), 3, "message")
+var display = newDisplay(1, 4, consoleWidth(), 16, "board") 
 
 let enterEv = proc(ib: InputBox, arg: varargs[string]) =
   display.add(inputBox.value & "\n")
