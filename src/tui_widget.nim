@@ -292,7 +292,6 @@ proc resize(app: var TerminalApp): bool =
       w.posX = newWgPosX
       # resize
       w.resize()
-      # calculate widget size (y) 
       w.tb = app.tb
       inc index
     sleep(50)
