@@ -73,7 +73,8 @@ Bravo! You've just created a text based application on your terminal. The widget
 
 ### Intermediate Example
 
-When we are building ui related application, there is always a chance we will be making some I/O calls. With the above example, you may still able to make an http calls and display the content without notice there is a ui freeze. Because the I/O call is fast enough and we do not see it happens, however, if your user is in a lower latency network, the ui freeze will be obvious.
+When we are building ui related application, there is always a chance we will be making some I/O calls. I/O calls will be blocking the main thread until something returns. There are two common ways to handle this problem, multi-thread or async await. In tui_widget, it uses the multi-thread method, when you call the `run` function with `nonBlocking` set to true, the app instance will start a background thread to handle tasks that are blocking to the main thread. 
+The example above is running in blocking mode and single threaded, if you do not mind a slight freeze on the ui, the blocking mode will serve you fine. However, if you want your terminal app feels reactive, the example below will show you how.
 
 Reusing the example above, we will modify it to make a http call and output the result on display panel.
 
@@ -154,6 +155,8 @@ app.run(nonBlocking=true)
 4. Letting terminal app to run in non-blocking mode, which is specifically designed for such scenario.
 
 ![inter-example](./images/intermediate-example-1.gif)
+
+The implementation is opinionated, to balance the complexity and usability of a tui library, I prefer this way.
 
 I believe you are now ready to start build your first text based application with tui_widget!
 
