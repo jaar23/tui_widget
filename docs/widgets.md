@@ -2923,3 +2923,9 @@ proc value(t: TextArea; val: string) {.raises: [Exception], tags: [RootEffect].}
 [back to top](#top)
 
 ---
+
+### Next topic: 
+
+- [TerminalApp](./terminal-app.md)
+
+- [events](./events.md)

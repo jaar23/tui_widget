@@ -229,3 +229,9 @@ proc run(
 ```
 
 [back to top](#top)
+
+### Next topic: 
+
+- [widgets](./widgets.md)
+
+- [events](./events.md)
