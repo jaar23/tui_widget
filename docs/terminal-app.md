@@ -4,11 +4,15 @@
 
 - main loop of the terminal application (blocking and non-blocking mode)
 
-- auto-resize 
-
 - dynamic layout for rendering widgets
 
+- auto-resize 
+
+  ![resize-demo](./images/resize-demo.gif)
+
 - event handling for widgets
+
+  ![event-dir](./images/dir-demo.gif)
 
 There are some of the features still under development: 
 
@@ -18,7 +22,6 @@ There are some of the features still under development:
 
 
 ### **type** TerminalApp
-
 
 ```nim
 TerminalApp = object

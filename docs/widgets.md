@@ -1010,6 +1010,7 @@ proc label(ch: Checkbox; label: string) {.raises: [Exception], tags: [RootEffect
 
 Chart required [asciigraph](https://github.com/Yardanico/asciigraph/tree/master) for rendering the chart UI. It is more towards display purpose, accuracy is not the focus. Chart have some limitation, it do not aggregate the data when display.
 
+  ![chart](./images/chart_test.png)
 
 ### **type** AxisObj
 
@@ -1173,6 +1174,8 @@ proc axis(c: Chart; axis: Axis) {.raises: [Exception], tags: [RootEffect].}
 ## <a id="containerwg">Container</a>
 
 Container is a special widget which used to group widgets under one. You can use it for a section, a modal pop up, etc. Widgets added into container will be layout inline automatically based on percentage defined (float value). 
+
+![ctr-demo](./images/container-demo.gif)
 
 For the below layout:
 
@@ -1685,6 +1688,8 @@ proc onEnter=(ib: InputBox; enterEv: EventFn[InputBox])
 ---
 
 ## <a id="gaugewg">Gauge</a>
+
+![gauge-demo](./images/gauge-demo.gif)
 
 ### **type** GaugePercent
 
@@ -2392,6 +2397,8 @@ method poll(pb: ProgressBar) {.raises: [Exception], tags: [RootEffect].}
 
 ## <a id="tablewg">Table</a>
 Table widget to render tabular data, it can load from `seq` or `csv` file.
+
+![table-demo](./images/table-test.png)
 
 ### **type** ColumnType
 

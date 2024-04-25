@@ -2,9 +2,9 @@
 
 Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/master)
 
-These widget is <b>under development</b>, things might change or break!
+The widgets is currently in alpha version. API is getting stable and you're welcome to build yout own text based application. 
 
-** docs work in progress **
+**Note** Changes may occured when there are bugs related or changes of designs (likely next version).
 
 ### Quick preview
 
@@ -12,7 +12,14 @@ These widget is <b>under development</b>, things might change or break!
 
 It feels like an old school software, let's stick with the keyboard :D, it is navigate by `[tab]` button between widgets.
 
-You can use the widget with illwill or bootstrap with `TerminalApp`.
+`TerminalApp` supports auto-resize and dynamic grid layout of adding widgets too. Check out the docs / examples for how-tos.
+
+### Usage
+```shell
+git clone https://github.com/jaar23/tui_widget.git
+
+cd tui_widget && nimble install
+```
 
 ### Simple Example
 
@@ -37,15 +44,7 @@ app.addWidget(display)
 app.run()
 ```
 
-
-### Usage
-```shell
-git clone https://github.com/jaar23/tui_widget.git
-
-cd tui_widget && nimble install
-```
-
-### Doc (WIP)
+### Docs
 
 [Getting Started](./docs/getting-started.md)
 
@@ -62,8 +61,6 @@ Refers to tests / examples folder for example.
 - basic [example](./tests/tui_test.nim)
 
 - chart [example](./tests/chart_test.nim)
-  
-  ![chart](./docs/images/chart_test.png)
 
 - gauge [example](./tests/gauge_test.nim)
 
@@ -71,6 +68,5 @@ Refers to tests / examples folder for example.
 
 - terminal app and widgets [example](./examples/dir.nim)
   
-  ![dir](./examples/dir_demo.png)
   
 
