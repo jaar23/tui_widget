@@ -64,7 +64,7 @@ type
     visibility*: bool = true
     groups*: bool = false
     debug*: bool = false
-    refreshWaitTime*: int = 50
+    rpms*: int = 50
     illwillInit*: bool = false
     channel: Chan[WidgetBgEvent]
     blocking*: bool = false

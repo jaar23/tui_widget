@@ -147,7 +147,7 @@ method render*(ctr: Container) =
 proc baseControl(ctr: Container) =
   # container widget
   while true:
-    var key = getKeyWithTimeout(ctr.refreshWaitTime)
+    var key = getKeyWithTimeout(ctr.rpms)
     case key
     of Key.Escape:
       ctr.focus = false
@@ -185,7 +185,7 @@ method onControl*(ctr: Container) =
   while ctr.focus:
     ctr.clear()
     ctr.render()
-    var key = getKeyWithTimeout(ctr.refreshWaitTime)
+    var key = getKeyWithTimeout(ctr.rpms)
     ctr.onUpdate(key)
 
 

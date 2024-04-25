@@ -148,7 +148,7 @@ method onControl*(bt: Button) =
   bt.focus = true
   var delay = 10
   while bt.focus:
-    var key = getKeyWithTimeout(bt.refreshWaitTime)
+    var key = getKeyWithTimeout(bt.rpms)
     bt.onUpdate(key) 
 
     if bt.state == Pressed:
@@ -158,7 +158,7 @@ method onControl*(bt: Button) =
       delay = 10
 
   bt.render()
-  sleep(bt.refreshWaitTime)
+  sleep(bt.rpms)
 
 
 method wg*(bt: Button): ref BaseWidget = bt

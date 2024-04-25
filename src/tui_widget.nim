@@ -44,7 +44,7 @@ type
     autoResize*: bool = true
     tb: TerminalBuffer
     widgets: seq[ref BaseWidget]
-    refreshWaitTime: int = 50
+    rpms: int = 50
     origWidth: int
     origHeight: int
 
@@ -54,7 +54,7 @@ var bgChannel = newChan[Task]()
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
                      terminalHeight()), title: string = "", border: bool = false,
                      bgColor = illwill.bgNone, fgColor = illwill.fgWhite,
-                     refreshWaitTime: int = 20): TerminalApp =
+                     rpms: int = 20): TerminalApp =
   result = TerminalApp(
     width: terminalWidth(),
     height: terminalHeight(),
@@ -62,7 +62,7 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
     border: border,
     bgColor: bgColor,
     fgColor: fgColor,
-    refreshWaitTime: refreshWaitTime,
+    rpms: rpms,
     widgets: newSeq[ref BaseWidget](),
     tb: tb,
     origWidth: terminalWidth(),
@@ -78,7 +78,7 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   widget.tb = app.terminalBuffer
   if widget.groups:
     widget.setChildTb(app.terminalBuffer)
-  widget.refreshWaitTime = app.refreshWaitTime
+  widget.rpms = app.rpms
   widget.keepOriginalSize()
   app.widgets.add(widget)
 
@@ -131,6 +131,24 @@ proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
 proc `[]=`*(app: var TerminalApp, id: string, widget: ref BaseWidget) =
   widget.id = id
   app.addWidget(widget)
+
+
+proc `[]=`*(app: var TerminalApp, id: string, widget: ref BaseWidget,
+            width, height: WidgetSize) =
+  widget.id = id
+  app.addWidget(widget, width, height)
+
+
+proc `[]=`*(app: var TerminalApp, id: string, widget: ref BaseWidget,
+            width: WidgetSize, height: int) =
+  widget.id = id
+  app.addWidget(widget, width, height)
+
+
+proc `[]=`*(app: var TerminalApp, id: string, widget: ref BaseWidget,
+            width: int, height: WidgetSize) =
+  widget.id = id
+  app.addWidget(widget, width, height)
 
 
 proc `[]`*(app: var TerminalApp, id: string): Option[ref BaseWidget] =
@@ -338,7 +356,7 @@ proc go(app: var TerminalApp) =
       continue
 
     app.render()
-    var key = getKeyWithTimeout(app.refreshWaitTime)
+    var key = getKeyWithTimeout(app.rpms)
     case key
     of Key.Tab:
       app.widgets[app.cursor].focus = false
@@ -350,7 +368,7 @@ proc go(app: var TerminalApp) =
       # poll for changes from other widget
       app.pollWidgetChannel()
       app.render()
-    #sleep(app.refreshWaitTime)
+    #sleep(app.rpms)
 
 
 proc hold(app: var TerminalApp) =
@@ -383,7 +401,7 @@ proc hold(app: var TerminalApp) =
     app.tb.clear()
     app.renderAppFrame()
     app.render()
-    var key = getKeyWithTimeout(app.refreshWaitTime)
+    var key = getKeyWithTimeout(app.rpms)
     case key
     of Key.Tab, Key.None:
       try:
@@ -394,7 +412,7 @@ proc hold(app: var TerminalApp) =
       inc app.cursor
     else: discard
     
-    sleep(app.refreshWaitTime)
+    sleep(app.rpms)
 
 
 

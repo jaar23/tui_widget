@@ -114,7 +114,7 @@ dirView.onEnter = proc (lv: ListView, args: varargs[string]) =
       contentDisplay.hide()
 
 
-var tuiapp = newTerminalApp(title = "DIR", border=false, refreshWaitTime=100)
+var tuiapp = newTerminalApp(title = "DIR", border=false, rpms=20)
 
 tuiapp.addWidget(filterCb)
 

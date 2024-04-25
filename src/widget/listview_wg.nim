@@ -401,7 +401,7 @@ method onUpdate*(lv: ListView, key: Key) =
     elif lv.keyEvents.hasKey(key):
       lv.call(key, lv.selected.value)
   lv.render()
-  sleep(lv.refreshWaitTime)
+  sleep(lv.rpms)
 
 
 method onControl*(lv: ListView): void =
@@ -417,7 +417,7 @@ method onControl*(lv: ListView): void =
 
   lv.focus = true
   while lv.focus:
-    var key = getKeyWithTimeout(lv.refreshWaitTime)
+    var key = getKeyWithTimeout(lv.rpms)
     lv.onUpdate(key)  
 
 

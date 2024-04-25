@@ -328,7 +328,7 @@ method onUpdate*(dp: Display, key: Key) =
       dp.call(key)
 
   dp.render()
-  #sleep(dp.refreshWaitTime)
+  #sleep(dp.rpms)
 
 
 method onControl*(dp: Display) =
@@ -344,9 +344,9 @@ method onControl*(dp: Display) =
     dp.rowReCal() 
   dp.clear()
   while dp.focus:
-    var key = getKeyWithTimeout(dp.refreshWaitTime)
+    var key = getKeyWithTimeout(dp.rpms)
     dp.onUpdate(key)
-    sleep(dp.refreshWaitTime)
+    sleep(dp.rpms)
 
 
 method wg*(dp: Display): ref BaseWidget = dp

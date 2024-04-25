@@ -585,13 +585,13 @@ method onUpdate*(table: Table, key: Key) =
       table.call(key)
 
   table.render()
-  sleep(table.refreshWaitTime)
+  sleep(table.rpms)
 
 
 method onControl*(table: Table): void =
   table.focus = true
   while table.focus:
-    var key = getKeyWithTimeout(table.refreshWaitTime)
+    var key = getKeyWithTimeout(table.rpms)
     table.onUpdate(key) 
 
 

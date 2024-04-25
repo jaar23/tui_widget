@@ -121,7 +121,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     blocking: true
   )
   # to ensure key responsive, default < 50ms
-  if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
+  if textArea.rpms > 50: textArea.rpms = 50
   textArea.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     textArea.normalKeyEvents[Key.QuestionMark] = help
@@ -169,7 +169,7 @@ proc newTextArea*(id: string): TextArea =
     blocking: true
   )
   # to ensure key responsive, default < 50ms
-  if textArea.refreshWaitTime > 50: textArea.refreshWaitTime = 50
+  if textArea.rpms > 50: textArea.rpms = 50
   textArea.channel = newChan[WidgetBgEvent]()
   textArea.normalKeyEvents[Key.QuestionMark] = help
   textArea.visualKeyEvents[Key.QuestionMark] = help
@@ -772,7 +772,7 @@ proc normalMode(t: TextArea) =
           break
         of Key.Escape: break
         else: discard
-        sleep(t.refreshWaitTime)
+        sleep(t.rpms)
       let (r, c) = t.cursorAtLine()
       t.statusbarText = $r & ":" & $c
       t.render()
@@ -792,7 +792,7 @@ proc normalMode(t: TextArea) =
           break
         of Key.Escape: break
         else: discard
-        sleep(t.refreshWaitTime)
+        sleep(t.rpms)
       let (r, c) = t.cursorAtLine()
       t.statusbarText = $r & ":" & $c
       t.render()
@@ -832,7 +832,7 @@ proc visualMode(t: TextArea) =
   ##   b           = goto previous word
   ##   Escape      = back to normal mode
   while true:
-    var key = getKeyWithTimeout(t.refreshWaitTime)
+    var key = getKeyWithTimeout(t.rpms)
     if key in {Key.Escape}:
       t.vimode = Normal
       t.render()
@@ -882,7 +882,7 @@ proc visualMode(t: TextArea) =
       t.render()
 
     t.render()
-    sleep(t.refreshWaitTime)
+    sleep(t.rpms)
 
 
 method onUpdate*(t: TextArea, key: Key) =
@@ -1059,12 +1059,12 @@ method onUpdate*(t: TextArea, key: Key) =
     t.value.insert(ch.toLower(), t.cursor)
     t.cursorMove(1)
   t.render()
-  sleep(t.refreshWaitTime)
+  sleep(t.rpms)
 
 
 proc editMode(t: TextArea) =
   while t.focus:
-    var key = getKeyWithTimeout(t.refreshWaitTime)
+    var key = getKeyWithTimeout(t.rpms)
     if t.enableViMode and t.vimode == Normal and key in {Key.I, Key.ShiftI, Key.Insert}:
       t.vimode = Insert
       t.render()
@@ -1090,7 +1090,7 @@ method onControl*(t: TextArea) =
     else:
       t.editMode()
     t.render()
-    sleep(t.refreshWaitTime)
+    sleep(t.rpms)
 
 
 method wg*(t: TextArea): ref BaseWidget = t

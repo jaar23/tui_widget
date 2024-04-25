@@ -3,8 +3,6 @@ import tables, threading/channels
 
 type
   AxisObj* = object
-    lowerBound: float64
-    upperBound: float64
     padding: int
     title: string
     data: seq[float64]
@@ -20,21 +18,13 @@ type
   Chart* = ref ChartObj
 
 
-proc newAxis*(lb: float64 = 0.0, ub: float64 = 0.0, title: string = "",
+proc newAxis*(title: string = "",
               data: seq[float64] = newSeq[float64]()): Axis =
   var padding = 0
-  var lowerbound = if data.len() > 0: data[0] else: 0.0
-  var upperbound = 0.0
   for d in data:
-    if lowerbound > d:
-      lowerbound = d
-    if upperbound < d:
-      upperbound = d
     if len($d) > padding:
       padding = len($d)
   result = Axis(
-    lowerBound: floor(lowerbound),
-    upperBound: ceil(upperbound),
     title: title,
     data: data,
     padding: padding
@@ -170,13 +160,13 @@ method onUpdate*(c: Chart, key: Key) =
     c.call(key)
 
   c.render()
-  sleep(c.refreshWaitTime)
+  sleep(c.rpms)
 
 
 method onControl*(c: Chart) =
   c.focus = true
   while c.focus:
-    var key = getKeyWithTimeout(c.refreshWaitTime)
+    var key = getKeyWithTimeout(c.rpms)
     c.onUpdate(key)
 
 

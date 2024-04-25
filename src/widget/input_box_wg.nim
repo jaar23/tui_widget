@@ -68,7 +68,7 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
     keyEvents: initTable[Key, EventFn[InputBox]]()
   )
   # to ensure key responsive, default to < 50  
-  if result.refreshWaitTime > 50: result.refreshWaitTime = 50
+  if result.rpms > 50: result.rpms = 50
   # register paste event
   result.on(Key.CtrlV, proc(ib: InputBox, args:varargs[string]) =
     let copiedText = $cb.clipboard_text()
@@ -105,7 +105,7 @@ proc newInputBox*(id: string): InputBox =
     keyEvents: initTable[Key, EventFn[InputBox]]()
   )
   # to ensure key responsive, default to < 50  
-  if input.refreshWaitTime > 50: input.refreshWaitTime = 50
+  if input.rpms > 50: input.rpms = 50
   input.channel = newChan[WidgetBgEvent]()
   return input
 
@@ -432,7 +432,7 @@ method onControl*(ib: InputBox) =
   ib.focus = true
   ib.mode = ">"
   while ib.focus:
-    var key = getKeyWithTimeout(ib.refreshWaitTime)
+    var key = getKeyWithTimeout(ib.rpms)
     ib.onUpdate(key)
  
 

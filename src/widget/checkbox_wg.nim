@@ -145,13 +145,13 @@ method onUpdate*(ch: Checkbox, key: Key) =
     elif ch.keyEvents.hasKey(key):
       ch.call(key, ch.checked)
   ch.render()
-  sleep(ch.refreshWaitTime)
+  sleep(ch.rpms)
 
 
 method onControl*(ch: Checkbox) =
   ch.focus = true
   while ch.focus:
-    var key = getKeyWithTimeout(ch.refreshWaitTime)
+    var key = getKeyWithTimeout(ch.rpms)
     ch.onUpdate(key)
 
 
