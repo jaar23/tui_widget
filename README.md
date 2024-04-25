@@ -21,6 +21,23 @@ git clone https://github.com/jaar23/tui_widget.git
 cd tui_widget && nimble install
 ```
 
+Dependencies
+
+```shell
+# base
+nimble install illwill@0.4.0
+
+# for paste event
+nimble install nimclipboard
+
+# for chart widget
+nimble install asciigraph 
+
+# for multi-thread
+nimble install threading
+nimble install malebolgia
+```
+
 ### Simple Example
 
 ```nim
