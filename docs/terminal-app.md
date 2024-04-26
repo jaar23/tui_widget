@@ -20,6 +20,22 @@ There are some of the features still under development:
 
 - menu bar widget
 
+To understand the posX, posY and width, height of a widget is easy. Look at this diagram below:
+
+```text
+#############################
+# posX, posY-----------width
+# | 
+# |                         
+# |
+# |
+# |
+# height 
+############################
+```
+
+If bordered is enabled, it always take 1 space from all the angle (posX, posY, width, height).
+
 
 ### **type** TerminalApp
 
@@ -126,6 +142,29 @@ proc addWidget(
   width: WidgetSize;
   height: int = 0) {.raises: [Exception], tags: [ReadEnvEffect, RootEffect].}
 ```
+
+### **proc** addWidget
+
+Add new widget to `TerminalApp` with offset. Offset position are, left, top, right, bottom
+
+```
+      top
+     #########
+left #       # right
+     #########
+      botton
+```
+
+
+```nim
+proc addWidget*(
+  app: var TerminalApp,
+  widget: ref BaseWidget,
+  width, height: WidgetSize, 
+  offsetLeft, offsetTop, 
+  offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
+```
+
 
 ### **proc** widgets
 

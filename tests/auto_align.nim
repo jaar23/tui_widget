@@ -1,4 +1,4 @@
-import tui_widget
+import ../src/tui_widget
 import illwill, options, std/enumerate
 
 var inputBox = newInputBox(id="input")
@@ -75,6 +75,7 @@ label.text = "hello tui"
 label.bg(bgWhite) 
 label.fg(fgBlack)
 label.align = Center
+label.border = true
 
 
 listView.onEnter = proc(lv: ListView, args: varargs[string]) =
@@ -91,8 +92,8 @@ app.addWidget(checkbox2, 0.5, 0.1)
 app.addWidget(button, 1.0, 2)
 app.addWidget(table, 1.0, 0.2)
 app.addWidget(progress, 0.8, 2)
-app.addWidget(listView, 1.0, 0.2)
-app.addWidget(label, 0.2, 1)
+app.addWidget(listView, 1.0, 0.2, 0, 0, 0, 0)
+app.addWidget(label, 0.2, 2, 10, -5, 0, 0)
 
-app.run(nonBlocking=true)
+app.run()
 

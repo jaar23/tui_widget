@@ -48,6 +48,8 @@ type
     origWidth: int
     origHeight: int
 
+  SizeOverflow = object of CatchableError
+
 
 var bgChannel = newChan[Task]() 
 
@@ -124,6 +126,74 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
   app.addWidget(widget, w, h)
 
 
+proc addWidget*(app: var TerminalApp, 
+                widget: ref BaseWidget,
+                width, height, 
+                offsetLeft, offsetTop, 
+                offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
+  if app.widgets.len == 0:
+    widget.posX = max(1 + offsetLeft, 1)
+    widget.posY = max(1 + offsetTop, 1)
+    widget.width = width
+    widget.height = height
+  else:
+    if (app.widgets[^1].width / consoleWidth()) > 0.95:
+      widget.posX = min(app.widgets[^1].posX, 1)
+      widget.posY = app.widgets[^1].height + 1
+      widget.posX += offsetLeft
+      widget.posY += offsetTop
+      widget.posX = max(widget.posX - offsetRight, 1)
+      widget.posY = max(widget.posY - offsetBottom, app.widgets[^1].height + 1)
+    else:
+      widget.posX = app.widgets[^1].width + 1
+      widget.posY = app.widgets[^1].posY
+      widget.posX = max(app.widgets[^1].width + 1, widget.posX + offsetLeft)
+      widget.posY = max(app.widgets[^1].posY, widget.posY + offsetTop)
+      if app.widgets[^1].height < widget.posY:
+        widget.posX = widget.posX - offsetRight
+      else:
+        widget.posX = max(widget.posX - offsetRight, app.widgets[^1].width + 1)
+      widget.posY = max(widget.posY - offsetBottom, app.widgets[^1].posY)
+
+
+  widget.width = min(widget.posX + width, consoleWidth())
+  widget.height = min(widget.posY + height, consoleHeight())
+  widget.resize()
+  app.addWidget(widget) 
+
+
+
+proc addWidget*(app: var TerminalApp, 
+                widget: ref BaseWidget,
+                width: WidgetSize, 
+                height: int, 
+                offsetLeft, offsetTop, 
+                offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
+  let w = toConsoleWidth(width)
+  #let h = if height == 1: 0 else: height
+  app.addWidget(widget, w, height, offsetLeft, offsetTop, offsetRight, offsetBottom)
+
+
+proc addWidget*(app: var TerminalApp,
+                widget: ref BaseWidget,
+                width: int, 
+                height: WidgetSize, 
+                offsetLeft, offsetTop, 
+                offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
+  let h = toConsoleHeight(height)
+  app.addWidget(widget, width, h, offsetLeft, offsetTop, offsetRight, offsetBottom)
+
+
+proc addWidget*(app: var TerminalApp,
+                widget: ref BaseWidget,
+                width, height: WidgetSize, 
+                offsetLeft, offsetTop, 
+                offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
+  let w = toConsoleWidth(width)
+  let h = toConsoleHeight(height)
+  app.addWidget(widget, w, h, offsetLeft, offsetTop, offsetRight, offsetBottom)
+
+
 proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
   app.widgets
 
@@ -183,7 +253,7 @@ proc render*(app: var TerminalApp, nonBlocking=false) =
       try:
         w.rerender()
       except:
-        w.onError("E01")
+        w.onError(getCurrentExceptionMsg())
 
 
 proc widgetInit(app: var TerminalApp) =
