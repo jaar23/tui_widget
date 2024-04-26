@@ -67,7 +67,7 @@ app.run()
 
 [Widgets](./docs/widgets.md), widgets API
 
-[Events](./docs/events.md), explain how `tui_widget` works
+[Events](./docs/events.md), explain how `tui_widget`'s events' works
 
 [TerminalApp](./docs/terminal-app.md), bootstrap widget with `TerminalApp`.
 
