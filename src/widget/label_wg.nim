@@ -51,12 +51,16 @@ proc newLabel*(px, py: int, w, h: WidgetSize, id = "",
 
 proc newLabel*(id: string): Label =
   var label = Label(
+    width: 0,
+    height: 0,
+    posX: 0,
+    posY: 0,
     id: id,
     style: WidgetStyle(
-      paddingX1: 1,
-      paddingX2: 1,
-      paddingY1: 1,
-      paddingY2: 1,
+      paddingX1: 0,
+      paddingX2: 0,
+      paddingY1: 0,
+      paddingY2: 0,
       border: false,
       bgColor: bgNone,
       fgColor: fgWhite
@@ -71,13 +75,22 @@ method render*(lb: Label) =
   if not lb.illwillInit: return
   lb.clear()
   lb.renderBorder()
-  var text: string
-  if lb.align == Right:
-    text = align(lb.text, lb.x2 - lb.paddingX1)
-  elif lb.align == Center:
-    text = center(lb.text, lb.x2 - lb.paddingX1)
+  var text: string = ""
+
+  # lb.size = max(3, lb.x2 - lb.x1)
+  lb.size = max(3, lb.x2 - lb.x1)
+  if lb.text.len > lb.size:
+    text = lb.text[0..lb.size - 2] & ".."
   else:
-    text = alignLeft(lb.text, lb.x2 - lb.paddingX1)
+    text = lb.text
+
+  if lb.align == Right:
+    text = align(text, lb.x2 - lb.x1)
+  elif lb.align == Center:
+    text = center(text, lb.x2 - lb.x1)
+  else:
+    text = alignLeft(text, lb.x2 - lb.x1)
+
   lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
   lb.tb.display()
 
@@ -86,15 +99,9 @@ method wg*(lb: Label): ref BaseWidget = lb
 
 
 proc val(lb: Label, text: string) =
+  lb.text = text
   if lb.width > 0:
-    let size = lb.x2 - lb.x1
-    if text.len > size:
-      lb.text = text[0..size - 2] & ".."
-    else:
-      lb.text = text
-  else:
-    lb.text = text
-  lb.render()
+    lb.render()
 
 
 proc `text=`*(lb: Label, text: string) =
