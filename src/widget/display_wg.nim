@@ -269,10 +269,10 @@ method call*(dp: DisplayObj, event: string, args: varargs[string]) =
     fn(dpRef, args)
     
 
-proc call(dp: Display, key: Key) =
+proc call(dp: Display, key: Key, args: varargs[string]) =
   let fn = dp.keyEvents.getOrDefault(key, nil)
   if not fn.isNil:
-    fn(dp)
+    fn(dp, args)
 
 
 method poll*(dp: Display) =
@@ -325,7 +325,7 @@ method onUpdate*(dp: Display, key: Key) =
   else:
     if key in forbiddenKeyBind: discard
     elif dp.keyEvents.hasKey(key):
-      dp.call(key)
+      dp.call(key, "")
 
   dp.render()
   #sleep(dp.rpms)
