@@ -166,6 +166,6 @@ I believe you are now ready to start build your first text based application wit
 
 - [widgets](./widgets.md)
 
-- [TerminalApp](./widgets.md)
+- [TerminalApp](./terminal-app.md)
 
 - [events](./events.md)
