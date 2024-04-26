@@ -63,13 +63,13 @@ app.run()
 
 ### Docs
 
-[Getting Started](./docs/getting-started.md)
+[Getting Started](./docs/getting-started.md), learn how to create a terminal application with `tui_widget` by simple examples.
 
-[Widgets](./docs/widgets.md)
+[Widgets](./docs/widgets.md), widgets API
 
-[Events](./docs/events.md)
+[Events](./docs/events.md), explain how `tui_widget` works
 
-[TerminalApp](./docs/terminal-app.md)
+[TerminalApp](./docs/terminal-app.md), bootstrap widget with `TerminalApp`.
 
 ### Examples
 
@@ -85,5 +85,4 @@ Refers to tests / examples folder for example.
 
 - terminal app and widgets [example](./examples/dir.nim)
   
-  
-
+- auto-align widget [example](./tests/auto_align.nim)
