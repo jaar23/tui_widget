@@ -93,7 +93,7 @@ proc consoleHeight*(): int =
 
 method onControl*(this: ref BaseWidget): void {.base.} =
   #child needs to implement this!
-  echo ""
+  this.focus = false
 
 
 method onUpdate*(this: ref BaseWidget, key: Key): void {.base.} =
@@ -388,22 +388,3 @@ proc experimental*(bw: ref BaseWidget) =
   bw.tb.write(bw.x2 - len(text) - 3, bw.height, bgWhite, fgBlack, text, resetStyle)
 
 
-# not available due to recursive module import
-# proc help(bw: ref BaseWidget, args: varargs[string]) = 
-#   let wsize = ((bw.width - bw.posX).toFloat * 0.3).toInt()
-#   let hsize = ((bw.height - bw.posY).toFloat * 0.3).toInt()
-#   var display = newDisplay(bw.x2 - wsize, bw.y2 - hsize, 
-#                           bw.x2, bw.y2, title="help",
-#                           bgColor=bgWhite, fgColor=fgBlack,
-#                           tb=bw.tb, statusbar=false)
-#   var helpText: string
-#   if bw.helpText == "":
-#     helpText = " [Enter] to select\n" &
-#                " [?]     for help\n" &
-#                " [Esc]   to exit this window"
-#   display.text = helpText
-#   display.illwillInit = true
-#   display.onControl()
-#   display.clear()
-#
-#
