@@ -1,4 +1,4 @@
-import illwill, base_wg, os, std/wordwrap, strutils, options, tables, label_wg
+import illwill, base_wg, os, std/wordwrap, strutils, options, tables
 import threading/channels
 
 # Doesn't work nice when rendering a lot of character rather than 

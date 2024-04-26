@@ -1,4 +1,4 @@
-import illwill, strutils, base_wg, sequtils, encodings, os
+import illwill, strutils, base_wg, sequtils, encodings
 import tables, threading/channels
 import nimclipboard/libclipboard
 

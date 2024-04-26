@@ -54,6 +54,8 @@ type
 
   SizeDiffError = object of CatchableError
 
+  FileNotFoundError = object of CatchableError
+
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.Slash, Key.Up, Key.Down,
                           Key.Left, Key.Right}
 
@@ -638,14 +640,14 @@ proc selected*(table: Table): TableRow =
 
 
 proc loadFromCsv*(table: Table, filepath: string, withHeader = false, 
-                  withIndex = false): void {.raises: [IOError].} =
+                  withIndex = false) =
   try:
     if not filepath.endsWith(".csv"):
       raise newException(IOError, "Unable to load non csv file")
     table.rows = newSeq[TableRow]()
     var stream = newFileStream(filepath, fmRead)
     if stream == nil:
-      raise newException(IOError, "Unable to open file")
+      raise newException(FileNotFoundError, "Unable to open file")
     var csvparser: CsvParser
     open(csvparser, stream, filepath)
     var rindex = 0
@@ -677,7 +679,7 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
     csvparser.close()
     table.cursor = 0
     table.prevSelection()
-  except:
+  except IOError, FileNotFoundError:
     table.emptyRows()
     echo "failed to open file"
 
