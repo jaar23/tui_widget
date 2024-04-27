@@ -141,9 +141,13 @@ proc vrows(lv: ListView): seq[ListRow] =
   lv.rows.filter(proc(r: ListRow): bool = r.visible)
 
 
-proc emptyRows(lv: ListView, emptyMessage = "No records") =
-  lv.tb.write(lv.posX + lv.paddingX1,
-                 lv.posY + 3, bgRed, fgWhite,
+proc emptyRows(lv: ListView, emptyMessage = "No records",
+                bgColor = bgRed, fgColor = fgWhite) =
+  if lv.events.hasKey("empty"):
+    lv.call("empty", "")
+  else:  
+    lv.tb.write(lv.posX + lv.paddingX1,
+                 lv.posY + 3, bgColor, fgColor,
                  center(emptyMessage, lv.width - lv.paddingX1 - 2), resetStyle)
 
 
@@ -182,9 +186,13 @@ proc renderListRow(lv: ListView, row: ListRow, index: int) =
   # if lv.rows.len <= lv.selectedRow: 
   #   lv.selectedRow = 0
   #   lv.cursor = 0
-    # should raise warning
-  var text = if row.selected: lv.scrollRow(lv.colCursor)
-    else: row.text[0..min(row.text.len - 1, lv.width - lv.x1 - posX - borderX)]
+  var text = ""
+  if row.selected and (lv.x2 - lv.x1) > row.text.len:
+    text = row.text
+  elif row.selected and (lv.x2 - lv.x1) < row.text.len:
+    text = lv.scrollRow(lv.colCursor) 
+  else: 
+    text = row.text[0..min(row.text.len - 1, lv.width - lv.x1 - posX - borderX)]
 
   if row.align == Left:
     text = alignLeft(text, min(lv.width, lv.width - lv.posX - posX - borderX))
@@ -195,18 +203,18 @@ proc renderListRow(lv: ListView, row: ListRow, index: int) =
 
   if row.selected and lv.selectionStyle == Highlight:
     lv.tb.write(lv.posX + posX, lv.posY + index, resetStyle,
-                lv.bg, row.fgColor, text, resetStyle)
+                row.bgColor, row.fgColor, text, resetStyle)
   elif row.selected and lv.selectionStyle == Arrow:
-    lv.tb.write(lv.posX + 1, lv.posY + index, resetStyle,
+    lv.tb.write(lv.posX + 1, lv.posY + index,
                 fgGreen, ">",
                 row.fgColor, text, resetStyle)
   elif row.selected and lv.selectionStyle == HighlightArrow:
-    lv.tb.write(lv.posX + 1, lv.posY + index, resetStyle,
+    lv.tb.write(lv.posX + 1, lv.posY + index,
                 fgGreen, ">",
-                lv.bg, row.fgColor, text, resetStyle)
+                row.bgColor, row.fgColor, text, resetStyle)
   else:
     lv.tb.write(lv.posX + posX, lv.posY + index, resetStyle,
-                row.bgColor, row.fgColor, text, resetStyle)
+                bgNone, row.fgColor, text, resetStyle)
 
 
 proc help(lv: ListView, args: varargs[string]) = 
@@ -230,17 +238,18 @@ proc help(lv: ListView, args: varargs[string]) =
 
 
 proc renderStatusBar(lv: ListView, text: string = "") =
-  if lv.events.hasKey("statusbar"):
-    lv.call("statusbar")
-  else: 
-    let statusText = if text.len == 0: lv.statusbarText else: text
-    lv.statusbarSize = statusText.len()
-    lv.renderCleanRect(lv.x2 - lv.statusbarSize, lv.height, lv.statusbarSize, lv.height)
-    # mode
-    lv.tb.write(lv.x1, lv.height, bgWhite, fgBlack, $lv.mode, resetStyle)
-    if lv.enableHelp:
-      let q = "[?]"
-      lv.tb.write(lv.x2 - q.len, lv.height, bgWhite, fgBlack, q, resetStyle)
+  if lv.statusbar:
+    if lv.events.hasKey("statusbar"):
+      lv.call("statusbar")
+    else: 
+      let statusText = if text.len == 0: lv.statusbarText else: text
+      lv.statusbarSize = statusText.len()
+      lv.renderCleanRect(lv.x2 - lv.statusbarSize, lv.height, lv.statusbarSize, lv.height)
+      # mode
+      lv.tb.write(lv.x1, lv.height, bgWhite, fgBlack, $lv.mode, resetStyle)
+      if lv.enableHelp:
+        let q = "[?]"
+        lv.tb.write(lv.x2 - q.len, lv.height, bgWhite, fgBlack, q, resetStyle)
 
 
 method resize*(lv: ListView) =
