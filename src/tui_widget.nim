@@ -62,8 +62,8 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
     height: terminalHeight(),
     title: title,
     border: border,
-    bgColor: bgColor,
-    fgColor: fgColor,
+    bgColor: bgNone, # disable bgcolor until x
+    fgColor: fgWhite, # disable fgcolor until x
     rpms: rpms,
     widgets: newSeq[ref BaseWidget](),
     tb: tb,
@@ -478,7 +478,7 @@ proc hold(app: var TerminalApp) =
         if app.cursor > app.widgets.len - 1: app.cursor = 0
         app.widgets[app.cursor].onControl()
       except:
-        app.widgets[app.cursor].onError("E01")
+        app.widgets[app.cursor].onError(getCurrentExceptionMsg())
       inc app.cursor
     else: discard
     
