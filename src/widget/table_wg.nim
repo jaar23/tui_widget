@@ -49,7 +49,7 @@ type
     maxColWidth: int = 64
     events*: systable.Table[string, EventFn[ref TableObj]]
     keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
-
+  
   Table* = ref TableObj
 
   SizeDiffError = object of CatchableError
@@ -399,7 +399,8 @@ proc renderTableHeader(table: Table): int =
     var posX = table.paddingX1
     for i in table.colCursor..<table.headers.get.columns.len:
       if table.headers.get.columns[i].visible and posX < table.width:
-        table.tb.write(table.posX + posX, table.posY + result, bgBlue, 
+        table.tb.write(table.posX + posX, table.posY + result, 
+                       table.headers.get.columns[i].bgColor, 
                        table.headers.get.columns[i].fgColor, 
                        alignLeft(table.headers.get.columns[i].text, 
                                  min(table.headers.get.columns[i].width, 
