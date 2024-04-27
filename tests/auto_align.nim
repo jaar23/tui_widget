@@ -1,4 +1,4 @@
-import ../src/tui_widget
+import tui_widget
 import illwill, options, std/enumerate
 
 var inputBox = newInputBox(id="input")

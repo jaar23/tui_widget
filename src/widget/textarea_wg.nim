@@ -156,6 +156,7 @@ proc newTextArea*(id: string): TextArea =
       bgColor: bgNone,
       fgColor: fgWhite
     ),
+    value: " ",
     cursorBg: bgBlue,
     cursorFg: fgWhite,
     cursorStyle: Block,
@@ -543,6 +544,14 @@ proc help(t: TextArea, args: varargs[string]) =
   display.onControl()
   display.clear()
 
+
+method resize*(t: TextArea) =
+  let padding = if t.border: 1 else: 0
+  let statusbarSize = if t.statusbar: 1 else: 0
+  t.cols = t.width - t.posX - padding
+  t.rows = t.height - t.posY - (padding * 2)
+  t.size = t.height - statusbarSize - t.posY
+   
 
 method render*(t: TextArea) =
   if not t.illwillInit: return

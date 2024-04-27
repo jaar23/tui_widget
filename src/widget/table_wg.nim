@@ -9,30 +9,30 @@ type
   ColumnType* = enum
     Header, Column
 
-  TableColumnObj* = object
+  TableColumnObj* = object of RootObj
     index*: int
     width: int
     height: int
     overflow: bool
     text*: string
     key*: string
-    bgColor: BackgroundColor
-    fgColor: ForegroundColor
-    align: Alignment = Left
+    bgColor*: BackgroundColor
+    fgColor*: ForegroundColor
+    align*: Alignment = Left
     columnType: ColumnType
     value*: string = ""
     visible: bool = true
 
   TableColumn* = ref TableColumnObj
 
-  TableRowObj* = object
+  TableRowObj* = object of RootObj
     index*: int
     width: int
     height: int
     maxColWidth: int
-    columns*: seq[TableColumn]
-    bgColor: BackgroundColor
-    fgColor: ForegroundColor
+    columns: seq[TableColumn]
+    bgColor*: BackgroundColor
+    fgColor*: ForegroundColor
     visible: bool = true
     selected*: bool = false
     value*: string = ""
@@ -64,6 +64,8 @@ proc help(table: Table, args: varargs[string]): void
 
 proc on*(table: Table, key: Key, fn: EventFn[Table]) {.raises: [EventKeyError]} 
 
+proc call*(table: Table, event: string, args: varargs[string]): void
+
 proc newTableColumn*(width: int, height: int = 1; text = ""; key = ""; 
                      index = 0; overflow: bool = false;
                      bgColor = bgNone; fgColor = fgWhite;
@@ -81,6 +83,23 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
     columnType: columnType,
   )
   return tc
+
+
+proc newTableColumn*(text = "", columnType = Column): TableColumn =
+  var tc = TableColumn(
+    index: 0,
+    width: len(text),
+    height: 1,
+    overflow: false,
+    text: text,
+    key: text,
+    bgColor: bgNone,
+    fgColor: fgWhite,
+    align: Left,
+    columnType: columnType,
+  )
+  return tc
+
 
 
 proc newTableRow*(width: int, height = 1; 
@@ -103,6 +122,58 @@ proc newTableRow*(width: int, height = 1;
     maxColWidth: maxColWidth,
   )
   return tr
+
+
+proc newTableRow*(): TableRow =
+  var tr = TableRow(
+    index: 0,
+    width: 0,
+    height: 1,
+    columns: newSeq[TableColumn](),
+    bgColor: bgNone,
+    fgColor: fgWhite,
+    selected: false,
+    maxColWidth: 64,
+  )
+  return tr
+
+
+proc `columns=`*(tr: TableRow, columns: seq[TableColumn]) =
+  var maxColWidth = 0
+  for i in 0 ..< columns.len:
+    columns[i].index = i
+    maxColWidth = min(columns[i].width, maxColWidth)
+  tr.columns = columns
+  tr.maxColWidth = maxColWidth
+
+
+proc columns*(tr: TableRow, columns: seq[string]) =
+  var maxColWidth = 0
+  for i in 0 ..< columns.len:
+    var col = newTableColumn(columns[i])
+    col.index = i
+    maxColWidth = min(len(columns[i]), maxColWidth)
+    tr.columns.add(col)
+  tr.maxColWidth = maxColWidth
+
+
+proc addColumn*(tr: TableRow, column: string) =
+  var col = newTableColumn(column)
+  tr.columns.add(col)
+  var maxColWidth = 0
+  for i in 0 ..< tr.columns.len:
+    tr.columns[i].index = i
+    maxColWidth = min(tr.columns[i].width, maxColWidth)
+  tr.maxColWidth = maxColWidth
+
+
+proc addColumn*(tr: TableRow, column: TableColumn) =
+  tr.columns.add(column)
+  var maxColWidth = 0
+  for i in 0 ..< tr.columns.len:
+    tr.columns[i].index = i
+    maxColWidth = min(tr.columns[i].width, maxColWidth)
+  tr.maxColWidth = maxColWidth
 
 
 proc newTable*(px, py, w, h: int, rows: seq[TableRow], 
@@ -231,6 +302,9 @@ proc newTable*(id: string): Table =
       bgColor: bgNone,
       fgColor: fgWhite
     ),
+    headers: none(TableRow),
+    rows: newSeq[TableRow](),
+    size: 0,
     events: initTable[string, EventFn[Table]](),
     keyEvents: initTable[Key, EventFn[Table]]()
   )
@@ -254,15 +328,16 @@ proc vrows(table: Table): seq[TableRow] =
 
 
 proc dtmColumnToDisplay(table: Table) =
-  var posX = table.paddingX1
-  for i in table.colCursor..<table.headers.get.columns.len:
-    if posX + table.headers.get.columns[i].width < table.x2:
-      table.headers.get.columns[i].visible = true
-      posX += table.headers.get.columns[i].width
-    else:
+  if table.headers.isSome:
+    var posX = table.paddingX1
+    for i in table.colCursor..<table.headers.get.columns.len:
+      if posX + table.headers.get.columns[i].width < table.x2:
+        table.headers.get.columns[i].visible = true
+        posX += table.headers.get.columns[i].width
+      else:
+        table.headers.get.columns[i].visible = false
+    for i in 0..<table.colCursor:
       table.headers.get.columns[i].visible = false
-  for i in 0..<table.colCursor:
-    table.headers.get.columns[i].visible = false
 
 
 proc prevSelection(table: Table, size: int = 1) =
@@ -297,10 +372,14 @@ proc nextSelection(table: Table, size: int = 1) =
         table.rows[r].selected = false
 
 
-proc emptyRows(table: Table, emptyMessage = "No records") =
-  table.tb.write(table.posX + table.paddingX1,
-                 table.posY + 3, bgRed, fgWhite, 
-                 center(emptyMessage, table.width - table.paddingX1 - 2), resetStyle)
+proc emptyRows(table: Table, emptyMessage = "No records", 
+                bgColor = bgRed, fgColor = fgWhite) =
+  if table.events.hasKey("empty"):
+    table.call("empty", "")
+  else:
+    table.tb.write(table.posX + table.paddingX1,
+                   table.posY + 3, bgColor, fgColor, 
+                   center(emptyMessage, table.width - table.paddingX1 - 2), resetStyle)
 
 
 proc renderClearRow(table: Table, index: int, full = false) =
@@ -392,7 +471,7 @@ proc help(table: Table, args: varargs[string]) =
     helpText = " [Enter] to select\n" &
                " [/]     to search\n" &
                " [?]     for help\n" &
-               " [Tab]   to go next widget\n " &
+               " [Tab]   to go next widget\n" &
                " [Esc]   to exit this window"
   display.text = helpText
   display.illwillInit = true
@@ -401,7 +480,7 @@ proc help(table: Table, args: varargs[string]) =
 
 
 method resize*(table: Table) =
-  let statusbarSize = if table.statusbar: 2 else: 1
+  let statusbarSize = 2
   let padding = 1
   table.size = table.height - table.posY - 
     padding - padding - statusbarSize
@@ -587,7 +666,6 @@ method onUpdate*(table: Table, key: Key) =
       table.call(key)
 
   table.render()
-  sleep(table.rpms)
 
 
 method onControl*(table: Table): void =
@@ -602,10 +680,11 @@ method wg*(table: Table): ref BaseWidget = table
 
 proc `header=`*(table: Table, header: TableRow) =
   table.headers = some(header)
-
+  table.render()
 
 proc header*(table: Table, header: TableRow) =
   table.headers = some(header)
+  table.render()
 
 
 proc header*(table: Table): Option[ TableRow] = table.headers
@@ -631,8 +710,18 @@ proc addRow*(table: Table, tablerow: TableRow, index: Option[int] = none(int)): 
     tablerow.selected = false
 
 
+proc rows*(table: Table): seq[TableRow] =
+  return table.rows
+
+
 proc removeRow*(table: Table, index: int) =
   table.rows.delete(index)
+  table.render()
+
+
+proc clearRows*(table: Table) =
+  table.rows = newSeq[TableRow]()
+  table.render()
 
 
 proc selected*(table: Table): TableRow =
@@ -679,6 +768,8 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
     csvparser.close()
     table.cursor = 0
     table.prevSelection()
+    table.resetCursor()
+    table.render()
   except IOError, FileNotFoundError:
     table.emptyRows()
     echo "failed to open file"
@@ -706,6 +797,9 @@ proc loadFromSeq*(table: Table, rows: openArray[seq[string]]) =
       var column = newTableColumn(d.len, 1, d, d)
       row.columns.add(column)
     table.addRow(row)
+
+  table.resetCursor()
+  table.render()
 
 
 # proc `enableHelp=`*(table: Table, enable: bool) =
