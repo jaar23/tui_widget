@@ -114,12 +114,11 @@ method render*(bt: Button) =
     bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, 
                   bt.style.pressedBgcolor, bt.fg)
     bt.tb.write(bt.x1, bt.y1, bt.style.pressedBgcolor, bt.fg, 
-
-                center(bt.label, bt.width - 2), resetStyle)
+                center(bt.label, bt.width - bt.x1), resetStyle)
   else:
     bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, bt.bg, bt.fg)
     bt.tb.write(bt.x1, bt.y1, bt.bg, bt.fg, 
-                center(bt.label, bt.width - 2), resetStyle)
+                center(bt.label, bt.width - bt.x1), resetStyle)
   bt.tb.display()
 
 
