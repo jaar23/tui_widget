@@ -2731,7 +2731,9 @@ Create table header from array
 ```nim
 proc headerFromArray(
   table: Table; 
-  header: openArray[string]
+  header: openArray[string],
+  bgColor: illwill.BackgroundColor = bgNone,
+  fgColor: illwill.ForegroundColor = fgWhite
 ) 
 ```
 
