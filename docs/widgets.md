@@ -1980,7 +1980,6 @@ ListView = ref ListViewObj
 
 ### **proc** newListRow
 
-
 ```nim
 proc newListRow(
   index: int; 
@@ -1992,6 +1991,8 @@ proc newListRow(
   visible = true;
   selected = false): ListRow 
 ```
+
+**Note** When using `Highlight` and `HighlightArrow` selection style, you will need to set the `bgColor` of the row.
 
 ### **proc** newListView
 
@@ -2484,6 +2485,14 @@ proc newTableColumn(
   align = Left; columnType = Column): TableColumn 
 ```
 
+### **proc** newTableColumn
+
+Instantiate a minimal table column with default value and column type as column
+
+```nim
+proc newTableColumn*(text = "", columnType = Column): TableColumn
+```
+
 ### **proc** newTableRow
 
 A table row within the table
@@ -2496,6 +2505,42 @@ proc newTableRow(
   bgColor = bgNone; 
   fgColor = fgWhite;
   selected = false): TableRow 
+```
+
+### **proc** newTableRow
+
+Instantiate a minimal table row with default value
+
+```nim
+proc newTableRow*(): TableRow
+```
+
+### **proc** columns=
+
+Set columns to table row
+```nim
+proc `columns=`*(tr: TableRow, columns: seq[TableColumn])
+```
+
+### **proc** columns
+
+Set columns to table row
+```nim
+proc columns*(tr: TableRow, columns: seq[string])
+```
+
+### **proc** addColumn
+
+Add column with text provided to table row, this function set both text and key as the same value
+```nim
+proc addColumn*(tr: TableRow, column: string)
+```
+
+### **proc** addColumn
+
+Add column to table row
+```nim
+proc addColumn*(tr: TableRow, column: TableColumn)
 ```
 
 ### **proc** newTable
@@ -2653,6 +2698,13 @@ proc addRow(table: Table; tablerow: TableRow; index: Option[int] = none(int)): v
 Remove row from table
 ```nim
 proc removeRow(table: Table; index: int) 
+```
+
+### **proc** clearRows
+
+Clear all the rows in table
+```nim
+proc clearRows*(table: Table)
 ```
 
 ### **proc** selected

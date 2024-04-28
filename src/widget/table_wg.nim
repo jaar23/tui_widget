@@ -84,7 +84,7 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
   )
   return tc
 
-# doc
+
 proc newTableColumn*(text = "", columnType = Column): TableColumn =
   var tc = TableColumn(
     index: 0,
@@ -123,7 +123,7 @@ proc newTableRow*(width: int, height = 1;
   )
   return tr
 
-# doc
+
 proc newTableRow*(): TableRow =
   var tr = TableRow(
     index: 0,
@@ -137,7 +137,7 @@ proc newTableRow*(): TableRow =
   )
   return tr
 
-# doc
+
 proc `columns=`*(tr: TableRow, columns: seq[TableColumn]) =
   var maxColWidth = 0
   for i in 0 ..< columns.len:
@@ -146,7 +146,7 @@ proc `columns=`*(tr: TableRow, columns: seq[TableColumn]) =
   tr.columns = columns
   tr.maxColWidth = maxColWidth
 
-# doc
+
 proc columns*(tr: TableRow, columns: seq[string]) =
   var maxColWidth = 0
   for i in 0 ..< columns.len:
@@ -156,7 +156,7 @@ proc columns*(tr: TableRow, columns: seq[string]) =
     tr.columns.add(col)
   tr.maxColWidth = maxColWidth
 
-# doc
+
 proc addColumn*(tr: TableRow, column: string) =
   var col = newTableColumn(column)
   tr.columns.add(col)
@@ -166,7 +166,7 @@ proc addColumn*(tr: TableRow, column: string) =
     maxColWidth = min(tr.columns[i].width, maxColWidth)
   tr.maxColWidth = maxColWidth
 
-# doc
+
 proc addColumn*(tr: TableRow, column: TableColumn) =
   tr.columns.add(column)
   var maxColWidth = 0
@@ -719,7 +719,7 @@ proc removeRow*(table: Table, index: int) =
   table.rows.delete(index)
   table.render()
 
-# doc
+
 proc clearRows*(table: Table) =
   table.rows = newSeq[TableRow]()
   table.render()
