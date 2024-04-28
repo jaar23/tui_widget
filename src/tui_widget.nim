@@ -478,7 +478,8 @@ proc hold(app: var TerminalApp) =
         if app.cursor > app.widgets.len - 1: app.cursor = 0
         app.widgets[app.cursor].onControl()
       except:
-        app.widgets[app.cursor].onError(getCurrentExceptionMsg())
+        let err = getCurrentException()
+        app.widgets[app.cursor].onError(err.getStackTrace())
       inc app.cursor
     else: discard
     
