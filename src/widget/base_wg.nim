@@ -1,4 +1,4 @@
-import illwill, threading/channels, unicode
+import illwill, threading/channels, unicode, std/wordwrap
 
 type
   Alignment* = enum
@@ -149,7 +149,9 @@ method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
 
 method onError*(this: ref BaseWidget, errorCode: string) {.base.} =
   this.tb.fill(this.posX, this.posY, this.width, this.height, " ")
-  this.tb.write(this.posX +  1, this.posY, fgRed, bgWhite, "[!] " & errorCode, resetStyle)
+  this.tb.write(this.posX +  1, this.posY, fgRed, 
+                bgWhite, "[!] " & wrapWords(errorCode, this.width - this.posX), 
+                resetStyle)
 
 
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
