@@ -329,13 +329,16 @@ proc vrows(table: Table): seq[TableRow] =
 
 proc dtmColumnToDisplay(table: Table) =
   if table.headers.isSome:
-    var posX = table.paddingX1
-    for i in table.colCursor..<table.headers.get.columns.len:
+    table.headers.get.columns[table.colCursor].visible = true
+    # var posX = table.headers.get.columns[table.colCursor].width
+    #   table.paddingX1 - table.paddingX2
+    var posX = table.paddingX1 + table.paddingX2
+    for i in (table.colCursor + 1)..<table.headers.get.columns.len:
       if posX + table.headers.get.columns[i].width < table.x2:
         table.headers.get.columns[i].visible = true
-        posX += table.headers.get.columns[i].width
       else:
         table.headers.get.columns[i].visible = false
+      posX += table.headers.get.columns[i].width
     for i in 0..<table.colCursor:
       table.headers.get.columns[i].visible = false
 
@@ -389,24 +392,31 @@ proc renderClearRow(table: Table, index: int, full = false) =
                   totalWidth, table.height, " ")
   else:
     table.tb.fill(table.posX + table.paddingX1, table.posY + index,
-                  table.width - table.paddingX1, table.posY + index, " ")
+                  table.width - table.posX + table.paddingX1, table.posY + index, " ")
 
 
 proc renderTableHeader(table: Table): int =
   result = 1
-  let borderX = if table.border: 1 else: 2
+  let borderX = if table.border: 1 else: 0
   if table.headers.isSome:
     var posX = table.paddingX1
     for i in table.colCursor..<table.headers.get.columns.len:
       if table.headers.get.columns[i].visible and posX < table.width:
+        var text = table.headers.get.columns[i].text
+        if table.posX + posX + text.len > table.x2:
+          let extraSize = table.posX + posX + text.len - table.x2
+          text = text.substr(0, (text.len - extraSize - 2)) & ".."
         table.tb.write(table.posX + posX, table.posY + result, 
                        table.headers.get.columns[i].bgColor, 
-                       table.headers.get.columns[i].fgColor, 
+                       table.headers.get.columns[i].fgColor,
+                       styleBright, if i == table.colCursor: styleUnderscore else: styleBright,
                        alignLeft(table.headers.get.columns[i].text, 
                                  min(table.headers.get.columns[i].width, 
-                                     table.width - table.posX - posX - borderX)), 
+                                     max(0, table.width - table.posX - posX - borderX))), 
                        resetStyle)
         posX = posX + table.headers.get.columns[i].width + 1
+
+      if table.x2 - table.x1 - posX < 2: break
     result += 1
 
 
@@ -426,12 +436,20 @@ proc renderTableRow(table: Table, row: TableRow, index: int) =
       if row.selected and (table.selectionStyle == Arrow or table.selectionStyle == HighlightArrow):
         table.tb.write(table.posX + 1, table.posY + index, fgGreen, ">", resetStyle)
       var width = table.calColWidth(i, row.columns[i].width)
+      # determine text to dislay by available wdith
       if row.columns[i].align == Left:
-        text = alignLeft(text, min(width, table.width - table.posX - posX - borderX))
+        # text = alignLeft(text, min(width, max(0, table.width - table.posX - posX - borderX)))
+        text = alignLeft(text, min(width, max(0, table.x2 - table.x1 - posX - borderX)))
       elif row.columns[i].align == Center:
-        text = center(text, min(width, table.width - table.posX - posX - borderX))
+        #text = center(text, min(width, max(0, table.width - table.posX - posX - borderX)))
+        text = center(text, min(width, max(0, table.x2 - table.x1 - posX - borderX)))
       elif row.columns[i].align == Right:
-        text = align(text, min(width, table.width - table.posX - posX - borderX))
+        # text = align(text, min(width, max(0, table.width - table.posX - posX - borderX)))
+        text = align(text, min(width, max(0, table.x2 - table.x1 - posX - borderX)))
+      if table.x1 + posX + text.len > table.x2:
+        let extraSize = table.x1 + posX + text.len - table.x2
+        text = text.substr(0, (text.len - extraSize - 2)) & ".."
+      # render  row
       var bgSelected = row.columns[i].bgColor
       if row.selected and (table.selectionStyle == Highlight or table.selectionStyle == HighlightArrow):
         bgSelected = bgGreen
@@ -441,6 +459,7 @@ proc renderTableRow(table: Table, row: TableRow, index: int) =
         table.tb.write(table.posX + posX, table.posY + index, resetStyle,
                        bgSelected, row.columns[i].fgColor, text, resetStyle)
       posX += width + 1
+    if table.x2 - table.x1 - posX < 2: break
 
 
 proc renderStatusBar(table: Table) =
@@ -485,6 +504,7 @@ method resize*(table: Table) =
   let padding = 1
   table.size = table.height - table.posY - 
     padding - padding - statusbarSize
+  table.maxColWidth = table.x2 - table.x1
 
 
 method render*(table: Table): void =
@@ -688,7 +708,7 @@ proc header*(table: Table, header: TableRow) =
   table.render()
 
 
-proc header*(table: Table): Option[ TableRow] = table.headers
+proc header*(table: Table): Option[TableRow] = table.headers
 
 
 proc addRow*(table: Table, tablerow: TableRow, index: Option[int] = none(int)): void =
@@ -722,6 +742,7 @@ proc removeRow*(table: Table, index: int) =
 
 proc clearRows*(table: Table) =
   table.rows = newSeq[TableRow]()
+  table.resetCursor()
   table.render()
 
 
@@ -776,10 +797,12 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
     echo "failed to open file"
 
 
-proc headerFromArray*(table: Table, header: openArray[string]) =
+proc headerFromArray*(table: Table, header: openArray[string], 
+                      bgColor=bgNone, fgColor=fgWhite) =
   var headers = newTableRow(table.width)
   for h in header:
-    let column = newTableColumn(h.len, 1, h, h)
+    let column = newTableColumn(h.len, 1, h, h, bgColor=bgColor, 
+                                fgColor=fgColor)
     headers.columns.add(column)
   table.header = headers
 
@@ -800,12 +823,7 @@ proc loadFromSeq*(table: Table, rows: openArray[seq[string]]) =
     table.addRow(row)
 
   table.resetCursor()
+  table.prevSelection()
   table.render()
 
 
-# proc `enableHelp=`*(table: Table, enable: bool) =
-#   table.enableHelp = enable
-#   if table.enableHelp:
-#     table.on(Key.QuestionMark, help)
-#   else:
-#     table.keyEvents.del(Key.QuestionMark)
