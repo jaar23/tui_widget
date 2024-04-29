@@ -190,6 +190,8 @@ func splitBySize(val: string, size: int, rows: int): seq[string] =
 
 func rowReCal(t: TextArea) =
   t.textRows = splitBySize(t.value, t.cols, t.rows)
+  # t.textRows = t.value.splitLines(keepEol=true)
+  # if t.textRows[^1] != " ": t.textRows[^1] &= " "
 
 
 func cursorMove(t: TextArea, moved: int) =
@@ -200,7 +202,15 @@ func cursorMove(t: TextArea, moved: int) =
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
   elif t.cursor < t.cols * max(t.rowCursor, 1):
     t.rowCursor = max(0, t.rowCursor - 1)
+  # let currLineEndCursor = min(t.value.len - 1, 
+  #                         ((t.rowCursor + 1) * t.cols) - 1)
 
+  # if t.value[(t.cursor + 1)..currLineEndCursor].strip() == "":
+  #   t.value.delete((t.cursor + 1)..(t.cursor + 1))
+
+
+# TODO: 
+# Improve enter action
 func enter(t: TextArea) =
   # find out remaining space until next line
   var rem = t.cursor - ((t.rowCursor + 1) * t.cols)
@@ -209,32 +219,10 @@ func enter(t: TextArea) =
   # insert remaining space to push cursor to next line
   t.value.insert(repeat(' ', rem), t.cursor)
   t.cursor += rem
+  # t.value.insert("\n", t.cursor)
+  # t.cursor += 2
   t.rowReCal()
   t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-
-
-func moveUp(t: TextArea) =
-  t.cursor = max(0, t.cursor - t.cols)
-  if t.cursor < t.cols * max(t.rowCursor, 1):
-    t.rowCursor = max(0, t.rowCursor - 1)
-
-
-func moveDown(t: TextArea) =
-  t.cursor = min(t.value.len - 1, t.cursor + t.cols)
-  if t.cursor > t.cols * max(t.rowCursor, 1):
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-
-
-func moveLeft(t: TextArea) =
-  t.cursor = max(0, t.cursor - 1)
-  if t.cursor < t.cols * t.rowCursor:
-    t.rowCursor = max(0, t.rowCursor - 1)
-
-
-func moveRight(t: TextArea) =
-  t.cursor = min(t.value.len - 1, t.cursor + 1)
-  if t.cursor > t.cols * (t.rowCursor + 1):
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
 func moveToBegin(t: TextArea) =
@@ -278,7 +266,6 @@ func moveToNextWord(t: TextArea) =
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 
-
 func moveToPrevWord(t: TextArea) =
   var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
@@ -306,6 +293,65 @@ func moveToPrevWord(t: TextArea) =
   if t.cursor < t.cols * t.rowCursor:
     t.rowCursor = max(0, t.rowCursor - 1)
 
+
+func moveUp(t: TextArea) =
+  t.cursor = max(0, t.cursor - t.cols)
+  if t.cursor < t.cols * max(t.rowCursor, 1):
+    t.rowCursor = max(0, t.rowCursor - 1)
+  if t.cursor != 0 and (t.cursor != t.value.len - 1):
+    let currLineEndCursor = min(t.value.len - 1, 
+                            ((t.rowCursor + 1) * t.cols) - 1)
+
+    if t.value[t.cursor] == ' ' and 
+      t.value[(t.cursor + 1)..currLineEndCursor].strip() == "":
+      t.moveToPrevWord()
+      inc t.cursor
+
+
+func moveDown(t: TextArea) =
+  t.cursor = min(t.value.len - 1, t.cursor + t.cols)
+  if t.cursor > t.cols * max(t.rowCursor, 1):
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+    
+    let currLineEndCursor = min(t.value.len - 1, 
+                            ((t.rowCursor + 1) * t.cols) - 1)
+
+    if t.cursor != (t.value.len - 1):
+      if t.value[t.cursor] == ' ' and 
+        t.value[(t.cursor + 1)..currLineEndCursor].strip() == "":
+        t.moveToPrevWord()
+        inc t.cursor
+
+
+func moveRight(t: TextArea) =
+  t.cursor = min(t.value.len - 1, t.cursor + 1)
+
+  let currLineEndCursor = min(t.value.len - 1, 
+                              ((t.rowCursor + 1) * t.cols) - 1)
+
+  if t.cursor > t.cols * (t.rowCursor + 1):
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+    # let beginCursor = t.rowCursor * t.cols
+    # t.cursor = max(0, beginCursor)
+    # t.cursor = min()
+  if t.cursor != 0 and t.value[t.cursor - 1] != ' ':
+    # not beginning of line and is at the end of current line
+    return
+  elif t.value[t.cursor] == ' ' and 
+    t.value[(t.cursor + 1)..currLineEndCursor].strip() == "":
+    t.moveToNextWord()
+
+
+func moveLeft(t: TextArea) =
+  t.cursor = max(0, t.cursor - 1)
+  let currLineBegineCursor = max(0, t.rowCursor * t.cols)
+
+  if t.cursor < t.cols * t.rowCursor:
+    t.rowCursor = max(0, t.rowCursor - 1)
+    # when move to previous row, always remain space for
+    # one cursor for continue editting
+    t.moveToEnd()
+    inc t.cursor
 
 
 func select(t: TextArea) =
@@ -1060,6 +1106,7 @@ method onUpdate*(t: TextArea, key: Key) =
   of Key.Enter:
     t.enter()
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+    t.render()
   of FnKeys, CtrlKeys:
     if t.editKeyEvents.hasKey(key):
       t.call(key)
