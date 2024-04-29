@@ -8,6 +8,10 @@
 
 [x] auto resize
 
+[ ] parse colored string
+    
+    - allow text to pass in together with color, write function extend to parse color and text.
+
 [ ] error handling
     
     Ideas :thinking

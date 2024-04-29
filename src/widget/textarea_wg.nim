@@ -194,21 +194,6 @@ func rowReCal(t: TextArea) =
   # if t.textRows[^1] != " ": t.textRows[^1] &= " "
 
 
-func cursorMove(t: TextArea, moved: int) =
-  t.cursor = t.cursor + moved
-  if t.cursor > t.value.len: t.cursor = t.value.len - 1
-  if t.cursor < 0: t.cursor = 0
-  if t.cursor > t.cols:
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-  elif t.cursor < t.cols * max(t.rowCursor, 1):
-    t.rowCursor = max(0, t.rowCursor - 1)
-  # let currLineEndCursor = min(t.value.len - 1, 
-  #                         ((t.rowCursor + 1) * t.cols) - 1)
-
-  # if t.value[(t.cursor + 1)..currLineEndCursor].strip() == "":
-  #   t.value.delete((t.cursor + 1)..(t.cursor + 1))
-
-
 # TODO: 
 # Improve enter action
 func enter(t: TextArea) =
@@ -354,6 +339,38 @@ func moveLeft(t: TextArea) =
     inc t.cursor
 
 
+func cursorMove(t: TextArea, moved: int) =
+  t.cursor = t.cursor + moved
+  if t.cursor > t.value.len: t.cursor = t.value.len - 1
+  if t.cursor < 0: t.cursor = 0
+  if t.cursor > t.cols:
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  elif t.cursor < t.cols * max(t.rowCursor, 1):
+    t.rowCursor = max(0, t.rowCursor - 1)
+  # correct following line for not pushing chars forward
+  #t.rowReCal()
+ #  if t.rowCursor < t.textRows.len: 
+ #    let currLineEndCursor = min(t.value.len - 1, 
+ #                            (t.rowCursor * t.cols) - 1)
+ #    if t.value[currLineEndCursor] != ' ':
+ #      t.value.delete(currLineEndCursor..currLineEndCursor)
+ # 
+  
+
+## continue here, replace might be a good strategy
+func insert(t: TextArea, value: string, pos: int) =
+  # if t.textRows.len > 0 and t.value.len > t.cols:
+  #   let currLineEndCursor = min(t.value.len - 1, 
+  #                           ((t.rowCursor + 1) * t.cols) - 2)
+  #
+  #   t.value.delete(currLineEndCursor..currLineEndCursor)
+  if t.value[pos] == ' ':
+    t.value[pos] = value[0]
+  else:
+    t.value.insert(value, pos)
+
+    
+ 
 func select(t: TextArea) =
   t.viSelection.startat = t.cursor
   t.viSelection.endat = t.cursor
@@ -674,7 +691,7 @@ method render*(t: TextArea) =
           t.viSelection.endat) else: t.cursorAtLine()
 
       let statusbarText = if t.statusbarText != "": t.statusbarText
-        else: " " & $r & ":" & $c
+        else: " " & $r & ":" & $c & ":" & $(t.textRows.len())
 
       t.tb.write(t.x1 + len($t.vimode) + 4, t.height, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
@@ -971,116 +988,116 @@ method onUpdate*(t: TextArea, key: Key) =
       if t.cursor == t.value.len: t.value &= " "
   of Key.CtrlE:
     t.value = " "
-    t.cursor = 0
+    t.resetCursor()
     t.clear()
   of Key.ShiftA..Key.ShiftZ:
     let tmpKey = $key
     let alphabet = toSeq(tmpKey.items()).pop()
-    t.value.insert($alphabet.toUpperAscii(), t.cursor)
+    t.insert($alphabet.toUpperAscii(), t.cursor)
     t.cursorMove(1)
   of Key.Zero..Key.Nine:
     let keyPos = NumericKeys.find(key)
     if keyPos > -1:
-      t.value.insert($keyPos, t.cursor)
+      t.insert($keyPos, t.cursor)
     t.cursorMove(1)
   of Key.Comma:
-    t.value.insert(",", t.cursor)
+    t.insert(",", t.cursor)
     t.cursorMove(1)
   of Key.Colon:
-    t.value.insert(":", t.cursor)
+    t.insert(":", t.cursor)
     t.cursorMove(1)
   of Key.Semicolon:
-    t.value.insert(";", t.cursor)
+    t.insert(";", t.cursor)
     t.cursorMove(1)
   of Key.Underscore:
-    t.value.insert("_", t.cursor)
+    t.insert("_", t.cursor)
     t.cursorMove(1)
   of Key.Dot:
-    t.value.insert(".", t.cursor)
+    t.insert(".", t.cursor)
     t.cursorMove(1)
   of Key.Ampersand:
-    t.value.insert("&", t.cursor)
+    t.insert("&", t.cursor)
     t.cursorMove(1)
   of Key.DoubleQuote:
-    t.value.insert("\"", t.cursor)
+    t.insert("\"", t.cursor)
     t.cursorMove(1)
   of Key.SingleQuote:
-    t.value.insert("'", t.cursor)
+    t.insert("'", t.cursor)
     t.cursorMove(1)
   of Key.QuestionMark:
-    t.value.insert("?", t.cursor)
+    t.insert("?", t.cursor)
     t.cursorMove(1)
   of Key.Space:
-    t.value.insert(" ", t.cursor)
+    t.insert(" ", t.cursor)
     t.cursorMove(1)
   of Key.Pipe:
-    t.value.insert("|", t.cursor)
+    t.insert("|", t.cursor)
     t.cursorMove(1)
   of Key.Slash:
-    t.value.insert("/", t.cursor)
+    t.insert("/", t.cursor)
     t.cursorMove(1)
   of Key.Equals:
-    t.value.insert("=", t.cursor)
+    t.insert("=", t.cursor)
     t.cursorMove(1)
   of Key.Plus:
-    t.value.insert("+", t.cursor)
+    t.insert("+", t.cursor)
     t.cursorMove(1)
   of Key.Minus:
-    t.value.insert("-", t.cursor)
+    t.insert("-", t.cursor)
     t.cursorMove(1)
   of Key.Asterisk:
-    t.value.insert("*", t.cursor)
+    t.insert("*", t.cursor)
     t.cursorMove(1)
   of Key.BackSlash:
-    t.value.insert("\\", t.cursor)
+    t.insert("\\", t.cursor)
     t.cursorMove(1)
   of Key.GreaterThan:
-    t.value.insert(">", t.cursor)
+    t.insert(">", t.cursor)
     t.cursorMove(1)
   of Key.LessThan:
-    t.value.insert("<", t.cursor)
+    t.insert("<", t.cursor)
     t.cursorMove(1)
   of Key.LeftBracket:
-    t.value.insert("[", t.cursor)
+    t.insert("[", t.cursor)
     t.cursorMove(1)
   of Key.RightBracket:
-    t.value.insert("]", t.cursor)
+    t.insert("]", t.cursor)
     t.cursorMove(1)
   of Key.LeftBrace:
-    t.value.insert("{", t.cursor)
+    t.insert("{", t.cursor)
     t.cursorMove(1)
   of Key.RightBrace:
-    t.value.insert("}", t.cursor)
+    t.insert("}", t.cursor)
     t.cursorMove(1)
   of Key.LeftParen:
-    t.value.insert("(", t.cursor)
+    t.insert("(", t.cursor)
     t.cursorMove(1)
   of Key.RightParen:
-    t.value.insert(")", t.cursor)
+    t.insert(")", t.cursor)
     t.cursorMove(1)
   of Key.Percent:
-    t.value.insert("%", t.cursor)
+    t.insert("%", t.cursor)
     t.cursorMove(1)
   of Key.Hash:
-    t.value.insert("#", t.cursor)
+    t.insert("#", t.cursor)
     t.cursorMove(1)
   of Key.Dollar:
-    t.value.insert("$", t.cursor)
+    t.insert("$", t.cursor)
     t.cursorMove(1)
   of Key.ExclamationMark:
-    t.value.insert("!", t.cursor)
+    t.insert("!", t.cursor)
     t.cursorMove(1)
   of Key.At:
-    t.value.insert("@", t.cursor)
+    t.insert("@", t.cursor)
     t.cursorMove(1)
   of Key.Caret:
-    t.value.insert("^", t.cursor)
+    t.insert("^", t.cursor)
     t.cursorMove(1)
   of Key.GraveAccent:
-    t.value.insert("~", t.cursor)
+    t.insert("~", t.cursor)
     t.cursorMove(1)
   of Key.Tilde:
-    t.value.insert("`", t.cursor)
+    t.insert("`", t.cursor)
     t.cursorMove(1)
   of Key.Home:
     t.moveToBegin()

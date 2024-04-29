@@ -329,7 +329,7 @@ proc vrows(table: Table): seq[TableRow] =
 
 proc dtmColumnToDisplay(table: Table) =
   if table.headers.isSome:
-    table.headers.get.columns[table.colCursor].visible = true
+    #table.headers.get.columns[table.colCursor].visible = true
     # var posX = table.headers.get.columns[table.colCursor].width
     #   table.paddingX1 - table.paddingX2
     var posX = table.paddingX1 + table.paddingX2
