@@ -209,11 +209,6 @@ func enter(t: TextArea) =
   t.rowReCal()
 
 
-func backspace(t: TextArea) =
-  if t.cursor > 0:
-    t.value.delete(t.cursor - 1..t.cursor - 1)
-    # t.cursorMove(-1)
-
 func moveToBegin(t: TextArea) =
   let beginCursor = t.rowCursor * t.cols
   t.cursor = max(0, beginCursor)
@@ -356,19 +351,38 @@ func cursorMove(t: TextArea, moved: int) =
   #     t.value.delete(currLineEndCursor..currLineEndCursor)
 
   
+func backspace(t: TextArea) =
+  if t.cursor > 0:
+    # calc gap between last line 
+    let tmpCursor = t.cursor - 1
+    let tmpRowCursor = t.rowCursor
+    t.value.delete(t.cursor - 1..t.cursor - 1)
+    t.cursorMove(-1)
+    
+    if t.cursor < t.cols * t.rowCursor:
+      t.rowCursor = max(0, t.rowCursor - 1)
+
+    if tmpRowCursor != t.rowCursor:
+      t.moveToPrevWord()
+      t.value.delete((t.cursor + 1)..(tmpCursor - 1))
+      t.value.insert(" ", t.cursor + 1)
+      t.cursorMove(1)
+
+
 
 ## continue here, replace might be a good strategy
 func insert(t: TextArea, value: string, pos: int) =
-  # if t.textRows.len > 0 and t.value.len > t.cols:
-  #   let currLineEndCursor = min(t.value.len - 1, 
-  #                           ((t.rowCursor + 1) * t.cols) - 2)
-  #
-  #   t.value.delete(currLineEndCursor..currLineEndCursor)
-  #if t.value[pos] == ' ':
-  t.value[pos] = value[0]
-  t.value.add(" ")
-  # else:
-  #   t.value.insert(value, po)
+  if t.value[pos] == ' ':
+    t.value[pos] = value[0]
+    t.value.add(" ")
+  else:
+    t.value.insert(value, pos)
+    if t.textRows.len > 0 and t.value.len > t.cols:
+      let currLineEndCursor = min(t.value.len - 1, 
+                              ((t.rowCursor + 1) * t.cols) - 2)
+
+      t.value.delete(currLineEndCursor..currLineEndCursor)
+    
 
     
  
@@ -980,9 +994,10 @@ method onUpdate*(t: TextArea, key: Key) =
     else: t.focus = false
   of Key.Tab: t.focus = false
   of Key.Backspace:
-    if t.cursor > 0:
-      t.value.delete(t.cursor - 1..t.cursor - 1)
-      t.cursorMove(-1)
+    # if t.cursor > 0:
+    #   t.value.delete(t.cursor - 1..t.cursor - 1)
+    #   t.cursorMove(-1)
+    t.backspace()
   of Key.Delete:
     if t.value.len > 0:
       t.value.delete(t.cursor .. t.cursor)
@@ -1180,9 +1195,8 @@ proc val(t: TextArea, val: string) =
     t.value[i] = c
   t.value &= " "
   t.rowReCal()
-  t.cursor = t.value.len - 1
-  t.rowCursor = t.textRows.len - 1
-  t.rowCursor = min(t.textRows.len - 1, t.rows - 1)
+  t.cursor = val.len + 1
+  t.rowCursor = min(t.textRows.len - 1, floorDiv(val.len, t.cols))
   t.render()
 
 
