@@ -2,7 +2,7 @@ import illwill, base_wg, os, sequtils, strutils, deques, times,
        input_box_wg, display_wg
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
-import tables, threading/channels
+import tables, threading/channels, std/math
 
 type
   ViHistory = tuple[cursor: int, content: string]
@@ -127,6 +127,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     textArea.normalKeyEvents[Key.QuestionMark] = help
     textArea.visualKeyEvents[Key.QuestionMark] = help
   textArea.keepOriginalSize()
+  textArea.value = repeat(' ', textArea.rows * textArea.cols)
   return textArea
 
 
@@ -174,6 +175,7 @@ proc newTextArea*(id: string): TextArea =
   textArea.channel = newChan[WidgetBgEvent]()
   textArea.normalKeyEvents[Key.QuestionMark] = help
   textArea.visualKeyEvents[Key.QuestionMark] = help
+  textArea.value = repeat(' ', textArea.rows * textArea.cols)
   return textarea
 
 
@@ -183,7 +185,7 @@ func splitBySize(val: string, size: int, rows: int): seq[string] =
     let wrappedWords = val.wrapWords(size,
                                      seps = {'\t', '\v', '\r', '\n', '\f'})
     result = wrappedWords.split("\n")
-    if result[result.len - 1] != " ": result[result.len - 1] &= " "
+    #if result[result.len - 1] != " ": result[result.len - 1] &= " "
   else:
     result.add(val)
 
@@ -198,17 +200,19 @@ func rowReCal(t: TextArea) =
 # Improve enter action
 func enter(t: TextArea) =
   # find out remaining space until next line
-  var rem = t.cursor - ((t.rowCursor + 1) * t.cols)
+  var rem = t.cursor - (max(t.rowCursor + 1, 1) * t.cols)
   # make rem positive
   rem = if rem < 0: rem * -1 else: rem
   # insert remaining space to push cursor to next line
   t.value.insert(repeat(' ', rem), t.cursor)
   t.cursor += rem
-  # t.value.insert("\n", t.cursor)
-  # t.cursor += 2
   t.rowReCal()
-  t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
+
+func backspace(t: TextArea) =
+  if t.cursor > 0:
+    t.value.delete(t.cursor - 1..t.cursor - 1)
+    # t.cursorMove(-1)
 
 func moveToBegin(t: TextArea) =
   let beginCursor = t.rowCursor * t.cols
@@ -316,9 +320,6 @@ func moveRight(t: TextArea) =
 
   if t.cursor > t.cols * (t.rowCursor + 1):
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-    # let beginCursor = t.rowCursor * t.cols
-    # t.cursor = max(0, beginCursor)
-    # t.cursor = min()
   if t.cursor != 0 and t.value[t.cursor - 1] != ' ':
     # not beginning of line and is at the end of current line
     return
@@ -343,18 +344,17 @@ func cursorMove(t: TextArea, moved: int) =
   t.cursor = t.cursor + moved
   if t.cursor > t.value.len: t.cursor = t.value.len - 1
   if t.cursor < 0: t.cursor = 0
-  if t.cursor > t.cols:
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-  elif t.cursor < t.cols * max(t.rowCursor, 1):
-    t.rowCursor = max(0, t.rowCursor - 1)
+  # if t.cursor > t.cols:
+  #   t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  # elif t.cursor < t.cols * max(t.rowCursor, 1):
+  #   t.rowCursor = max(0, t.rowCursor - 1)
   # correct following line for not pushing chars forward
-  #t.rowReCal()
- #  if t.rowCursor < t.textRows.len: 
- #    let currLineEndCursor = min(t.value.len - 1, 
- #                            (t.rowCursor * t.cols) - 1)
- #    if t.value[currLineEndCursor] != ' ':
- #      t.value.delete(currLineEndCursor..currLineEndCursor)
- # 
+  # if t.rowCursor < t.textRows.len: 
+  #   let currLineEndCursor = min(t.value.len - 1, 
+  #                           (t.rowCursor * t.cols) - 1)
+  #   if t.value[currLineEndCursor] != ' ':
+  #     t.value.delete(currLineEndCursor..currLineEndCursor)
+
   
 
 ## continue here, replace might be a good strategy
@@ -364,10 +364,11 @@ func insert(t: TextArea, value: string, pos: int) =
   #                           ((t.rowCursor + 1) * t.cols) - 2)
   #
   #   t.value.delete(currLineEndCursor..currLineEndCursor)
-  if t.value[pos] == ' ':
-    t.value[pos] = value[0]
-  else:
-    t.value.insert(value, pos)
+  #if t.value[pos] == ' ':
+  t.value[pos] = value[0]
+  t.value.add(" ")
+  # else:
+  #   t.value.insert(value, po)
 
     
  
@@ -468,7 +469,7 @@ func putAtCursor(t: TextArea, content: string, cursor: int,
 func cursorAtLine(t: TextArea): (int, int) =
   let r = t.rowCursor * t.cols
   let lineCursor = t.cursor - r
-  return (t.rowCursor + 1, lineCursor)
+  return (t.rowCursor, lineCursor)
 
 
 proc on*(t: TextArea, event: string, fn: EventFn[TextArea]) =
@@ -1117,7 +1118,7 @@ method onUpdate*(t: TextArea, key: Key) =
     t.moveDown()
   of Key.CtrlV:
     let copiedText = $cb.clipboard_text()
-    t.value.insert(copiedText, t.cursor)
+    t.insert(copiedText, t.cursor)
     t.cursor = t.cursor + copiedText.len
     t.rowReCal()
   of Key.Enter:
@@ -1129,7 +1130,7 @@ method onUpdate*(t: TextArea, key: Key) =
       t.call(key)
   else:
     var ch = $key
-    t.value.insert(ch.toLower(), t.cursor)
+    t.insert(ch.toLower(), t.cursor)
     t.cursorMove(1)
   t.render()
   sleep(t.rpms)
@@ -1175,7 +1176,9 @@ proc value*(t: TextArea): string =
 
 proc val(t: TextArea, val: string) =
   t.clear()
-  t.value = val & " "
+  for i, c in enumerate(val.items()):
+    t.value[i] = c
+  t.value &= " "
   t.rowReCal()
   t.cursor = t.value.len - 1
   t.rowCursor = t.textRows.len - 1
