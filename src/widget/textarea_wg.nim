@@ -628,8 +628,9 @@ method resize*(t: TextArea) =
   let statusbarSize = if t.statusbar: 1 else: 0
   t.cols = t.width - t.posX - padding
   t.rows = t.height - t.posY - (padding * 2)
-  t.size = t.height - statusbarSize - t.posY
-   
+  t.size = t.height - statusbarSize - t.posY 
+  t.value = repeat(' ', t.rows * t.cols)
+
 
 method render*(t: TextArea) =
   if not t.illwillInit: return
@@ -1186,13 +1187,15 @@ method wg*(t: TextArea): ref BaseWidget = t
 
 
 proc value*(t: TextArea): string =
-  return t.value[0 ..< t.value.len - 1]
+  return t.value.strip()
 
 
 proc val(t: TextArea, val: string) =
   t.clear()
-  for i, c in enumerate(val.items()):
-    t.value[i] = c
+  let valSize = max(val.len, t.value.len)
+  t.value = repeat(' ', valSize)
+  for i in 0..valSize:
+    t.value[i] = val[i]
   t.value &= " "
   t.rowReCal()
   t.cursor = val.len + 1
