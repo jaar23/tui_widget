@@ -2753,7 +2753,7 @@ proc loadFromSeq(
 ## <a id="textareawg">TextArea</a>
 
 The textarea widget has two mode, vi-enabled mode and edit mode. For vi-enabled mode, it supported basic keybinding of vi and comes with (Normal, Visual, Insert) mode. It is currently under experimental release. 
-Edit mode textarea works similar to a html textarea or an `InputBox` with multiple rows.
+Edit mode textarea works similar to a html textarea or an `InputBox` with multiple rows. ViMode is currently under experiment, test it before you are using it.
 
 Normal mode (vi-enabled)
 minimal supported of vi keybinding
