@@ -171,7 +171,7 @@ proc newTextArea*(id: string): TextArea =
     blocking: true
   )
   # to ensure key responsive, default < 50ms
-  if textArea.rpms > 50: textArea.rpms = 50
+  if textArea.rpms > 20: textArea.rpms = 20
   textArea.channel = newChan[WidgetBgEvent]()
   textArea.normalKeyEvents[Key.QuestionMark] = help
   textArea.visualKeyEvents[Key.QuestionMark] = help
@@ -185,19 +185,14 @@ func splitBySize(val: string, size: int, rows: int): seq[string] =
     let wrappedWords = val.wrapWords(size,
                                      seps = {'\t', '\v', '\r', '\n', '\f'})
     result = wrappedWords.split("\n")
-    #if result[result.len - 1] != " ": result[result.len - 1] &= " "
   else:
     result.add(val)
 
 
 func rowReCal(t: TextArea) =
   t.textRows = splitBySize(t.value, t.cols, t.rows)
-  # t.textRows = t.value.splitLines(keepEol=true)
-  # if t.textRows[^1] != " ": t.textRows[^1] &= " "
 
 
-# TODO: 
-# Improve enter action
 func enter(t: TextArea) =
   # find out remaining space until next line
   var rem = t.cursor - (max(t.rowCursor + 1, 1) * t.cols)
@@ -383,6 +378,8 @@ func insert(t: TextArea, value: string, pos: int) =
 
       t.value.delete(currLineEndCursor..currLineEndCursor)
     
+  if t.cursor >= (max(t.rowCursor + 1, 1) * t.cols):
+    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
     
  
@@ -455,7 +452,6 @@ func delAtStartEndCursor(t: TextArea, startat, endat: int) =
     if t.value[^1] != ' ': t.value &= " "
     elif t.value.len < 1: t.value = " "
     # ensure cursor positios
-    # if t.cursor >= t.value.len: t.cursor = t.value.len - 1
     t.cursor = startat
   except:
     t.statusbarText = "failed to delete selected string"
@@ -468,9 +464,8 @@ func delLine(t: TextArea) =
       let endCursor = t.cursor
       t.moveToBegin()
       let startCursor = t.cursor
-      t.viHistory.addLast((cursor: t.cursor, content: t.value))
-      # t.viHistory.addLast((cursor: t.cursor, content: t.value[
-      #     startCursor..endCursor]))
+      t.viHistory.addLast((cursor: t.cursor, content: t.value[
+          startCursor..endCursor]))
       t.value.delete(startCursor..endCursor)
       t.moveToPrevWord()
       t.rowCursor = max(0, t.rowCursor - 1)
@@ -487,10 +482,9 @@ proc putAtCursor(t: TextArea, content: string) =
 proc putAtCursor(t: TextArea, content: string, cursor: int,
                  updateCursor = true) =
   try:
-    #t.value.insert(content, cursor)
-    t.val(content)
+    t.value.insert(content, cursor)
     if updateCursor: t.cursor = cursor
-    #t.rowReCal()
+    t.rowReCal()
   except:
     t.statusbarText = "failed to put text at cursor"
   return
@@ -557,8 +551,8 @@ proc on*(t: TextArea, key: Key, fn: EventFn[TextArea],
       t.onEditMode(key, fn)
     elif vimode == Visual:
       t.onVisualMode(key, fn)
-  else:
-    t.onEditMode(key, fn)
+    else:
+      t.onEditMode(key, fn)
 
 
 
@@ -724,7 +718,7 @@ method render*(t: TextArea) =
           t.viSelection.endat) else: t.cursorAtLine()
 
       let statusbarText = if t.statusbarText != "": t.statusbarText
-        else: " " & $r & ":" & $c & ":" & $(t.textRows.len())
+        else: " " & $r & ":" & $c
 
       t.tb.write(t.x1 + len($t.vimode) + 4, t.height, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
@@ -862,11 +856,11 @@ proc normalMode(t: TextArea) =
         let last = t.viHistory.popLast()
         t.putAtCursor(last.content)
         t.viHistory.addLast((cursor: t.cursor, content: last.content))
-    # elif key == Key.U:
-    #   # experiments, need more fix
-    #   if t.cursor < t.value.len and t.viHistory.len > 0:
-    #     let prevBuff = t.viHistory.popLast()
-    #     t.putAtCursor(prevBuff.content, prevBuff.cursor)
+    elif key == Key.U:
+      # experiments, need more fix
+      if t.cursor < t.value.len and t.viHistory.len > 0:
+        let prevBuff = t.viHistory.popLast()
+        t.putAtCursor(prevBuff.content, prevBuff.cursor)
     elif key == Key.D:
       t.statusbarText = " D "
       t.render()
@@ -953,8 +947,7 @@ proc visualMode(t: TextArea) =
     elif key in {Key.X, Key.D, Key.Delete}:
       if t.cursor < t.value.len:
         let content = t.value[t.viSelection.startat..t.viSelection.endat]
-        t.viHistory.addLast((cursor: t.cursor, content: content))
-        #t.viHistory.addLast((cursor: t.cursor, content: t.value))
+        t.viHistory.addLast((cursor: t.viSelection.startat, content: content))
         t.delAtStartEndCursor(t.viSelection.startat, t.viSelection.endat)
         t.vimode = Normal
         break
@@ -964,7 +957,6 @@ proc visualMode(t: TextArea) =
         let cursor = if t.viSelection.direction == Left: t.cursor - content.len
           else: t.cursor + content.len
         t.viHistory.addLast((cursor: cursor, content: content))
-        #t.viHistory.addLast((cursor: t.cursor, content: t.value))
         t.vimode = Normal
         break
     elif key in {Key.Left, Key.Backspace, Key.H}:
@@ -1023,9 +1015,6 @@ method onUpdate*(t: TextArea, key: Key) =
     else:
       t.focus = false
   of Key.Backspace:
-    # if t.cursor > 0:
-    #   t.value.delete(t.cursor - 1..t.cursor - 1)
-    #   t.cursorMove(-1)
     t.backspace()
   of Key.Delete:
     if t.value.len > 0:
