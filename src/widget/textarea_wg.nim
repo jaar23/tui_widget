@@ -551,8 +551,8 @@ proc on*(t: TextArea, key: Key, fn: EventFn[TextArea],
       t.onEditMode(key, fn)
     elif vimode == Visual:
       t.onVisualMode(key, fn)
-    else:
-      t.onEditMode(key, fn)
+  else:
+    t.onEditMode(key, fn)
 
 
 
