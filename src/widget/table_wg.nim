@@ -536,7 +536,7 @@ method render*(table: Table): void =
     #   else: table.rowCursor + table.filteredSize
     #########################################
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
-      table.renderClearRow(index)
+      # table.renderClearRow(index)
       table.renderTableRow(row, index)
       index += 1
 
