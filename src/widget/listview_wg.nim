@@ -257,8 +257,38 @@ method resize*(lv: ListView) =
   lv.size = lv.height - lv.posY - lv.paddingY2 - lv.paddingY1 - statusbarSize
 
 
+proc on*(lv: ListView, event: string, fn: EventFn[ListView]) =
+  lv.events[event] = fn
+
+
+proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  lv.keyEvents[key] = fn
+    
+
+proc call*(lv: ListView, event: string, args: varargs[string]) =
+  let fn = lv.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
+proc call(lv: ListView, key: Key, args: varargs[string]) =
+  let fn = lv.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
+method poll*(lv: ListView) =
+  var widgetEv: WidgetBgEvent
+  if lv.channel.tryRecv(widgetEv):
+    lv.call(widgetEv.event, widgetEv.args)
+    lv.render()
+
+
 method render*(lv: ListView) =
   if not lv.illwillInit: return
+  lv.call("prerender")
   lv.renderClearRow(0, true)
   lv.renderBorder()
   lv.renderTitle()
@@ -294,6 +324,7 @@ method render*(lv: ListView) =
   else:
     lv.emptyRows()
     lv.tb.display()
+  lv.call("postrender")
 
 
 proc prevSelection(lv: ListView) =
@@ -350,36 +381,9 @@ proc resetCursor*(lv: ListView) =
       #lv.rows[r].visible = true
 
 
-proc on*(lv: ListView, event: string, fn: EventFn[ListView]) =
-  lv.events[event] = fn
-
-
-proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]} =
-  if key in forbiddenKeyBind: 
-    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
-  lv.keyEvents[key] = fn
-    
-
-proc call*(lv: ListView, event: string, args: varargs[string]) =
-  let fn = lv.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(lv, args)
-
-
-proc call(lv: ListView, key: Key, args: varargs[string]) =
-  let fn = lv.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
-    fn(lv, args)
-
-
-method poll*(lv: ListView) =
-  var widgetEv: WidgetBgEvent
-  if lv.channel.tryRecv(widgetEv):
-    lv.call(widgetEv.event, widgetEv.args)
-    lv.render()
-
 
 method onUpdate*(lv: ListView, key: Key) =
+  lv.call("preupdate", $key)
   case key
   of Key.None: lv.render()
   of Key.Up:
@@ -411,6 +415,7 @@ method onUpdate*(lv: ListView, key: Key) =
       lv.call(key, lv.selected.value)
   lv.render()
   sleep(lv.rpms)
+  lv.call("postupdate", $key)
 
 
 method onControl*(lv: ListView): void =

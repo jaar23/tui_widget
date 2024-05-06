@@ -107,15 +107,6 @@ proc renderAsciiGraph(c: Chart) =
     c.tb.write("cannot render graph")
 
 
-method render*(c: Chart) =
-  if not c.illwillInit: return
-  c.clear()
-  c.renderBorder()
-  c.renderTitle()
-  c.renderAsciiGraph()
-  c.tb.display()
-
-
 method wg*(c: Chart): ref BaseWidget = c
 
 
@@ -146,6 +137,17 @@ proc call(c: Chart, key: Key) =
     fn(c)
 
 
+method render*(c: Chart) =
+  if not c.illwillInit: return
+  c.call("prerender")
+  c.clear()
+  c.renderBorder()
+  c.renderTitle()
+  c.renderAsciiGraph()
+  c.tb.display()
+  c.call("postrender")
+
+
 method poll*(c: Chart) =
   var widgetEv: WidgetBgEvent
   if c.channel.tryRecv(widgetEv):
@@ -153,6 +155,7 @@ method poll*(c: Chart) =
     c.render()
 
 method onUpdate*(c: Chart, key: Key) =
+  c.call("preupdate", $key)
   if key == Key.Tab:
     c.focus = false
     return
@@ -161,6 +164,7 @@ method onUpdate*(c: Chart, key: Key) =
 
   c.render()
   sleep(c.rpms)
+  c.call("postupdate", $key)
 
 
 method onControl*(c: Chart) =

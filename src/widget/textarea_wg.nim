@@ -424,18 +424,6 @@ func selectMoveRight(t: TextArea, key: Key) =
     t.viSelection.direction = Right
 
 
-proc val(t: TextArea, val: string) =
-  t.clear()
-  let valSize = max(val.len + 1, t.value.len)
-  t.value = repeat(' ', valSize)
-  for i in 0 ..< val.len:
-    t.value[i] = val[i]
-  t.value &= " "
-  t.rowReCal()
-  t.cursor = val.len + 1
-  t.rowCursor = min(t.textRows.len - 1, floorDiv(val.len, t.cols))
-  t.render()
-
 
 func delAtCursor(t: TextArea) =
   if t.value.len > 0:
@@ -645,7 +633,8 @@ method resize*(t: TextArea) =
 
 method render*(t: TextArea) =
   if not t.illwillInit: return
-
+  
+  t.call("prerender")
   t.clear()
   t.renderBorder()
   t.renderTitle()
@@ -731,6 +720,7 @@ method render*(t: TextArea) =
       t.experimental()
 
   t.tb.display()
+  t.call("postrender")
 
 
 proc resetCursor*(t: TextArea) =
@@ -995,7 +985,7 @@ method onUpdate*(t: TextArea, key: Key) =
                     Key.CtrlY, Key.CtrlZ}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four,
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
-
+  t.call("preupdate", $key)
   case key
   of Key.None: 
     t.render()
@@ -1165,8 +1155,17 @@ method onUpdate*(t: TextArea, key: Key) =
     var ch = $key
     t.insert(ch.toLower(), t.cursor)
     t.cursorMove(1)
+
   t.render()
   sleep(t.rpms)
+
+  # auto-complete may trigger a second render
+  # pass in current word token by cursor !
+  let tokens = t.value.strip().split(" ")
+  let currToken = if tokens.len == 0: "" else: tokens[^1]
+  t.call("autocomplete", currToken)
+
+  t.call("postupdate", $key)
 
 
 proc editMode(t: TextArea) =
@@ -1207,9 +1206,27 @@ proc value*(t: TextArea): string =
   return t.value.strip()
 
 
+proc val(t: TextArea, val: string) =
+  t.clear()
+  let valSize = max(val.len + 1, t.value.len)
+  t.value = repeat(' ', valSize)
+  for i in 0 ..< val.len:
+    t.value[i] = val[i]
+  t.value &= " "
+  t.rowReCal()
+  t.cursor = val.len + 1
+  t.rowCursor = min(t.textRows.len - 1, floorDiv(val.len, t.cols))
+  t.render()
+
+
 proc `value=`*(t: TextArea, val: string) =
   t.val(val)
 
 proc value*(t: TextArea, val: string) =
   t.val(val)
+
+
+## auto-complete hook
+## call on key change > 2 for current word
+## open as input for integration
 

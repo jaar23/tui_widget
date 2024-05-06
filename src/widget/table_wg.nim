@@ -509,6 +509,7 @@ method resize*(table: Table) =
 
 method render*(table: Table): void =
   if not table.illwillInit: return
+  table.call("prerender")
   #table.renderClearRow(0, true)
   table.clear()
   #if table.border:
@@ -536,7 +537,7 @@ method render*(table: Table): void =
     #   else: table.rowCursor + table.filteredSize
     #########################################
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
-      table.renderClearRow(index)
+      #table.renderClearRow(index)
       table.renderTableRow(row, index)
       index += 1
 
@@ -545,6 +546,7 @@ method render*(table: Table): void =
   else:
     table.emptyRows()
     table.tb.display()
+  table.call("postrender")
 
 
 proc filter(table: Table, filterStr: string) =
@@ -620,6 +622,7 @@ method poll*(table: Table) =
 
 
 method onUpdate*(table: Table, key: Key) =
+  table.call("preupdate", $key)
   case key
   of Key.None: 
     #table.dtmColumnToDisplay()
@@ -687,6 +690,7 @@ method onUpdate*(table: Table, key: Key) =
       table.call(key)
 
   table.render()
+  table.call("postupdate", $key)
 
 
 method onControl*(table: Table): void =
@@ -799,6 +803,9 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
 
 proc headerFromArray*(table: Table, header: openArray[string], 
                       bgColor=bgNone, fgColor=fgWhite) =
+  if header.len == 0:
+    raise newException(ValueError, "header cannot be empty")
+
   var headers = newTableRow(table.width)
   for h in header:
     let column = newTableColumn(h.len, 1, h, h, bgColor=bgColor, 

@@ -168,6 +168,7 @@ proc renderStatusbar(ib: InputBox) =
 
 method render*(ib: InputBox) =
   if not ib.illwillInit: return
+  ib.call("prerender")
   ib.clear()
   ib.renderBorder()
   ib.renderTitle()
@@ -184,6 +185,7 @@ method render*(ib: InputBox) =
   if ib.statusbar:
     ib.renderStatusbar()
   ib.tb.display()
+  ib.call("postrender")
 
 
 proc remove*(ib : InputBox) =
@@ -259,6 +261,7 @@ method onUpdate*(ib: InputBox, key: Key) =
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
   ib.focus = true
+  ib.call("preupdate", $key)
   case key
   of Key.None: discard
   of EscapeKeys:
@@ -426,6 +429,7 @@ method onUpdate*(ib: InputBox, key: Key) =
     ib.visualCursor = cursorPos 
 
   ib.render()
+  ib.call("postupdate", $key)
 
 
 method onControl*(ib: InputBox) = 

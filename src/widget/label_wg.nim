@@ -71,8 +71,23 @@ proc newLabel*(id: string): Label =
   return label
 
 
+method call*(lb: Label, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lb, args)
+
+
+method call*(lb: LabelObj, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let lbRef = lb.asRef()
+    fn(lbRef, args)
+
+ 
 method render*(lb: Label) =
   if not lb.illwillInit: return
+  lb.call("prerender")
   lb.clear()
   lb.renderBorder()
   var text: string = ""
@@ -93,6 +108,7 @@ method render*(lb: Label) =
 
   lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
   lb.tb.display()
+  lb.call("postrender")
 
 
 method wg*(lb: Label): ref BaseWidget = lb
@@ -115,20 +131,6 @@ proc text*(lb: Label, text: string) =
 proc on*(lb: Label, event: string, fn: EventFn[Label]) =
   lb.events[event] = fn
 
-
-method call*(lb: Label, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(lb, args)
-
-
-method call*(lb: LabelObj, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    # new reference will be created
-    let lbRef = lb.asRef()
-    fn(lbRef, args)
-    
 
 method poll*(lb: Label) =
   var widgetEv: WidgetBgEvent

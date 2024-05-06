@@ -96,6 +96,7 @@ proc renderClearRow(pb: ProgressBar): void =
 
 method render*(pb: ProgressBar) =
   if not pb.illwillInit: return
+  pb.call("prerender")
   pb.renderClearRow()
   var progressLoaded: string = ""
   var progressLoading: string = ""
@@ -115,20 +116,24 @@ method render*(pb: ProgressBar) =
   pb.tb.write(pb.posX + 1, pb.height - 1, pb.bg, pb.fgLoaded, progressLoaded, resetStyle,
               pb.bg, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
   pb.tb.display()
+  pb.call("postrender")
   
 
 method wg*(pb: ProgressBar): ref BaseWidget = pb
 
 
 proc update*(pb: ProgressBar, point: float) =
+  pb.call("preupdate", $point)
   if pb.percent + point >= 100.0:
     pb.percent = 100.0
   else:
     pb.percent += point
   pb.render()
+  pb.call("postupdate", $point)
 
 
 proc set*(pb: ProgressBar, point: float) =
+  pb.call("preupdate")
   if point >= 100.0:
     pb.percent = 100.0
   elif point <= 0.0:
@@ -136,6 +141,7 @@ proc set*(pb: ProgressBar, point: float) =
   else:
     pb.percent = point
   pb.render()
+  pb.call("postupdate")
 
 
 proc completed*(pb: ProgressBar) =

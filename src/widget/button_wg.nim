@@ -90,10 +90,10 @@ proc on*(bt: Button, key: Key, fn: EventFn[Button]) {.raises: [EventKeyError]} =
     
 
 
-proc call*(bt: Button, event: string) =
+proc call*(bt: Button, event: string, args: varargs[string]) =
   let fn = bt.events.getOrDefault(event, nil)
   if not fn.isNil:
-    fn(bt)
+    fn(bt, args)
 
 
 proc call(bt: Button, key: Key) =
@@ -108,6 +108,7 @@ method resize*(bt: Button) =
 
 method render*(bt: Button) =
   if not bt.illwillInit: return
+  bt.call("prerender")
   bt.clear()
   bt.renderBorder()
   if bt.state == Pressed:
@@ -120,6 +121,7 @@ method render*(bt: Button) =
     bt.tb.write(bt.x1, bt.y1, bt.bg, bt.fg, 
                 center(bt.label, bt.width - bt.x1), resetStyle)
   bt.tb.display()
+  bt.call("postrender")
 
 
 method poll*(bt: Button) =
@@ -129,6 +131,7 @@ method poll*(bt: Button) =
 
 
 method onUpdate*(bt: Button, key: Key) =
+  bt.call("preupdate", $key)
   case key
   of Key.None: bt.render()
   of Key.Escape, Key.Tab: bt.focus = false
@@ -141,6 +144,7 @@ method onUpdate*(bt: Button, key: Key) =
     if key in forbiddenKeyBind: discard
     elif bt.keyEvents.hasKey(key):
       bt.call(key)
+  bt.call("postupdate", $key)
       
 
 method onControl*(bt: Button) =

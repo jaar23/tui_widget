@@ -109,6 +109,7 @@ proc call(ch: Checkbox, key: Key, arg: bool) =
 
 method render*(ch: Checkbox) =
   if not ch.illwillInit: return
+  ch.call("prerender", ch.checked)
   ch.clear()
   ch.renderBorder()
   if ch.title != "":
@@ -123,6 +124,7 @@ method render*(ch: Checkbox) =
     ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
   ch.tb.write(ch.posX + 6, ch.posY + 1, ch.bg, ch.fg, ch.label, resetStyle)
   ch.tb.display()
+  ch.call("postrender", ch.checked)
 
 
 method poll*(ch: Checkbox) =
@@ -133,6 +135,7 @@ method poll*(ch: Checkbox) =
 
 
 method onUpdate*(ch: Checkbox, key: Key) =
+  ch.call("preupdate", ch.checked)
   case key
   of Key.None: ch.render()
   of Key.Escape, Key.Tab: ch.focus = false
@@ -146,6 +149,7 @@ method onUpdate*(ch: Checkbox, key: Key) =
       ch.call(key, ch.checked)
   ch.render()
   sleep(ch.rpms)
+  ch.call("postupdate", ch.checked)
 
 
 method onControl*(ch: Checkbox) =

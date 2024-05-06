@@ -215,37 +215,6 @@ method resize*(dp: Display) =
   dp.size = dp.height - statusbarSize - dp.posY - (dp.paddingY1 * 2)
 
 
-method render*(dp: Display) =
-  if not dp.illwillInit: return
-  if dp.useCustomTextRow: 
-    let customFn = dp.customRowRecal.get
-    dp.textRows = customFn(dp.text, dp)
-  else: 
-    dp.rowReCal() 
-  dp.clear()
-  dp.renderBorder()
-  dp.renderTitle()
-  var index = 1
-  if dp.textRows.len > 0:
-    let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
-    let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
-    #setDoubleBuffering(false)
-    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
-      #dp.renderCleanRow(index)
-      dp.renderRow(row, index)
-      inc index
-  if dp.statusbar:
-    dp.renderStatusbar()
-  
-  dp.tb.display()
-  #setDoubleBuffering(true)
-
-
-proc resetCursor*(dp: Display) =
-  dp.rowCursor = 0
-  dp.cursor = 0
-
-
 proc on*(dp: Display, event: string, fn: EventFn[Display]) =
   dp.events[event] = fn
 
@@ -275,6 +244,41 @@ proc call(dp: Display, key: Key, args: varargs[string]) =
     fn(dp, args)
 
 
+method render*(dp: Display) =
+  if not dp.illwillInit: return
+  if dp.useCustomTextRow: 
+    let customFn = dp.customRowRecal.get
+    dp.textRows = customFn(dp.text, dp)
+  else: 
+    dp.rowReCal() 
+  # event hook
+  dp.call("prerender", "")
+  dp.clear()
+  dp.renderBorder()
+  dp.renderTitle()
+  var index = 1
+  if dp.textRows.len > 0:
+    let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
+    let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
+    #setDoubleBuffering(false)
+    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
+      #dp.renderCleanRow(index)
+      dp.renderRow(row, index)
+      inc index
+  if dp.statusbar:
+    dp.renderStatusbar()
+  
+  dp.tb.display()
+  #setDoubleBuffering(true)
+  dp.call("postrender", "")
+
+
+proc resetCursor*(dp: Display) =
+  dp.rowCursor = 0
+  dp.cursor = 0
+
+
+
 method poll*(dp: Display) =
   var widgetEv: WidgetBgEvent
   if dp.channel.tryRecv(widgetEv):
@@ -288,15 +292,8 @@ method onUpdate*(dp: Display, key: Key) =
     dp.cursor = 0
     dp.rowCursor = 0
     return
-  
-  # dp.focus = true
-  # if dp.useCustomTextRow: 
-  #   let customFn = dp.customRowRecal.get
-  #   dp.textRows = customFn(dp.text, dp)
-  # else: 
-  #   dp.rowReCal() 
-  #dp.clear()
-
+  # event hook
+  dp.call("preupdate", $key) 
   # key binding action
   case key
   of Key.None: discard
@@ -326,8 +323,9 @@ method onUpdate*(dp: Display, key: Key) =
     if key in forbiddenKeyBind: discard
     elif dp.keyEvents.hasKey(key):
       dp.call(key, "")
-
+  
   dp.render()
+  dp.call("postupdate", $key)
   #sleep(dp.rpms)
 
 
