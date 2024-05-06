@@ -45,10 +45,10 @@ proc createList(path: string, hide = false, dd = true): seq[ListRow] =
   result = newSeq[ListRow]()
   for d in folder(path):
     let visible = if d.hidden and hide: false else: true
-    var lr = newListRow(0, d.name, $$d, visible=visible)
+    var lr = newListRow(0, d.name, $$d, visible=visible, bgColor=bgCyan)
     result.add(lr)
   if dd:
-    result.insert(newListRow(0, "..", ".."), 0)
+    result.insert(newListRow(0, "..", "..", bgColor=bgCyan), 0)
 
 var rows = createList(home)
 

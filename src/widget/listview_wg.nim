@@ -380,6 +380,10 @@ method poll*(lv: ListView) =
 
 
 method onUpdate*(lv: ListView, key: Key) =
+  # catch changes from ref component
+  if lv.rows.len != lv.vrows().len:
+    lv.mode = Filter
+
   case key
   of Key.None: lv.render()
   of Key.Up:
@@ -420,10 +424,7 @@ method onControl*(lv: ListView): void =
     lv.colCursor = 0
     return
   
-  # catch changes from ref component
-  if lv.rows.len != lv.vrows().len:
-    lv.mode = Filter
-
+  
   lv.focus = true
   while lv.focus:
     var key = getKeyWithTimeout(lv.rpms)
@@ -453,6 +454,7 @@ proc `rows=`*(lv: ListView, rows: seq[ListRow]) =
     rows[0].selected = true
   
   lv.rows = rows
+  lv.resize()
 
 
 # TODO:
