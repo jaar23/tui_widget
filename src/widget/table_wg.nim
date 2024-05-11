@@ -427,6 +427,7 @@ proc calColWidth(table: Table, cindex: int, defaultWidth: int): int =
     result = defaultWidth
 
 
+# TODO: multi row render for height > 1
 proc renderTableRow(table: Table, row: TableRow, index: int) =
   var posX = table.paddingX1
   var borderX = if table.border: 1 else: 0

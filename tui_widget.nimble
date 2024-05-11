@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.1.0"
+version       = "0.1.1"
 author        = "jaar23"
 description   = "A terminal ui widget based on illwill"
 license       = "DO WHATEVER YOU WANT"

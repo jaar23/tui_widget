@@ -93,7 +93,7 @@ app.addWidget(button, 1.0, 2)
 app.addWidget(table, 1.0, 0.2)
 app.addWidget(progress, 0.8, 2)
 app.addWidget(listView, 1.0, 0.2, 0, 0, 0, 0)
-app.addWidget(label, 0.2, 2, 10, -5, 0, 0)
+app.addWidget(label, 0.2, 2, 0, 0, 0, 0)
 
 app.run()
 

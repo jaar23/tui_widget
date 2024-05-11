@@ -1,5 +1,5 @@
 import illwill, base_wg, os, sequtils, strutils, deques, times, 
-       input_box_wg, display_wg
+       input_box_wg, display_wg, listview_wg
 import std/wordwrap, std/enumerate
 import nimclipboard/libclipboard
 import tables, threading/channels, std/math
@@ -22,6 +22,11 @@ type
     cursorAtLineBg*: BackgroundColor
     cursorAtLineFg*: ForegroundColor
 
+  Completion* = object
+    value*: string
+    description*: string
+    icon*: string
+
   TextAreaObj* = object of BaseWidget
     textRows: seq[string] = newSeq[string]()
     value: string = ""
@@ -39,6 +44,14 @@ type
     editKeyEvents*: Table[Key, EventFn[TextArea]]
     normalKeyEvents*: Table[Key, EventFn[TextArea]]
     visualKeyEvents*: Table[Key, EventFn[TextArea]]
+    enableAutocomplete*: bool = false
+    autocompleteTrigger*: int = 3
+    autocompleteList*: seq[Completion] =  newSeq[Completion]()
+  
+  WordToken = object
+    startat: int 
+    endat: int 
+    token: string
 
   TextArea* = ref TextAreaObj
 
@@ -74,6 +87,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
                   cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
+                  enableAutocomplete = false; autocompleteTrigger = 3;
                   tb = newTerminalBuffer(w+2, h+py)): TextArea =
   ## works like a HTML textarea
   ## x1---------------x2
@@ -118,6 +132,8 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     editKeyEvents: initTable[Key, EventFn[TextArea]](),
     normalKeyEvents: initTable[Key, EventFn[TextArea]](),
     visualKeyEvents: initTable[Key, EventFn[TextArea]](),
+    enableAutocomplete: enableAutocomplete,
+    autocompleteTrigger: autocompleteTrigger,
     blocking: true
   )
   # to ensure key responsive, default < 50ms
@@ -137,12 +153,13 @@ proc newTextArea*(px, py: int, w, h: WidgetSize, title = ""; val = " ";
                   cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
+                  enableAutocomplete = false; autocompleteTrigger = 3;
                   tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): TextArea =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newTextArea(px, py, width, height, title, val, border, statusbar, enableHelp,
                      bgColor, fgColor, cursorBg, cursorFg, cursorStyle, enableViMode,
-                     viMode, viStyle, tb) 
+                     viMode, viStyle, enableAutocomplete, autocompleteTrigger, tb) 
 
 
 proc newTextArea*(id: string): TextArea =
@@ -743,6 +760,141 @@ proc commandEvent*(t: TextArea) =
   input.onControl()
 
 
+proc splitByToken(s: string): seq[WordToken] =
+  let tokens = s.strip().split(" ")
+  var pos = 0
+  result = newSeq[WordToken]()
+  for token in tokens:
+    result.add(
+      WordToken(
+        startat: pos, 
+        endat: pos + token.len, 
+        token: token
+      )
+    )
+    pos += max(1, token.len + 1)
+
+
+proc autocomplete(t: TextArea) =
+  # auto-complete may trigger a second render
+  # pass in current word token by cursor !
+  let tokens = splitByToken(t.value)
+  var currToken = ""
+  
+  for token in tokens: 
+    #echo $token
+    if t.cursor >= token.startat and token.endat >= t.cursor:
+      currToken = token.token
+      break
+  
+  if currToken.len >= t.autocompleteTrigger:
+    # read from complete list
+    t.call("autocomplete", currToken)
+
+  if t.autocompleteList.len == 0:
+    return
+  
+  let x1 = if t.rowCursor == 0: t.cursor + 3 else: (t.cursor - (t.rowCursor * t.cols)) + 3
+  let x2 = max((t.x2 / 2).toInt, t.x2)
+  var completionList = newListView(x1, t.y1 + t.rowCursor,
+                                x2, t.y1 + t.rowCursor + 5,
+                                selectionStyle=Highlight,
+                                tb=t.tb, statusbar=false, bgColor=bgNone)
+
+  var rows = newSeq[ListRow]()
+  var enteredKey = ""
+  # populate completion list
+  var listWidth = 0
+  for i, completion in enumerate(t.autocompleteList):
+    let completionText = completion.icon & " " & completion.value & " " & completion.description
+    rows.add(newListRow(i, completionText, completion.value, bgColor=bgCyan))
+    if completionText.len > listWidth:
+      listWidth = min(t.x2 - t.x1, completionText.len)
+      if completionList.x1 + listWidth >= t.x2: 
+        completionList.posX = t.x2 - listWidth - 1
+        completionList.posY += 1
+        completionList.height += 1
+  completionList.width = completionList.x1 + listWidth
+
+  let esc = proc(lv: ListView, args: varargs[string]) = lv.focus = false
+
+  let captureKey = proc(lv: ListView, key: varargs[string]) = 
+    var numbers = initTable[string, string]()
+    numbers["Zero"] = "0"
+    numbers["One"] = "1"
+    numbers["Two"] = "2"
+    numbers["Three"] = "3" 
+    numbers["Four"] = "4"
+    numbers["Five"] = "5"
+    numbers["Six"] = "6"
+    numbers["Seven"] = "7"
+    numbers["Eight"] = "8"
+    numbers["Nine"] = "9"
+    
+    var specialChars = initTable[string, string]()
+    specialChars["Space"] = " "
+    specialChars["ExclamationMark"] = "!"
+    specialChars["DoubleQuote"] = "\""
+    specialChars["Hash"] = "#"
+    specialChars["Dollar"] = "$"
+    specialChars["Percent"] = "%"
+    specialChars["Ampersand"] = "&"
+    specialChars["SingleQuote"] = "'"
+    specialChars["LeftParen"] = "("
+    specialChars["RightParen"] = ")"
+    specialChars["Asterisk"] = "*"
+    specialChars["Plus"] = "+"
+    specialChars["Comma"] = ","
+    specialChars["Minus"] = "-"
+    specialChars["Dot"] = "."
+    specialChars["Slash"] = "/"
+    specialChars["Colon"] = ":"
+    specialChars["Semicolon"] = ";"
+    specialChars["LessThan"] = "<"
+    specialChars["Equals"] = "="
+    specialChars["GreaterThan"] = ">"
+    specialChars["QuestionMark"] = "?"
+    specialChars["At"] = "@"
+    specialChars["LeftBracket"] = "["
+    specialChars["BackSlash"] = "\\"
+    specialChars["RightBracket"] = "]"
+    specialChars["Caret"] = "^"
+    specialChars["Underscore"] = "_"
+    specialChars["GraveAccent"] = "~"
+    specialChars["LeftBrace"] = "{"
+    specialChars["Pipe"] = "|"
+    specialChars["RightBrace"] = "}"
+    specialChars["Tilde"] = "`"
+
+
+    if key[0] == "Escape": enteredKey = ""
+    elif numbers.hasKey(key[0]): enteredKey = numbers[key[0]]
+    elif specialChars.hasKey(key[0]): enteredKey = specialChars[key[0]]
+    elif key[0].startsWith("Shift"): enteredKey = key[0].replace("Shift", "")
+    elif  key[0] == "Backspace":
+      enteredKey = ""
+      t.backspace()
+      return
+    else: enteredKey = key[0].toLower()
+  
+  let escapeList = {Key.Space..Key.Backspace}
+
+  for k in escapeList:
+    completionList.on(k, esc)
+
+  completionList.on(Key.Escape, esc)
+  completionList.on("postupdate", captureKey) 
+  completionList.rows = rows
+  completionList.illwillInit = true
+  completionList.render()
+  completionList.onControl()
+  
+  if enteredKey != "":
+    t.insert(enteredKey, t.cursor)
+    t.cursorMove(1)
+    t.autocompleteList = newSeq[Completion]()
+
+
 proc getKeysWithTimeout(timeout = 1000): seq[Key] =
   let numOfKey = 2
   var captured = 0
@@ -1158,13 +1310,8 @@ method onUpdate*(t: TextArea, key: Key) =
 
   t.render()
   sleep(t.rpms)
-
-  # auto-complete may trigger a second render
-  # pass in current word token by cursor !
-  let tokens = t.value.strip().split(" ")
-  let currToken = if tokens.len == 0: "" else: tokens[^1]
-  t.call("autocomplete", currToken)
-
+  
+  if t.enableAutocomplete: t.autocomplete()
   t.call("postupdate", $key)
 
 
@@ -1225,8 +1372,4 @@ proc `value=`*(t: TextArea, val: string) =
 proc value*(t: TextArea, val: string) =
   t.val(val)
 
-
-## auto-complete hook
-## call on key change > 2 for current word
-## open as input for integration
 

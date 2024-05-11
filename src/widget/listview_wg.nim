@@ -26,7 +26,7 @@ type
   ListView* = ref ListViewObj
 
 
-const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
+const forbiddenKeyBind = {Key.Tab, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown,
                           Key.Left, Key.Right}
 
@@ -56,7 +56,8 @@ proc newListView*(px, py, w, h: int, id = "",
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ListView =
   let padding = if border: 1 else: 0
-  let statusbarSize = if statusbar: 1 else: 0
+  # let statusbarSize = if statusbar: 1 else: 0
+  let statusbarSize = 1
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -253,7 +254,8 @@ proc renderStatusBar(lv: ListView, text: string = "") =
 
 
 method resize*(lv: ListView) =
-  let statusbarSize = if lv.statusbar: 1 else: 0
+  #let statusbarSize = if lv.statusbar: 1 else: 0
+  let statusbarSize = 1
   lv.size = lv.height - lv.posY - lv.paddingY2 - lv.paddingY1 - statusbarSize
 
 
