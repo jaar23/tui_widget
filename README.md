@@ -4,7 +4,7 @@ Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/
 
 The widgets is currently in alpha version. API is getting stable and you're welcome to build yout own text based application. 
 
-**Note** Changes may occured when there are bugs related or changes of designs (likely next version).
+**Note** Experimental feature in [0.1.1](https://github.com/jaar23/tui_widget/tree/0.1.1) branch.
 
 ### Quick preview
 
