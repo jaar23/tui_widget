@@ -1,7 +1,7 @@
 import tui_widget, std/enumerate, unicode
 
 let autocomplete = proc(t: TextArea, args: varargs[string]) =
-  # provide the logic on coming up witht the autocomplete list
+  # provide the logic on how to come up with the autocomplete list here
   var suggestion = @[
     "A1",
     "A2",
@@ -13,6 +13,7 @@ let autocomplete = proc(t: TextArea, args: varargs[string]) =
   var completionList = newSeq[Completion]()
   for s in suggestion:
     completionList.add(Completion(icon: "-", value: s, description: "suggestion list"))
+  # always set the autocompleteList
   t.autocompleteList = completionList
   
 
