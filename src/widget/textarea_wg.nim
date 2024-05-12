@@ -47,7 +47,10 @@ type
     enableAutocomplete*: bool = false
     autocompleteTrigger*: int = 3
     autocompleteList*: seq[Completion] =  newSeq[Completion]()
-  
+    autocompleteWindowSize*: int = 5
+    autocompleteBgColor: BackgroundColor = bgCyan
+    autocompleteFgColor: ForegroundColor = fgWhite
+ 
   WordToken = object
     startat: int 
     endat: int 
@@ -794,12 +797,13 @@ proc autocomplete(t: TextArea) =
   if t.autocompleteList.len == 0:
     return
   
-  let x1 = if t.rowCursor == 0: t.cursor + 3 else: (t.cursor - (t.rowCursor * t.cols)) + 3
+  let x1 = if t.rowCursor == 0: t.cursor + 1 else: (t.cursor - (t.rowCursor * t.cols)) + 3
   let x2 = max((t.x2 / 2).toInt, t.x2)
-  var completionList = newListView(x1, t.y1 + t.rowCursor,
-                                x2, t.y1 + t.rowCursor + 5,
-                                selectionStyle=Highlight,
-                                tb=t.tb, statusbar=false, bgColor=bgNone)
+  var completionList = newListView(t.x1 + x1, t.y1 + t.rowCursor,
+                                x2, t.y1 + t.rowCursor + t.autocompleteWindowSize,
+                                selectionStyle=Highlight, bgColor=t.autocompleteBgColor,
+                                fgColor=t.autocompleteFgColor,
+                                tb=t.tb, statusbar=false)
 
   var rows = newSeq[ListRow]()
   var enteredKey = ""
@@ -880,7 +884,7 @@ proc autocomplete(t: TextArea) =
         t.value.delete(t.cursor .. t.cursor)
         if t.cursor == t.value.len: t.value &= " "
     elif key[0] == "Enter" or key[0] == "Left" or key[0] == "Right" or 
-      key[0] == "Insert" or key[0] == "Home" or key[0] == "End": 
+      key[0] == "Insert" or key[0] == "Home" or key[0] == "End" or key[0] == "Tab": 
       enteredKey = ""
     else: enteredKey = key[0].toLower()
   
