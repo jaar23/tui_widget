@@ -1,5 +1,5 @@
 import base_wg, illwill, strutils
-import tables, threading/channels
+import tables, threading/channels, os
 
 type
   LabelObj* = object of BaseWidget
@@ -25,7 +25,7 @@ proc newLabel*(px, py, w, h: int, id = "", text = "",
   )
   result = Label(
     width: w,
-    height: h,
+    height: if border and ((h - py) < 2): py + 2 else: h,
     posX: px,
     posY: py,
     id: id,
@@ -90,9 +90,10 @@ method render*(lb: Label) =
   lb.call("prerender")
   lb.clear()
   lb.renderBorder()
+  if lb.border and (lb.y2 - lb.y1) < 2:
+    lb.height = lb.posY + 2
   var text: string = ""
 
-  # lb.size = max(3, lb.x2 - lb.x1)
   lb.size = max(3, lb.x2 - lb.x1)
   if lb.text.len > lb.size:
     text = lb.text[0..lb.size - 2] & ".."

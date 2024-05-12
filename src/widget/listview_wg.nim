@@ -27,8 +27,9 @@ type
 
 
 const forbiddenKeyBind = {Key.Tab, Key.None, Key.Up,
-                          Key.Down, Key.PageUp, Key.PageDown,
-                          Key.Left, Key.Right}
+                          Key.Down, Key.PageUp, Key.PageDown}
+                          # unlock left right key binding
+                          # Key.Left, Key.Right}
 
 proc help(lv: ListView, args: varargs[string]): void
 
@@ -406,8 +407,12 @@ method onUpdate*(lv: ListView, key: Key) =
   of Key.Right:
     lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
         lv.paddingX2)))
+    # unlock right key binding
+    lv.call(Key.Right, lv.selected.value)
   of Key.Left:
     lv.colCursor = max(lv.colCursor - 1, 0)
+    # unlock left key binding
+    lv.call(Key.Left, lv.selected.value)
   of Key.Enter:
     lv.call("enter", lv.selected.value)
   of Tab: lv.focus = false

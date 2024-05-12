@@ -12,7 +12,7 @@ let autocomplete = proc(t: TextArea, args: varargs[string]) =
   ]
   var completionList = newSeq[Completion]()
   for s in suggestion:
-    completionList.add(Completion(icon: "-", value: s, description: "suggestion list"))
+    completionList.add(Completion(icon: "[P]", value: s, description: "suggestion list"))
   # always set the autocompleteList
   t.autocompleteList = completionList
   

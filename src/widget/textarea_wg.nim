@@ -779,17 +779,17 @@ proc autocomplete(t: TextArea) =
   # auto-complete may trigger a second render
   # pass in current word token by cursor !
   let tokens = splitByToken(t.value)
-  var currToken = ""
+  var currToken: WordToken
   
   for token in tokens: 
     #echo $token
     if t.cursor >= token.startat and token.endat >= t.cursor:
-      currToken = token.token
+      currToken = token
       break
   
-  if currToken.len >= t.autocompleteTrigger:
+  if currToken.token.len >= t.autocompleteTrigger:
     # read from complete list
-    t.call("autocomplete", currToken)
+    t.call("autocomplete", currToken.token)
 
   if t.autocompleteList.len == 0:
     return
@@ -871,19 +871,42 @@ proc autocomplete(t: TextArea) =
     elif numbers.hasKey(key[0]): enteredKey = numbers[key[0]]
     elif specialChars.hasKey(key[0]): enteredKey = specialChars[key[0]]
     elif key[0].startsWith("Shift"): enteredKey = key[0].replace("Shift", "")
-    elif  key[0] == "Backspace":
+    elif key[0] == "Backspace":
       enteredKey = ""
       t.backspace()
-      return
+    elif key[0] == "Delete":
+      enteredKey = ""
+      if t.value.len > 0:
+        t.value.delete(t.cursor .. t.cursor)
+        if t.cursor == t.value.len: t.value &= " "
+    elif key[0] == "Enter" or key[0] == "Left" or key[0] == "Right" or 
+      key[0] == "Insert" or key[0] == "Home" or key[0] == "End": 
+      enteredKey = ""
     else: enteredKey = key[0].toLower()
   
-  let escapeList = {Key.Space..Key.Backspace}
+  let enterEv = proc(lv: ListView, args: varargs[string]) =
+    let selected = lv.selected.value
+    for pos in currToken.startat..max(t.cursor, currToken.endat):
+      t.value[pos] = ' '
 
+    t.cursor = currToken.startat
+
+    for s in selected.items():
+      t.insert($s, t.cursor)
+      t.cursorMove(1)
+
+    lv.focus = false
+
+  let escapeList = {Key.Space..Key.Backspace}
+  let escapeList2 = {Key.Right..Key.End}
   for k in escapeList:
     completionList.on(k, esc)
-
+  for k in escapeList2:
+    completionList.on(k, esc)
+  
   completionList.on(Key.Escape, esc)
   completionList.on("postupdate", captureKey) 
+  completionList.on("enter", enterEv)
   completionList.rows = rows
   completionList.illwillInit = true
   completionList.render()
