@@ -793,11 +793,12 @@ proc autocomplete(t: TextArea) =
   if currToken.token.len >= t.autocompleteTrigger:
     # read from complete list
     t.call("autocomplete", currToken.token)
+  else: t.autocompleteList = newSeq[Completion]()
 
   if t.autocompleteList.len == 0:
     return
   
-  let x1 = if t.rowCursor == 0: t.cursor + 1 else: (t.cursor - (t.rowCursor * t.cols)) + 3
+  let x1 = if t.rowCursor == 0: t.cursor + 1 else: (t.cursor - (t.rowCursor * t.cols)) + 1
   let x2 = max((t.x2 / 2).toInt, t.x2)
   var completionList = newListView(t.x1 + x1, t.y1 + t.rowCursor,
                                 x2, t.y1 + t.rowCursor + t.autocompleteWindowSize,
@@ -818,6 +819,9 @@ proc autocomplete(t: TextArea) =
         completionList.posX = t.x2 - listWidth - 1
         completionList.posY += 1
         completionList.height += 1
+      if completionList.y2 > t.y2:
+        completionList.height = t.y2
+        completionList.posY = t.y2 - t.autocompleteWindowSize
   completionList.width = completionList.x1 + listWidth
 
   let esc = proc(lv: ListView, args: varargs[string]) = lv.focus = false
