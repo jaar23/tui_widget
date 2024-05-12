@@ -51,10 +51,10 @@ type
     autocompleteBgColor: BackgroundColor = bgCyan
     autocompleteFgColor: ForegroundColor = fgWhite
  
-  WordToken = object
-    startat: int 
-    endat: int 
-    token: string
+  WordToken* = object
+    startat*: int 
+    endat*: int 
+    token*: string
 
   TextArea* = ref TextAreaObj
 
@@ -763,7 +763,7 @@ proc commandEvent*(t: TextArea) =
   input.onControl()
 
 
-proc splitByToken(s: string): seq[WordToken] =
+proc splitByToken*(s: string): seq[WordToken] =
   let tokens = s.strip().split(" ")
   var pos = 0
   result = newSeq[WordToken]()
