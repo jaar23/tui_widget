@@ -48,8 +48,8 @@ type
     autocompleteTrigger*: int = 3
     autocompleteList*: seq[Completion] =  newSeq[Completion]()
     autocompleteWindowSize*: int = 5
-    autocompleteBgColor: BackgroundColor = bgCyan
-    autocompleteFgColor: ForegroundColor = fgWhite
+    autocompleteBgColor*: BackgroundColor = bgCyan
+    autocompleteFgColor*: ForegroundColor = fgWhite
  
   WordToken* = object
     startat*: int 
@@ -802,7 +802,7 @@ proc autocomplete(t: TextArea) =
   let x2 = max((t.x2 / 2).toInt, t.x2)
   var completionList = newListView(t.x1 + x1, t.y1 + t.rowCursor,
                                 x2, t.y1 + t.rowCursor + t.autocompleteWindowSize,
-                                selectionStyle=Highlight, bgColor=t.autocompleteBgColor,
+                                selectionStyle=Highlight, bgColor=bgNone,
                                 fgColor=t.autocompleteFgColor,
                                 tb=t.tb, statusbar=false)
 
@@ -812,7 +812,8 @@ proc autocomplete(t: TextArea) =
   var listWidth = 0
   for i, completion in enumerate(t.autocompleteList):
     let completionText = completion.icon & " " & completion.value & " " & completion.description
-    rows.add(newListRow(i, completionText, completion.value, bgColor=bgCyan))
+    rows.add(newListRow(i, completionText, completion.value, 
+                        bgColor=t.autocompleteBgColor, fgColor=t.autocompleteFgColor))
     if completionText.len > listWidth:
       listWidth = min(t.x2 - t.x1, completionText.len)
       if completionList.x1 + listWidth >= t.x2: 
@@ -902,6 +903,8 @@ proc autocomplete(t: TextArea) =
     for s in selected.items():
       t.insert($s, t.cursor)
       t.cursorMove(1)
+    t.insert(" ", t.cursor)
+    t.cursorMove(1)
 
     lv.focus = false
 
