@@ -1,5 +1,5 @@
 import illwill, os, strutils, std/terminal, math, options
-import malebolgia, threading/channels, std/tasks, sequtils
+import malebolgia, threading/channels, std/tasks, sequtils, std/enumerate
 import 
   widget/base_wg,
   widget/display_wg,
@@ -441,7 +441,7 @@ proc go(app: var TerminalApp) =
 
 
 proc hold(app: var TerminalApp) =
-  illwillInit(fullscreen = app.fullscreen)
+  illwillInit(fullscreen = app.fullscreen, mouse=true)
   setControlCHook(exitProc)
   hideCursor()
 
@@ -480,6 +480,17 @@ proc hold(app: var TerminalApp) =
         let err = getCurrentException()
         app.widgets[app.cursor].onError(err.getStackTrace())
       inc app.cursor
+    # of Key.Mouse:
+    #   let m = getMouse()
+    #   if m.action == MouseButtonAction.mbaPressed:
+    #     for i, w in enumerate(app.widgets):
+    #       if (m.x >= w.posX and m.x <= w.width) and
+    #         (m.y >= w.posY and m.y <= w.height):
+    #           w.focus = true
+    #           app.cursor = i
+    #           break
+    #     #app.widgets[app.cursor].onControl()
+    #   else: discard
     else: discard
     
     sleep(app.rpms)

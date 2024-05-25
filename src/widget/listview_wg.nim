@@ -291,7 +291,6 @@ method poll*(lv: ListView) =
 
 method render*(lv: ListView) =
   if not lv.illwillInit: return
-  lv.call("prerender")
   lv.renderClearRow(0, true)
   lv.renderBorder()
   lv.renderTitle()
@@ -327,7 +326,6 @@ method render*(lv: ListView) =
   else:
     lv.emptyRows()
     lv.tb.display()
-  lv.call("postrender")
 
 
 proc prevSelection(lv: ListView) =

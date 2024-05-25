@@ -518,7 +518,6 @@ method resize*(table: Table) =
 
 method render*(table: Table): void =
   if not table.illwillInit: return
-  table.call("prerender")
   #table.renderClearRow(0, true)
   table.clear()
   #if table.border:
@@ -555,7 +554,6 @@ method render*(table: Table): void =
   else:
     table.emptyRows()
     table.tb.display()
-  table.call("postrender")
 
 
 proc filter(table: Table, filterStr: string) =

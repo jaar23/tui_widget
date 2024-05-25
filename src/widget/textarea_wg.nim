@@ -654,7 +654,6 @@ method resize*(t: TextArea) =
 method render*(t: TextArea) =
   if not t.illwillInit: return
   
-  t.call("prerender")
   t.clear()
   t.renderBorder()
   t.renderTitle()
@@ -740,7 +739,6 @@ method render*(t: TextArea) =
       t.experimental()
 
   t.tb.display()
-  t.call("postrender")
 
 
 proc resetCursor*(t: TextArea) =

@@ -110,7 +110,6 @@ method call*(g: GaugeObj, event: string, args: varargs[string]) =
  
 method render*(g: Gauge) =
   if not g.illwillInit: return
-  g.call("prerender")
   g.renderClearRow()
   var fullGauge = g.x2 - 8
   var gaugeBarWidth = g.width
@@ -140,7 +139,6 @@ method render*(g: Gauge) =
   let percentage = fmt"{(pc / fullGauge.toFloat()) * 100.0:>3.2f}"
   g.tb.write(g.width - len(percentage), g.height - 1, g.bg(), percentage, resetStyle)
   g.tb.display()
-  g.call("postrender")
 
 
 method wg*(g: Gauge): ref BaseWidget = g

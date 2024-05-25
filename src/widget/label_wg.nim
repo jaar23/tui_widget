@@ -87,7 +87,6 @@ method call*(lb: LabelObj, event: string, args: varargs[string]) =
  
 method render*(lb: Label) =
   if not lb.illwillInit: return
-  lb.call("prerender")
   lb.clear()
   lb.renderBorder()
   if lb.border and (lb.y2 - lb.y1) < 2:
@@ -109,7 +108,6 @@ method render*(lb: Label) =
 
   lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
   lb.tb.display()
-  lb.call("postrender")
 
 
 method wg*(lb: Label): ref BaseWidget = lb

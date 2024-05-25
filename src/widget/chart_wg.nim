@@ -139,13 +139,11 @@ proc call(c: Chart, key: Key) =
 
 method render*(c: Chart) =
   if not c.illwillInit: return
-  c.call("prerender")
   c.clear()
   c.renderBorder()
   c.renderTitle()
   c.renderAsciiGraph()
   c.tb.display()
-  c.call("postrender")
 
 
 method poll*(c: Chart) =

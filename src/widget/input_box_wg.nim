@@ -168,7 +168,6 @@ proc renderStatusbar(ib: InputBox) =
 
 method render*(ib: InputBox) =
   if not ib.illwillInit: return
-  ib.call("prerender")
   ib.clear()
   ib.renderBorder()
   ib.renderTitle()
@@ -185,7 +184,6 @@ method render*(ib: InputBox) =
   if ib.statusbar:
     ib.renderStatusbar()
   ib.tb.display()
-  ib.call("postrender")
 
 
 proc remove*(ib : InputBox) =

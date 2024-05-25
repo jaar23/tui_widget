@@ -8,7 +8,7 @@ type
   ButtonObj* = object of BaseWidget
     label: string = ""
     disabled*: bool = false
-    state: ButtonState = Unpressed
+    buttonState: ButtonState = Unpressed
     events*: Table[string, EventFn[ref ButtonObj]]
     keyEvents*: Table[Key, EventFn[ref ButtonObj]]
 
@@ -108,10 +108,9 @@ method resize*(bt: Button) =
 
 method render*(bt: Button) =
   if not bt.illwillInit: return
-  bt.call("prerender")
   bt.clear()
   bt.renderBorder()
-  if bt.state == Pressed:
+  if bt.buttonState == Pressed:
     bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, 
                   bt.style.pressedBgcolor, bt.fg)
     bt.tb.write(bt.x1, bt.y1, bt.style.pressedBgcolor, bt.fg, 
@@ -121,7 +120,6 @@ method render*(bt: Button) =
     bt.tb.write(bt.x1, bt.y1, bt.bg, bt.fg, 
                 center(bt.label, bt.width - bt.x1), resetStyle)
   bt.tb.display()
-  bt.call("postrender")
 
 
 method poll*(bt: Button) =
@@ -138,7 +136,7 @@ method onUpdate*(bt: Button, key: Key) =
   of Key.Enter:
     if bt.disabled: return
     bt.call("enter")
-    bt.state = Pressed
+    bt.buttonState = Pressed
     bt.render()
   else:
     if key in forbiddenKeyBind: discard
@@ -154,10 +152,10 @@ method onControl*(bt: Button) =
     var key = getKeyWithTimeout(bt.rpms)
     bt.onUpdate(key) 
 
-    if bt.state == Pressed:
+    if bt.buttonState == Pressed:
       delay = delay - 1
     if delay == 0:
-      bt.state = Unpressed
+      bt.buttonState = Unpressed
       delay = 10
 
   bt.render()
