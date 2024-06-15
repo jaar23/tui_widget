@@ -1,3 +1,6 @@
+# not working for now.
+# looking for alternative way to implement chart
+
 import tui_widget
 import std/random
 
