@@ -8,7 +8,7 @@
 
 - [Container](#containerwg)
 
-- [Charts (experimental)](#chartwg)
+- ~[Charts (experimental)](#chartwg)~
 
 - [Checkbox](#chboxwg)
 
@@ -1008,6 +1008,7 @@ proc label(ch: Checkbox; label: string) {.raises: [Exception], tags: [RootEffect
 
 ## <a id="chartwg">Chart (experimental)</a>
 
+*Unavailable for now, due to missing dependencies.*
 Chart required [asciigraph](https://github.com/Yardanico/asciigraph/tree/master) for rendering the chart UI. It is more towards display purpose, accuracy is not the focus. Chart have some limitation, it do not aggregate the data when display.
 
   ![chart](./images/chart_test.png)

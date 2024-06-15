@@ -77,7 +77,7 @@ Refers to tests / examples folder for example.
 
 - basic [example](./tests/tui_test.nim)
 
-- chart [example](./tests/chart_test.nim)
+- ~chart [example](./tests/chart_test.nim) unavailable for now~
 
 - gauge [example](./tests/gauge_test.nim)
 
