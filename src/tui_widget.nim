@@ -441,7 +441,7 @@ proc go(app: var TerminalApp) =
 
 
 proc hold(app: var TerminalApp) =
-  illwillInit(fullscreen = app.fullscreen, mouse=true)
+  illwillInit(fullscreen = app.fullscreen)
   setControlCHook(exitProc)
   hideCursor()
 
@@ -480,17 +480,6 @@ proc hold(app: var TerminalApp) =
         let err = getCurrentException()
         app.widgets[app.cursor].onError(err.getStackTrace())
       inc app.cursor
-    # of Key.Mouse:
-    #   let m = getMouse()
-    #   if m.action == MouseButtonAction.mbaPressed:
-    #     for i, w in enumerate(app.widgets):
-    #       if (m.x >= w.posX and m.x <= w.width) and
-    #         (m.y >= w.posY and m.y <= w.height):
-    #           w.focus = true
-    #           app.cursor = i
-    #           break
-    #     #app.widgets[app.cursor].onControl()
-    #   else: discard
     else: discard
     
     sleep(app.rpms)
