@@ -8,7 +8,7 @@ type
   ButtonObj* = object of BaseWidget
     label: string = ""
     disabled*: bool = false
-    state: ButtonState = Unpressed
+    buttonState: ButtonState = Unpressed
     events*: Table[string, EventFn[ref ButtonObj]]
     keyEvents*: Table[Key, EventFn[ref ButtonObj]]
 
@@ -90,10 +90,10 @@ proc on*(bt: Button, key: Key, fn: EventFn[Button]) {.raises: [EventKeyError]} =
     
 
 
-proc call*(bt: Button, event: string) =
+proc call*(bt: Button, event: string, args: varargs[string]) =
   let fn = bt.events.getOrDefault(event, nil)
   if not fn.isNil:
-    fn(bt)
+    fn(bt, args)
 
 
 proc call(bt: Button, key: Key) =
@@ -110,7 +110,7 @@ method render*(bt: Button) =
   if not bt.illwillInit: return
   bt.clear()
   bt.renderBorder()
-  if bt.state == Pressed:
+  if bt.buttonState == Pressed:
     bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, 
                   bt.style.pressedBgcolor, bt.fg)
     bt.tb.write(bt.x1, bt.y1, bt.style.pressedBgcolor, bt.fg, 
@@ -129,18 +129,20 @@ method poll*(bt: Button) =
 
 
 method onUpdate*(bt: Button, key: Key) =
+  bt.call("preupdate", $key)
   case key
   of Key.None: bt.render()
   of Key.Escape, Key.Tab: bt.focus = false
   of Key.Enter:
     if bt.disabled: return
     bt.call("enter")
-    bt.state = Pressed
+    bt.buttonState = Pressed
     bt.render()
   else:
     if key in forbiddenKeyBind: discard
     elif bt.keyEvents.hasKey(key):
       bt.call(key)
+  bt.call("postupdate", $key)
       
 
 method onControl*(bt: Button) =
@@ -150,10 +152,10 @@ method onControl*(bt: Button) =
     var key = getKeyWithTimeout(bt.rpms)
     bt.onUpdate(key) 
 
-    if bt.state == Pressed:
+    if bt.buttonState == Pressed:
       delay = delay - 1
     if delay == 0:
-      bt.state = Unpressed
+      bt.buttonState = Unpressed
       delay = 10
 
   bt.render()

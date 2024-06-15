@@ -1,5 +1,5 @@
 import base_wg, illwill, strutils
-import tables, threading/channels
+import tables, threading/channels, os
 
 type
   LabelObj* = object of BaseWidget
@@ -25,7 +25,7 @@ proc newLabel*(px, py, w, h: int, id = "", text = "",
   )
   result = Label(
     width: w,
-    height: h,
+    height: if border and ((h - py) < 2): py + 2 else: h,
     posX: px,
     posY: py,
     id: id,
@@ -71,13 +71,28 @@ proc newLabel*(id: string): Label =
   return label
 
 
+method call*(lb: Label, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lb, args)
+
+
+method call*(lb: LabelObj, event: string, args: varargs[string]) =
+  let fn = lb.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let lbRef = lb.asRef()
+    fn(lbRef, args)
+
+ 
 method render*(lb: Label) =
   if not lb.illwillInit: return
   lb.clear()
   lb.renderBorder()
+  if lb.border and (lb.y2 - lb.y1) < 2:
+    lb.height = lb.posY + 2
   var text: string = ""
 
-  # lb.size = max(3, lb.x2 - lb.x1)
   lb.size = max(3, lb.x2 - lb.x1)
   if lb.text.len > lb.size:
     text = lb.text[0..lb.size - 2] & ".."
@@ -115,20 +130,6 @@ proc text*(lb: Label, text: string) =
 proc on*(lb: Label, event: string, fn: EventFn[Label]) =
   lb.events[event] = fn
 
-
-method call*(lb: Label, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(lb, args)
-
-
-method call*(lb: LabelObj, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    # new reference will be created
-    let lbRef = lb.asRef()
-    fn(lbRef, args)
-    
 
 method poll*(lb: Label) =
   var widgetEv: WidgetBgEvent

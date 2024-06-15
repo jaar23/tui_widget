@@ -259,6 +259,7 @@ method onUpdate*(ib: InputBox, key: Key) =
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
   ib.focus = true
+  ib.call("preupdate", $key)
   case key
   of Key.None: discard
   of EscapeKeys:
@@ -426,6 +427,7 @@ method onUpdate*(ib: InputBox, key: Key) =
     ib.visualCursor = cursorPos 
 
   ib.render()
+  ib.call("postupdate", $key)
 
 
 method onControl*(ib: InputBox) = 

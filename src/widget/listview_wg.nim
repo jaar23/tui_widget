@@ -26,9 +26,10 @@ type
   ListView* = ref ListViewObj
 
 
-const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
-                          Key.Down, Key.PageUp, Key.PageDown,
-                          Key.Left, Key.Right}
+const forbiddenKeyBind = {Key.Tab, Key.None, Key.Up,
+                          Key.Down, Key.PageUp, Key.PageDown}
+                          # unlock left right key binding
+                          # Key.Left, Key.Right}
 
 proc help(lv: ListView, args: varargs[string]): void
 
@@ -56,7 +57,8 @@ proc newListView*(px, py, w, h: int, id = "",
                   selectionStyle: SelectionStyle = Highlight,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ListView =
   let padding = if border: 1 else: 0
-  let statusbarSize = if statusbar: 1 else: 0
+  # let statusbarSize = if statusbar: 1 else: 0
+  let statusbarSize = 1
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -253,8 +255,38 @@ proc renderStatusBar(lv: ListView, text: string = "") =
 
 
 method resize*(lv: ListView) =
-  let statusbarSize = if lv.statusbar: 1 else: 0
+  #let statusbarSize = if lv.statusbar: 1 else: 0
+  let statusbarSize = 1
   lv.size = lv.height - lv.posY - lv.paddingY2 - lv.paddingY1 - statusbarSize
+
+
+proc on*(lv: ListView, event: string, fn: EventFn[ListView]) =
+  lv.events[event] = fn
+
+
+proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  lv.keyEvents[key] = fn
+    
+
+proc call*(lv: ListView, event: string, args: varargs[string]) =
+  let fn = lv.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
+proc call(lv: ListView, key: Key, args: varargs[string]) =
+  let fn = lv.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(lv, args)
+
+
+method poll*(lv: ListView) =
+  var widgetEv: WidgetBgEvent
+  if lv.channel.tryRecv(widgetEv):
+    lv.call(widgetEv.event, widgetEv.args)
+    lv.render()
 
 
 method render*(lv: ListView) =
@@ -350,36 +382,9 @@ proc resetCursor*(lv: ListView) =
       #lv.rows[r].visible = true
 
 
-proc on*(lv: ListView, event: string, fn: EventFn[ListView]) =
-  lv.events[event] = fn
-
-
-proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError]} =
-  if key in forbiddenKeyBind: 
-    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
-  lv.keyEvents[key] = fn
-    
-
-proc call*(lv: ListView, event: string, args: varargs[string]) =
-  let fn = lv.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(lv, args)
-
-
-proc call(lv: ListView, key: Key, args: varargs[string]) =
-  let fn = lv.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
-    fn(lv, args)
-
-
-method poll*(lv: ListView) =
-  var widgetEv: WidgetBgEvent
-  if lv.channel.tryRecv(widgetEv):
-    lv.call(widgetEv.event, widgetEv.args)
-    lv.render()
-
 
 method onUpdate*(lv: ListView, key: Key) =
+  lv.call("preupdate", $key)
   # catch changes from ref component
   if lv.rows.len != lv.vrows().len:
     lv.mode = Filter
@@ -404,8 +409,12 @@ method onUpdate*(lv: ListView, key: Key) =
   of Key.Right:
     lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
         lv.paddingX2)))
+    # unlock right key binding
+    lv.call(Key.Right, lv.selected.value)
   of Key.Left:
     lv.colCursor = max(lv.colCursor - 1, 0)
+    # unlock left key binding
+    lv.call(Key.Left, lv.selected.value)
   of Key.Enter:
     lv.call("enter", lv.selected.value)
   of Tab: lv.focus = false
@@ -415,6 +424,7 @@ method onUpdate*(lv: ListView, key: Key) =
       lv.call(key, lv.selected.value)
   lv.render()
   sleep(lv.rpms)
+  lv.call("postupdate", $key)
 
 
 method onControl*(lv: ListView): void =

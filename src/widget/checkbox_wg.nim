@@ -133,6 +133,7 @@ method poll*(ch: Checkbox) =
 
 
 method onUpdate*(ch: Checkbox, key: Key) =
+  ch.call("preupdate", ch.checked)
   case key
   of Key.None: ch.render()
   of Key.Escape, Key.Tab: ch.focus = false
@@ -146,6 +147,7 @@ method onUpdate*(ch: Checkbox, key: Key) =
       ch.call(key, ch.checked)
   ch.render()
   sleep(ch.rpms)
+  ch.call("postupdate", ch.checked)
 
 
 method onControl*(ch: Checkbox) =

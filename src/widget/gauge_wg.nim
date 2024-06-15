@@ -94,6 +94,20 @@ proc renderClearRow(g: Gauge): void =
   g.tb.fill(g.x1, g.posY, g.x2, g.height, " ")
 
 
+method call*(g: Gauge, event: string, args: varargs[string]) =
+  let fn = g.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(g, args)
+
+
+method call*(g: GaugeObj, event: string, args: varargs[string]) =
+  let fn = g.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    # new reference will be created
+    let gRef = g.asRef()
+    fn(gRef, args)
+
+ 
 method render*(g: Gauge) =
   if not g.illwillInit: return
   g.renderClearRow()
@@ -131,6 +145,7 @@ method wg*(g: Gauge): ref BaseWidget = g
 
 
 proc set*(g: Gauge, point: float) =
+  g.call("preupdate", $point)
   if point >= GaugePercent.high:
     g.percent = GaugePercent.high
   elif point <= 0.0:
@@ -138,6 +153,7 @@ proc set*(g: Gauge, point: float) =
   else:
     g.percent = point
   g.render()
+  g.call("postupdate", $point)
 
 
 proc completed*(g: Gauge) =
@@ -148,20 +164,6 @@ proc completed*(g: Gauge) =
 proc on*(g: Gauge, event: string, fn: EventFn[Gauge]) =
   g.events[event] = fn
 
-
-method call*(g: Gauge, event: string, args: varargs[string]) =
-  let fn = g.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(g, args)
-
-
-method call*(g: GaugeObj, event: string, args: varargs[string]) =
-  let fn = g.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    # new reference will be created
-    let gRef = g.asRef()
-    fn(gRef, args)
-    
 
 method poll*(g: Gauge) =
   var widgetEv: WidgetBgEvent

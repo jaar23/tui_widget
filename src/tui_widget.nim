@@ -1,5 +1,5 @@
 import illwill, os, strutils, std/terminal, math, options
-import malebolgia, threading/channels, std/tasks, sequtils
+import malebolgia, threading/channels, std/tasks, sequtils, std/enumerate
 import 
   widget/base_wg,
   widget/display_wg,
@@ -170,8 +170,8 @@ proc addWidget*(app: var TerminalApp,
                 offsetLeft, offsetTop, 
                 offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
   let w = toConsoleWidth(width)
-  #let h = if height == 1: 0 else: height
-  app.addWidget(widget, w, height, offsetLeft, offsetTop, offsetRight, offsetBottom)
+  let h = if height == 1: 0 else: height
+  app.addWidget(widget, w, h, offsetLeft, offsetTop, offsetRight, offsetBottom)
 
 
 proc addWidget*(app: var TerminalApp,
@@ -438,7 +438,6 @@ proc go(app: var TerminalApp) =
       # poll for changes from other widget
       app.pollWidgetChannel()
       app.render()
-    #sleep(app.rpms)
 
 
 proc hold(app: var TerminalApp) =

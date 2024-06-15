@@ -18,6 +18,9 @@ type
 
   WidgetSize* = range[0.0..1.0]
   
+  WidgetState* = enum
+    Idle, Render, Update, Autocomplete
+
   WidgetStyle* = object
     fgColor*: ForegroundColor
     bgColor*: BackgroundColor

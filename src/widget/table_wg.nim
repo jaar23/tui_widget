@@ -46,7 +46,7 @@ type
     filteredSize: int = 0
     selectedRow: int = 0
     selectionStyle*: SelectionStyle
-    maxColWidth: int = 64
+    maxColWidth*: int = 64
     events*: systable.Table[string, EventFn[ref TableObj]]
     keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
   
@@ -66,8 +66,8 @@ proc on*(table: Table, key: Key, fn: EventFn[Table]) {.raises: [EventKeyError]}
 
 proc call*(table: Table, event: string, args: varargs[string]): void
 
-proc newTableColumn*(width: int, height: int = 1; text = ""; key = ""; 
-                     index = 0; overflow: bool = false;
+proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";  
+                     value = ""; index = 0; overflow: bool = false;
                      bgColor = bgNone; fgColor = fgWhite;
                      align = Left; columnType = Column): TableColumn =
   var tc = TableColumn(
@@ -76,6 +76,7 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
     height: height,
     overflow: overflow,
     text: text,
+    value: value,
     key: key,
     bgColor: bgColor,
     fgColor: fgColor,
@@ -85,13 +86,14 @@ proc newTableColumn*(width: int, height: int = 1; text = ""; key = "";
   return tc
 
 
-proc newTableColumn*(text = "", columnType = Column): TableColumn =
+proc newTableColumn*(text = "";  value = ""; columnType = Column): TableColumn =
   var tc = TableColumn(
     index: 0,
     width: len(text),
     height: 1,
     overflow: false,
     text: text,
+    value: value,
     key: text,
     bgColor: bgNone,
     fgColor: fgWhite,
@@ -102,8 +104,9 @@ proc newTableColumn*(text = "", columnType = Column): TableColumn =
 
 
 
-proc newTableRow*(width: int, height = 1; 
+proc newTableRow*(width: int, height = 1;  
                   columns: seq[TableColumn] = newSeq[TableColumn](), 
+                  value = "";
                   index = 0,bgColor = bgNone, fgColor = fgWhite,
                   selected = false): TableRow =
   var maxColWidth = 0
@@ -120,6 +123,7 @@ proc newTableRow*(width: int, height = 1;
     fgColor: fgColor,
     selected: selected,
     maxColWidth: maxColWidth,
+    value: value
   )
   return tr
 
@@ -155,6 +159,10 @@ proc columns*(tr: TableRow, columns: seq[string]) =
     maxColWidth = min(len(columns[i]), maxColWidth)
     tr.columns.add(col)
   tr.maxColWidth = maxColWidth
+
+
+proc columns*(tr: TableRow): seq[TableColumn] =
+  return tr.columns
 
 
 proc addColumn*(tr: TableRow, column: string) =
@@ -427,6 +435,7 @@ proc calColWidth(table: Table, cindex: int, defaultWidth: int): int =
     result = defaultWidth
 
 
+# TODO: multi row render for height > 1
 proc renderTableRow(table: Table, row: TableRow, index: int) =
   var posX = table.paddingX1
   var borderX = if table.border: 1 else: 0
@@ -536,7 +545,7 @@ method render*(table: Table): void =
     #   else: table.rowCursor + table.filteredSize
     #########################################
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
-      # table.renderClearRow(index)
+      ## table.renderClearRow(index)
       table.renderTableRow(row, index)
       index += 1
 
@@ -620,6 +629,7 @@ method poll*(table: Table) =
 
 
 method onUpdate*(table: Table, key: Key) =
+  table.call("preupdate", $key)
   case key
   of Key.None: 
     #table.dtmColumnToDisplay()
@@ -687,6 +697,7 @@ method onUpdate*(table: Table, key: Key) =
       table.call(key)
 
   table.render()
+  table.call("postupdate", $key)
 
 
 method onControl*(table: Table): void =
@@ -767,10 +778,11 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
       if rindex == 0:
         var headerWidth = 0
         if not withIndex:
-          var column = newTableColumn(($rindex).len + 1, 1, "s/q", $rindex, rindex, columnType=Header)
+          var column = newTableColumn(($rindex).len + 1, 1, "s/q", $rindex, $rindex, rindex, 
+                                      columnType=Header)
           row.add(column)
         for val in items(csvparser.row):
-          var column = newTableColumn(val.len + 1, 1, val, $rindex, rindex, columnType=Header)
+          var column = newTableColumn(val.len + 1, 1, val, $rindex, val, rindex, columnType=Header)
           row.add(column)
           headerWidth += val.len + 1 
         var header = newTableRow(headerWidth, 1, row)
@@ -778,10 +790,10 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
       else:
         var rowWidth = 0
         if not withIndex:
-          var column = newTableColumn(($rindex).len, 1, $rindex, $rindex, rindex, columnType=Column)
+          var column = newTableColumn(($rindex).len, 1, $rindex, $rindex, $rindex, rindex, columnType=Column)
           row.add(column)
         for val in items(csvparser.row):
-          var col = newTableColumn(val.len, 1, val, $rindex, rindex, columnType=Column)
+          var col = newTableColumn(val.len, 1, val, $rindex, val, rindex, columnType=Column)
           row.add(col)
           rowWidth += val.len
         var tableRow = newTableRow(rowWidth, 1, row)
@@ -799,6 +811,9 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
 
 proc headerFromArray*(table: Table, header: openArray[string], 
                       bgColor=bgNone, fgColor=fgWhite) =
+  if header.len == 0:
+    raise newException(ValueError, "header cannot be empty")
+
   var headers = newTableRow(table.width)
   for h in header:
     let column = newTableColumn(h.len, 1, h, h, bgColor=bgColor, 

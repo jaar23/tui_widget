@@ -22,9 +22,12 @@ proc help(dp: Display, args: varargs[string]): void
 
 proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].}
 
+proc toggleWordWrap(dp: Display, args: varargs[string]): void
+
+# allow ShiftW for binding
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown, Key.Home,
-                          Key.End, Key.Left, Key.Right, Key.ShiftW}
+                          Key.End, Key.Left, Key.Right}
 
 
 proc newDisplay*(px, py, w, h: int, id = "";
@@ -73,6 +76,8 @@ proc newDisplay*(px, py, w, h: int, id = "";
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     result.on(Key.QuestionMark, help)
+
+  result.on(Key.ShiftW, toggleWordWrap)
   result.keepOriginalSize()
 
 
@@ -111,6 +116,7 @@ proc newDisplay*(id: string): Display =
                      " [Tab]  to go next widget\n" & 
                      " [Esc] to exit this window"
   display.on(Key.QuestionMark, help)
+  display.on(Key.ShiftW, toggleWordWrap)
   display.channel = newChan[WidgetBgEvent]()
   return display
  
@@ -190,6 +196,10 @@ proc help(dp: Display, args: varargs[string]) =
   display.clear()
 
 
+proc toggleWordWrap(dp: Display, args: varargs[string]) = 
+  dp.wordwrap = not dp.wordwrap
+
+
 proc renderStatusbar(dp: Display) =
   ## custom statusbar rendering uses event name 'statusbar'
   if dp.events.hasKey("statusbar"):
@@ -213,6 +223,35 @@ proc renderStatusbar(dp: Display) =
 method resize*(dp: Display) =
   let statusbarSize = if dp.statusbar: 1 else: 0
   dp.size = dp.height - statusbarSize - dp.posY - (dp.paddingY1 * 2)
+
+
+proc on*(dp: Display, event: string, fn: EventFn[Display]) =
+  dp.events[event] = fn
+
+
+proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  dp.keyEvents[key] = fn
+    
+
+method call*(dp: Display, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    fn(dp, args)
+
+
+method call*(dp: DisplayObj, event: string, args: varargs[string]) =
+  let fn = dp.events.getOrDefault(event, nil)
+  if not fn.isNil:
+    let dpRef = dp.asRef()
+    fn(dpRef, args)
+    
+
+proc call(dp: Display, key: Key, args: varargs[string]) =
+  let fn = dp.keyEvents.getOrDefault(key, nil)
+  if not fn.isNil:
+    fn(dp, args)
 
 
 method render*(dp: Display) =
@@ -246,34 +285,6 @@ proc resetCursor*(dp: Display) =
   dp.cursor = 0
 
 
-proc on*(dp: Display, event: string, fn: EventFn[Display]) =
-  dp.events[event] = fn
-
-
-proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].} =
-  if key in forbiddenKeyBind: 
-    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
-  dp.keyEvents[key] = fn
-    
-
-method call*(dp: Display, event: string, args: varargs[string]) =
-  let fn = dp.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    fn(dp, args)
-
-
-method call*(dp: DisplayObj, event: string, args: varargs[string]) =
-  let fn = dp.events.getOrDefault(event, nil)
-  if not fn.isNil:
-    let dpRef = dp.asRef()
-    fn(dpRef, args)
-    
-
-proc call(dp: Display, key: Key, args: varargs[string]) =
-  let fn = dp.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
-    fn(dp, args)
-
 
 method poll*(dp: Display) =
   var widgetEv: WidgetBgEvent
@@ -288,15 +299,8 @@ method onUpdate*(dp: Display, key: Key) =
     dp.cursor = 0
     dp.rowCursor = 0
     return
-  
-  # dp.focus = true
-  # if dp.useCustomTextRow: 
-  #   let customFn = dp.customRowRecal.get
-  #   dp.textRows = customFn(dp.text, dp)
-  # else: 
-  #   dp.rowReCal() 
-  #dp.clear()
-
+  # event hook
+  dp.call("preupdate", $key) 
   # key binding action
   case key
   of Key.None: discard
@@ -320,15 +324,13 @@ method onUpdate*(dp: Display, key: Key) =
     dp.rowCursor = max(dp.textRows.len - dp.size, 0)
   of Key.Escape, Key.Tab:
     dp.focus = false
-  of Key.ShiftW:
-    dp.wordwrap = not dp.wordwrap
   else:
     if key in forbiddenKeyBind: discard
     elif dp.keyEvents.hasKey(key):
       dp.call(key, "")
-
+  
   dp.render()
-  #sleep(dp.rpms)
+  dp.call("postupdate", $key)
 
 
 method onControl*(dp: Display) =

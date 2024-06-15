@@ -121,14 +121,17 @@ method wg*(pb: ProgressBar): ref BaseWidget = pb
 
 
 proc update*(pb: ProgressBar, point: float) =
+  pb.call("preupdate", $point)
   if pb.percent + point >= 100.0:
     pb.percent = 100.0
   else:
     pb.percent += point
   pb.render()
+  pb.call("postupdate", $point)
 
 
 proc set*(pb: ProgressBar, point: float) =
+  pb.call("preupdate")
   if point >= 100.0:
     pb.percent = 100.0
   elif point <= 0.0:
@@ -136,6 +139,7 @@ proc set*(pb: ProgressBar, point: float) =
   else:
     pb.percent = point
   pb.render()
+  pb.call("postupdate")
 
 
 proc completed*(pb: ProgressBar) =
