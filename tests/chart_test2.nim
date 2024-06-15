@@ -1,6 +1,5 @@
-# not working for now.
-# looking for alternative way to implement chart
-
+# install dependency, nimble install https://github.com/nimbackup/asciigraph
+#
 import tui_widget
 import std/random
 

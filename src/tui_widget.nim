@@ -10,7 +10,7 @@ import
   widget/progress_wg,
   widget/listview_wg,
   widget/label_wg,
-#  widget/chart_wg, not available due to missing dependencies
+  widget/chart_wg, 
   widget/gauge_wg,
   widget/textarea_wg,
   widget/container_wg
@@ -25,7 +25,7 @@ export
   progress_wg,
   listview_wg,
   label_wg,
-#  chart_wg, not available due to missing dependencies
+  chart_wg,
   gauge_wg,
   textarea_wg,
   container_wg,

@@ -6,6 +6,10 @@ The widgets is currently in alpha version. API is getting stable and you're welc
 
 **Note** Experimental feature in [0.1.1](https://github.com/jaar23/tui_widget/tree/0.1.1) branch.
 
+- merged textarea autocomplete from 0.1.1
+
+- refactor textarea 
+
 ### Quick preview
 
 ![preview](./docs/images/tui_widget.gif)
@@ -31,7 +35,8 @@ nimble install illwill@0.4.0
 nimble install nimclipboard
 
 # for chart widget
-nimble install asciigraph 
+# instead of nimble install asciigraph, use the following backup repo
+nimble install https://github.com/nimbackup/asciigraph
 
 # for multi-thread
 nimble install threading
@@ -77,7 +82,7 @@ Refers to tests / examples folder for example.
 
 - basic [example](./tests/tui_test.nim)
 
-- ~chart [example](./tests/chart_test.nim) unavailable for now~
+- chart [example](./tests/chart_test.nim)
 
 - gauge [example](./tests/gauge_test.nim)
 
