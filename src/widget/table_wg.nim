@@ -1,4 +1,4 @@
-import illwill, sequtils, base_wg, os, options, strutils, parsecsv, 
+import illwill, sequtils, base_wg, options, strutils, parsecsv, 
        input_box_wg, display_wg
 from std/streams import newFileStream
 import tables as systable
@@ -610,14 +610,14 @@ proc on*(table: Table, key: Key, fn: EventFn[Table]) {.raises: [EventKeyError]} 
     
 
 proc call*(table: Table, event: string, args: varargs[string]) =
-  let fn = table.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if table.events.hasKey(event):
+    let fn = table.events[event]
     fn(table, args)
 
 
 proc call(table: Table, key: Key, args: varargs[string]) =
-  let fn = table.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if table.keyEvents.hasKey(key):
+    let fn = table.keyEvents[key]
     fn(table, args)
 
 

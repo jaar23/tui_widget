@@ -237,20 +237,20 @@ proc on*(ib: InputBox, key: Key, fn: EventFn[InputBox]) {.raises: [EventKeyError
 
 
 method call*(ib: InputBox, event: string, args: varargs[string]) =
-  let fn = ib.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if ib.events.hasKey(event):
+    let fn = ib.events[event]
     fn(ib, args)
 
 
 method call*(ib: InputBoxObj, event: string, args: varargs[string]) =
-  let fn = ib.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if ib.events.hasKey(event):
+    let fn = ib.events[event]
     fn(ib.asRef(), args)
 
 
 proc call(ib: InputBox, key: Key, args: varargs[string]) =
-  let fn = ib.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if ib.keyEvents.hasKey(key):
+    let fn = ib.keyEvents[key]
     fn(ib, args)
 
 

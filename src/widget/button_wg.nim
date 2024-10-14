@@ -91,14 +91,14 @@ proc on*(bt: Button, key: Key, fn: EventFn[Button]) {.raises: [EventKeyError]} =
 
 
 proc call*(bt: Button, event: string, args: varargs[string]) =
-  let fn = bt.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if bt.events.hasKey(event):
+    let fn = bt.events[event]
     fn(bt, args)
 
 
 proc call(bt: Button, key: Key) =
-  let fn = bt.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if bt.keyEvents.hasKey(key):
+    let fn = bt.keyEvents[key]
     fn(bt)
 
 

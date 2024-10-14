@@ -565,28 +565,28 @@ proc on*(t: TextArea, key: Key, fn: EventFn[TextArea],
 
 
 proc call*(t: TextArea, event: string, args: varargs[string]) =
-  let fn = t.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if t.events.hasKey(event):
+    let fn = t.events[event]
     fn(t, args)
 
 
 proc call(t: TextArea, key: Key, args: varargs[string]) =
   if t.enableViMode:
     if t.vimode == Normal:
-      let fn = t.normalKeyEvents.getOrDefault(key, nil)
-      if not fn.isNil:
+      if t.normalKeyEvents.hasKey(key):
+        let fn = t.normalKeyEvents[key]
         fn(t, args)
     elif t.vimode == Insert:
-      let fn = t.editKeyEvents.getOrDefault(key, nil)
-      if not fn.isNil:
+      if t.editKeyEvents.hasKey(key):
+        let fn = t.editKeyEvents[key]
         fn(t, args)
     elif t.vimode == Visual:
-      let fn = t.visualKeyEvents.getOrDefault(key, nil)
-      if not fn.isNil:
+      if t.visualKeyEvents.hasKey(key):
+        let fn = t.visualKeyEvents[key]
         fn(t, args)
   else:
-    let fn = t.editKeyEvents.getOrDefault(key, nil)
-    if not fn.isNil:
+    if t.editKeyEvents.hasKey(key):
+      let fn = t.editKeyEvents[key]
       fn(t, args)
 
 

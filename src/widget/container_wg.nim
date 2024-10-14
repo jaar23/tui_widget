@@ -116,21 +116,21 @@ proc on*(ctr: Container, key: Key, fn: EventFn[Container]) {.raises: [EventKeyEr
     
 
 method call*(ctr: Container, event: string, args: varargs[string]) =
-  let fn = ctr.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if ctr.events.hasKey(event):
+    let fn = ctr.events[event]
     fn(ctr, args)
 
 
 method call*(ctr: ContainerObj, event: string, args: varargs[string]) =
-  let fn = ctr.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if ctr.events.hasKey(event):
+    let fn = ctr.events[event]
     let ctrRef = ctr.asRef()
     fn(ctrRef, args)
     
 
 proc call(ctr: Container, key: Key) =
-  let fn = ctr.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if ctr.keyEvents.hasKey(key):
+    let fn = ctr.keyEvents[key]
     fn(ctr)
 
 

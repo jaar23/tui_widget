@@ -152,14 +152,14 @@ proc on*(pb: ProgressBar, event: string, fn: EventFn[ProgressBar]) =
 
 
 method call*(pb: ProgressBar, event: string, args: varargs[string]) =
-  let fn = pb.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if pb.events.hasKey(event):
+    let fn = pb.events[event]
     fn(pb, args)
 
 
 method call*(pb: ProgressBarObj, event: string, args: varargs[string]) =
-  let fn = pb.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if pb.events.hasKey(event):
+    let fn = pb.events[event]
     # new reference will be created
     let pbRef = pb.asRef()
     fn(pbRef, args)

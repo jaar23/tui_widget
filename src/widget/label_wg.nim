@@ -1,5 +1,5 @@
 import base_wg, illwill, strutils
-import tables, threading/channels, os
+import tables, threading/channels
 
 type
   LabelObj* = object of BaseWidget
@@ -72,14 +72,14 @@ proc newLabel*(id: string): Label =
 
 
 method call*(lb: Label, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if lb.events.hasKey(event):
+    let fn = lb.events[event]
     fn(lb, args)
 
 
 method call*(lb: LabelObj, event: string, args: varargs[string]) =
-  let fn = lb.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if lb.events.hasKey(event):
+    let fn = lb.events[event]
     # new reference will be created
     let lbRef = lb.asRef()
     fn(lbRef, args)

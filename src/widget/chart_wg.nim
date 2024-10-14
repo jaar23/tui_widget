@@ -119,21 +119,21 @@ proc on*(c: Chart, key: Key, fn: EventFn[Chart]) =
     
 
 method call*(c: Chart, event: string, args: varargs[string]) =
-  let fn = c.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if c.events.hasKey(event):
+    let fn = c.events[event]
     fn(c, args)
 
 
 method call*(c: ChartObj, event: string, args: varargs[string]) =
-  let fn = c.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if c.events.hasKey(event):
+    let fn = c.events[event]
     let cRef = c.asRef()
     fn(cRef, args)
     
 
 proc call(c: Chart, key: Key) =
-  let fn = c.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if c.keyEvents.hasKey(key):
+    let fn = c.keyEvents[key]
     fn(c)
 
 

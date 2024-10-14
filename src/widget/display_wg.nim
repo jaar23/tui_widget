@@ -6,6 +6,8 @@ import threading/channels
 # Try to convert the source text to alphanumeric text before run it
 type
   CustomRowRecal* = proc(text: string, dp: Display): seq[string]
+  
+  Display* = ref DisplayObj
 
   DisplayObj* = object of BaseWidget
     text: string = ""
@@ -16,7 +18,6 @@ type
     events*: Table[string, EventFn[Display]]
     keyEvents*: Table[Key, EventFn[Display]]
 
-  Display* = ref DisplayObj
 
 proc help(dp: Display, args: varargs[string]): void
 
@@ -236,21 +237,21 @@ proc on*(dp: Display, key: Key, fn: EventFn[Display]) {.raises: [EventKeyError].
     
 
 method call*(dp: Display, event: string, args: varargs[string]) =
-  let fn = dp.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if dp.events.hasKey(event):
+    let fn = dp.events[event]
     fn(dp, args)
 
 
 method call*(dp: DisplayObj, event: string, args: varargs[string]) =
-  let fn = dp.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if dp.events.hasKey(event):
     let dpRef = dp.asRef()
+    let fn = dp.events[event]
     fn(dpRef, args)
     
 
 proc call(dp: Display, key: Key, args: varargs[string]) =
-  let fn = dp.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if dp.keyEvents.hasKey(key):
+    let fn = dp.keyEvents[key]
     fn(dp, args)
 
 

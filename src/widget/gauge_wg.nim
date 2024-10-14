@@ -95,14 +95,14 @@ proc renderClearRow(g: Gauge): void =
 
 
 method call*(g: Gauge, event: string, args: varargs[string]) =
-  let fn = g.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if g.events.hasKey(event):
+    let fn = g.events[event]
     fn(g, args)
 
 
 method call*(g: GaugeObj, event: string, args: varargs[string]) =
-  let fn = g.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if g.events.hasKey(event):
+    let fn = g.events[event]
     # new reference will be created
     let gRef = g.asRef()
     fn(gRef, args)

@@ -96,14 +96,14 @@ proc on*(ch: Checkbox, key: Key, fn: BoolEventFn[Checkbox]) {.raises: [EventKeyE
     
 
 proc call*(ch: Checkbox, event: string, arg: bool) =
-  let fn = ch.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if ch.events.hasKey(event):
+    let fn = ch.events[event]
     fn(ch, arg)
 
 
 proc call(ch: Checkbox, key: Key, arg: bool) =
-  let fn = ch.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if ch.keyEvents.hasKey(key):
+    let fn = ch.keyEvents[key]
     fn(ch, arg)
 
 

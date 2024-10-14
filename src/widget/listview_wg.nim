@@ -271,14 +271,14 @@ proc on*(lv: ListView, key: Key, fn: EventFn[ListView]) {.raises: [EventKeyError
     
 
 proc call*(lv: ListView, event: string, args: varargs[string]) =
-  let fn = lv.events.getOrDefault(event, nil)
-  if not fn.isNil:
+  if lv.events.hasKey(event):
+    let fn = lv.events[event]
     fn(lv, args)
 
 
 proc call(lv: ListView, key: Key, args: varargs[string]) =
-  let fn = lv.keyEvents.getOrDefault(key, nil)
-  if not fn.isNil:
+  if lv.keyEvents.hasKey(key):
+    let fn = lv.keyEvents[key]
     fn(lv, args)
 
 
