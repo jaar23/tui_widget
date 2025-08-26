@@ -1,43 +1,54 @@
-import illwill, base_wg, os, strutils, asciigraph, std/math
-import tables, threading/channels
+import illwill, base_wg, os, strutils, options, tables, math, sequtils, display_wg
+import threading/channels
 
 type
-  AxisObj* = object
-    padding: int
-    title: string
-    data: seq[float64]
-
-  Axis* = ref AxisObj
-
-  ChartObj* = object of BaseWidget
-    marker: char = '*'
-    axis: Axis
-    events*: Table[string, EventFn[ref ChartObj]]
-    keyEvents*: Table[Key, EventFn[ref ChartObj]]
-
+  ChartType* = enum
+    LineChart, BarChart
+  
+  DataPoint* = object
+    label*: string
+    value*: float
+  
+  ChartData* = seq[DataPoint]
+  
   Chart* = ref ChartObj
 
+  ChartObj* = object of BaseWidget
+    data*: ChartData
+    chartType*: ChartType
+    maxValue*: float
+    minValue*: float
+    autoScale*: bool
+    showGrid*: bool
+    showLabels*: bool
+    showValues*: bool
+    gridChar*: string
+    barChar*: string
+    lineChar*: string
+    pointChar*: string
+    events*: Table[string, EventFn[Chart]]
+    keyEvents*: Table[Key, EventFn[Chart]]
 
-proc newAxis*(title: string = "",
-              data: seq[float64] = newSeq[float64]()): Axis =
-  var padding = 0
-  for d in data:
-    if len($d) > padding:
-      padding = len($d)
-  result = Axis(
-    title: title,
-    data: data,
-    padding: padding
-  )
+proc help(ch: Chart, args: varargs[string]): void
+proc on*(ch: Chart, key: Key, fn: EventFn[Chart]) {.raises: [EventKeyError].}
+proc toggleChartType(ch: Chart, args: varargs[string]): void
+proc toggleGrid(ch: Chart, args: varargs[string]): void
+proc toggleLabels(ch: Chart, args: varargs[string]): void
 
+# Forbidden keys for chart widget
+const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
+                          Key.Down, Key.PageUp, Key.PageDown, Key.Home,
+                          Key.End, Key.Left, Key.Right}
 
-proc newChart*(px, py, w, h: int, id = "",
-              axis: Axis = newAxis(),
-              title = "", border = true,
-              bgColor = bgNone,
-              fgColor = fgWhite,
-              tb = newTerminalBuffer(w + 2, h + py)): Chart =
+proc newChart*(px, py, w, h: int, id = "";
+               title: string = "", data: ChartData = @[], 
+               chartType = LineChart, border: bool = true,
+               statusbar = true, enableHelp = true,
+               bgColor: BackgroundColor = bgNone,
+               fgColor: ForegroundColor = fgWhite,
+               tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Chart =
   let padding = if border: 1 else: 0
+  let statusbarSize = if statusbar: 1 else: 0
   let style = WidgetStyle(
     paddingX1: padding,
     paddingX2: padding,
@@ -47,34 +58,60 @@ proc newChart*(px, py, w, h: int, id = "",
     fgColor: fgColor,
     bgColor: bgColor
   )
-  result = Chart(
+  
+  result = (Chart)(
     width: w,
-    height: if h > axis.data.len() + 8: h else: axis.data.len() + 8,
+    height: h,
     posX: px,
-    posY: if py mod 2 >= 2: min(axis.data.len() * 2, consoleHeight()) else: min(py, consoleHeight()),
+    posY: py,
     id: id,
+    data: data,
+    chartType: chartType,
+    size: h - statusbarSize - py - (padding * 2),
+    statusbarSize: statusbarSize,
+    enableHelp: enableHelp,
+    title: title,
+    statusbar: statusbar,
     tb: tb,
     style: style,
-    axis: axis,
-    title: title,
+    autoScale: true,
+    showGrid: true,
+    showLabels: true,
+    showValues: false,
+    gridChar: "·",
+    barChar: "█",
+    lineChar: "─",
+    pointChar: "●",
     events: initTable[string, EventFn[Chart]](),
     keyEvents: initTable[Key, EventFn[Chart]]()
   )
+  
+  result.helpText = " [T]   toggle chart type (line/bar)\n" &
+                    " [G]   toggle grid\n" &
+                    " [L]   toggle labels\n" &
+                    " [V]   toggle values\n" &
+                    " [?]   for help\n" &
+                    " [Tab] to go next widget\n" & 
+                    " [Esc] to exit this window"
+ 
   result.channel = newChan[WidgetBgEvent]()
+  if enableHelp:
+    result.on(Key.QuestionMark, help)
+
+  result.on(Key.ShiftT, toggleChartType)
+  result.on(Key.ShiftG, toggleGrid)
+  result.on(Key.ShiftL, toggleLabels)
   result.keepOriginalSize()
 
-
-proc newChart*(px, py: int, w, h: WidgetSize, id = "",
-              axis: Axis = newAxis(),
-              title = "", border = true,
-              bgColor = bgNone,
-              fgColor = fgWhite,
-              tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Chart =
+proc newChart*(px, py: int, w, h: WidgetSize, id = "";
+               title = "", data: ChartData = @[], chartType = LineChart,
+               border = true, statusbar = true, enableHelp = true,
+               bgColor = bgNone, fgColor = fgWhite,
+               tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Chart =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
-  return newChart(px, py, width, height, id, axis, title, border,
-                  bgColor, fgColor, tb)
-
+  return newChart(px, py, width, height, id, title, data, chartType,
+                  border, statusbar, enableHelp, bgColor, fgColor, tb)
 
 proc newChart*(id: string): Chart =
   var chart = Chart(
@@ -88,102 +125,326 @@ proc newChart*(id: string): Chart =
       bgColor: bgNone,
       fgColor: fgWhite
     ),
+    chartType: LineChart,
+    autoScale: true,
+    showGrid: true,
+    showLabels: true,
+    showValues: false,
+    gridChar: "·",
+    barChar: "█",
+    lineChar: "─",
+    pointChar: "●",
     events: initTable[string, EventFn[Chart]](),
     keyEvents: initTable[Key, EventFn[Chart]]()
   )
+
+  chart.helpText = " [T]   toggle chart type (line/bar)\n" &
+                   " [G]   toggle grid\n" &
+                   " [L]   toggle labels\n" &
+                   " [V]   toggle values\n" &
+                   " [?]   for help\n" &
+                   " [Tab] to go next widget\n" & 
+                   " [Esc] to exit this window"
+  chart.on(Key.QuestionMark, help)
+  chart.on(Key.ShiftT, toggleChartType)
+  chart.on(Key.ShiftG, toggleGrid)
+  chart.on(Key.ShiftL, toggleLabels)
   chart.channel = newChan[WidgetBgEvent]()
   return chart
 
-
-proc renderAsciiGraph(c: Chart) =
-  try:
-    let plots = plot(c.axis.data,
-                    width = (c.x2 - c.x1 - (c.axis.padding * 2)),
-                    height = (c.y2 - c.y1),
-                    offset = c.axis.padding).split("\n")
-    for i, g in plots:
-      c.tb.write(c.x1, c.y1 + i, g)
-  except CatchableError, Defect:
-    c.tb.write("cannot render graph")
-
-
-method wg*(c: Chart): ref BaseWidget = c
-
-
-proc on*(c: Chart, event: string, fn: EventFn[Chart]) =
-  c.events[event] = fn
-
-
-proc on*(c: Chart, key: Key, fn: EventFn[Chart]) =
-  c.keyEvents[key] = fn
-    
-
-method call*(c: Chart, event: string, args: varargs[string]) =
-  if c.events.hasKey(event):
-    let fn = c.events[event]
-    fn(c, args)
-
-
-method call*(c: ChartObj, event: string, args: varargs[string]) =
-  if c.events.hasKey(event):
-    let fn = c.events[event]
-    let cRef = c.asRef()
-    fn(cRef, args)
-    
-
-proc call(c: Chart, key: Key) =
-  if c.keyEvents.hasKey(key):
-    let fn = c.keyEvents[key]
-    fn(c)
-
-
-method render*(c: Chart) =
-  if not c.illwillInit: return
-  c.clear()
-  c.renderBorder()
-  c.renderTitle()
-  c.renderAsciiGraph()
-  c.tb.display()
-
-
-method poll*(c: Chart) =
-  var widgetEv: WidgetBgEvent
-  if c.channel.tryRecv(widgetEv):
-    c.call(widgetEv.event, widgetEv.args)
-    c.render()
-
-method onUpdate*(c: Chart, key: Key) =
-  c.call("preupdate", $key)
-  if key == Key.Tab:
-    c.focus = false
+proc calculateScale(ch: Chart) =
+  if ch.data.len == 0:
+    ch.minValue = 0.0
+    ch.maxValue = 1.0
     return
-  elif c.keyEvents.hasKey(key):
-    c.call(key)
+    
+  if ch.autoScale:
+    ch.minValue = ch.data.mapIt(it.value).min
+    ch.maxValue = ch.data.mapIt(it.value).max
+    # Add some padding
+    let range = ch.maxValue - ch.minValue
+    if range > 0:
+      ch.minValue -= range * 0.1
+      ch.maxValue += range * 0.1
+    else:
+      ch.minValue -= 1.0
+      ch.maxValue += 1.0
 
-  c.render()
-  sleep(c.rpms)
-  c.call("postupdate", $key)
+proc normalizeValue(ch: Chart, value: float): float =
+  if ch.maxValue == ch.minValue:
+    return 0.5
+  return (value - ch.minValue) / (ch.maxValue - ch.minValue)
 
+proc renderGrid(ch: Chart) =
+  if not ch.showGrid: return
+  
+  let chartWidth = ch.x2 - ch.x1
+  let chartHeight = ch.y2 - ch.y1
+  
+  # Horizontal grid lines
+  for i in 1..<chartHeight:
+    for x in ch.x1..<ch.x2:
+      ch.tb.write(x, ch.y1 + i, fgWhite, ch.bg, ch.gridChar)
+  
+  # Vertical grid lines (every 10 positions if space allows)
+  if chartWidth > 20:
+    let step = max(1, chartWidth div 10)
+    for i in countup(step, chartWidth - 1, step):
+      for y in ch.y1..<ch.y2:
+        ch.tb.write(ch.x1 + i, y, fgWhite, ch.bg, ch.gridChar)
 
-method onControl*(c: Chart) =
-  c.focus = true
-  while c.focus:
-    var key = getKeyWithTimeout(c.rpms)
-    c.onUpdate(key)
+proc renderLineChart(ch: Chart) =
+  if ch.data.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1
+  let chartHeight = ch.y2 - ch.y1
+  
+  if chartHeight <= 0 or chartWidth <= 0: return
+  
+  # Calculate points
+  var points: seq[tuple[x: int, y: int]] = @[]
+  for i, dataPoint in ch.data:
+    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len - 1)
+    let normalizedValue = ch.normalizeValue(dataPoint.value)
+    let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
+    points.add((x: x, y: y))
+  
+  # Draw lines between points
+  for i in 0..<points.len - 1:
+    let p1 = points[i]
+    let p2 = points[i + 1]
+    
+    # Simple line drawing (horizontal segments)
+    let steps = abs(p2.x - p1.x) + abs(p2.y - p1.y)
+    if steps > 0:
+      for step in 0..steps:
+        let t = step.float / steps.float
+        let x = int(p1.x.float + t * (p2.x - p1.x).float)
+        let y = int(p1.y.float + t * (p2.y - p1.y).float)
+        if x >= ch.x1 and x < ch.x2 and y >= ch.y1 and y < ch.y2:
+          ch.tb.write(x, y, ch.fg, ch.bg, ch.lineChar)
+  
+  # Draw points
+  for point in points:
+    if point.x >= ch.x1 and point.x < ch.x2 and point.y >= ch.y1 and point.y < ch.y2:
+      ch.tb.write(point.x, point.y, fgYellow, ch.bg, ch.pointChar)
 
+proc renderBarChart(ch: Chart) =
+  if ch.data.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1
+  let chartHeight = ch.y2 - ch.y1
+  
+  if chartHeight <= 0 or chartWidth <= 0: return
+  
+  let barWidth = max(1, chartWidth div ch.data.len)
+  
+  for i, dataPoint in ch.data:
+    let normalizedValue = ch.normalizeValue(dataPoint.value)
+    let barHeight = int(normalizedValue * float(chartHeight))
+    let x = ch.x1 + (i * chartWidth) div ch.data.len
+    
+    # Draw bar from bottom up
+    for h in 0..<barHeight:
+      let y = ch.y2 - 1 - h
+      if y >= ch.y1 and y < ch.y2:
+        for w in 0..<min(barWidth, ch.x2 - x):
+          if x + w < ch.x2:
+            ch.tb.write(x + w, y, ch.fg, ch.bg, ch.barChar)
 
-proc val(c: Chart, axis: Axis) =
-  c.axis = axis
-  c.render()
+proc renderLabels(ch: Chart) =
+  if not ch.showLabels or ch.data.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1
+  
+  # Render data point labels at the bottom
+  for i, dataPoint in ch.data:
+    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len)
+    let labelX = max(ch.x1, min(x, ch.x2 - dataPoint.label.len))
+    if ch.y2 < ch.height:
+      ch.tb.write(labelX, ch.y2, ch.fg, ch.bg, dataPoint.label[0..min(dataPoint.label.len-1, 10)])
 
+proc renderValues(ch: Chart) =
+  if not ch.showValues or ch.data.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1
+  let chartHeight = ch.y2 - ch.y1
+  
+  for i, dataPoint in ch.data:
+    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len)
+    let normalizedValue = ch.normalizeValue(dataPoint.value)
+    let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
+    let valueStr = dataPoint.value.formatFloat(ffDecimal, 1)
+    
+    if y > ch.y1 and x + valueStr.len < ch.x2:
+      ch.tb.write(x, y - 1, fgCyan, ch.bg, valueStr)
 
-proc `axis=`*(c: Chart, axis: Axis) =
-  c.val(axis)
+proc help(ch: Chart, args: varargs[string]) = 
+  let wsize = ((ch.width - ch.posX).toFloat * 0.3).toInt()
+  let hsize = ((ch.height - ch.posY).toFloat * 0.3).toInt()
+  var display = newDisplay(ch.x2 - wsize, ch.y2 - hsize, 
+                          ch.x2, ch.y2, title="help",
+                          bgColor=bgWhite, fgColor=fgBlack,
+                          tb=ch.tb, statusbar=false, 
+                          enableHelp=false)
+  var helpText = ch.helpText
+  display.text = helpText
+  display.illwillInit = true
+  ch.render()
+  display.onControl()
+  display.clear()
 
+proc toggleChartType(ch: Chart, args: varargs[string]) = 
+  ch.chartType = if ch.chartType == LineChart: BarChart else: LineChart
 
-proc axis*(c: Chart, axis: Axis) =
-  c.val(axis)
+proc toggleGrid(ch: Chart, args: varargs[string]) = 
+  ch.showGrid = not ch.showGrid
 
+proc toggleLabels(ch: Chart, args: varargs[string]) = 
+  ch.showLabels = not ch.showLabels
 
+proc renderStatusbar(ch: Chart) =
+  if ch.events.hasKey("statusbar"):
+    ch.call("statusbar")
+  else:
+    let typeStr = if ch.chartType == LineChart: "Line" else: "Bar"
+    ch.statusbarText = " " & typeStr & " | Points: " & $ch.data.len & " "
+    ch.renderCleanRect(ch.x1, ch.height, ch.statusbarText.len, ch.height)
+    ch.tb.write(ch.x1, ch.height, bgBlue, fgWhite, ch.statusbarText, resetStyle)
+    
+    let indicators = if ch.showGrid and ch.showLabels: "[G][L]" 
+                    elif ch.showGrid: "[G]"
+                    elif ch.showLabels: "[L]" 
+                    else: ""
+    
+    let help = "[?]"
+    if ch.enableHelp:
+      ch.tb.write(ch.x2 - len(help), ch.height, bgWhite, fgBlack, help, resetStyle)
+    if indicators.len > 0:
+      ch.tb.write(ch.x2 - len(indicators & help), ch.height, bgWhite, fgBlack, indicators, resetStyle)
 
+method resize*(ch: Chart) =
+  let statusbarSize = if ch.statusbar: 1 else: 0
+  ch.size = ch.height - statusbarSize - ch.posY - (ch.paddingY1 * 2)
 
+proc on*(ch: Chart, event: string, fn: EventFn[Chart]) =
+  ch.events[event] = fn
+
+proc on*(ch: Chart, key: Key, fn: EventFn[Chart]) {.raises: [EventKeyError].} =
+  if key in forbiddenKeyBind: 
+    raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
+  ch.keyEvents[key] = fn
+
+method call*(ch: Chart, event: string, args: varargs[string]) =
+  if ch.events.hasKey(event):
+    let fn = ch.events[event]
+    fn(ch, args)
+
+method call*(ch: ChartObj, event: string, args: varargs[string]) =
+  if ch.events.hasKey(event):
+    let chRef = ch.asRef()
+    let fn = ch.events[event]
+    fn(chRef, args)
+
+proc call(ch: Chart, key: Key, args: varargs[string]) =
+  if ch.keyEvents.hasKey(key):
+    let fn = ch.keyEvents[key]
+    fn(ch, args)
+
+method render*(ch: Chart) =
+  if not ch.illwillInit: return
+  
+  ch.calculateScale()
+  ch.clear()
+  ch.renderBorder()
+  ch.renderTitle()
+  
+  if ch.showGrid:
+    ch.renderGrid()
+  
+  case ch.chartType:
+  of LineChart:
+    ch.renderLineChart()
+  of BarChart:
+    ch.renderBarChart()
+  
+  if ch.showLabels:
+    ch.renderLabels()
+  
+  if ch.showValues:
+    ch.renderValues()
+  
+  if ch.statusbar:
+    ch.renderStatusbar()
+  
+  ch.tb.display()
+
+method poll*(ch: Chart) =
+  var widgetEv: WidgetBgEvent
+  if ch.channel.tryRecv(widgetEv):
+    ch.call(widgetEv.event, widgetEv.args)
+    ch.render()
+
+method onUpdate*(ch: Chart, key: Key) =
+  if ch.visibility == false: return
+  
+  ch.call("preupdate", $key) 
+  
+  case key
+  of Key.None: discard
+  of Key.ShiftV:
+    ch.showValues = not ch.showValues
+  of Key.Escape, Key.Tab:
+    ch.focus = false
+  else:
+    if key in forbiddenKeyBind: discard
+    elif ch.keyEvents.hasKey(key):
+      ch.call(key, "")
+  
+  ch.render()
+  ch.call("postupdate", $key)
+
+method onControl*(ch: Chart) =
+  if ch.visibility == false: return
+  
+  ch.focus = true
+  ch.clear()
+  while ch.focus:
+    var key = getKeyWithTimeout(ch.rpms)
+    ch.onUpdate(key)
+    sleep(ch.rpms)
+
+method wg*(ch: Chart): ref BaseWidget = ch
+
+# Data manipulation procedures
+proc setData*(ch: Chart, data: ChartData) =
+  ch.data = data
+  if ch.width > 0:
+    ch.render()
+
+proc addDataPoint*(ch: Chart, label: string, value: float) =
+  ch.data.add(DataPoint(label: label, value: value))
+  if ch.width > 0:
+    ch.render()
+
+proc clearData*(ch: Chart) =
+  ch.data = @[]
+  if ch.width > 0:
+    ch.render()
+
+proc `chartType=`*(ch: Chart, chartType: ChartType) =
+  ch.chartType = chartType
+  if ch.visibility:
+    ch.render()
+
+proc `autoScale=`*(ch: Chart, autoScale: bool) =
+  ch.autoScale = autoScale
+  if ch.visibility:
+    ch.render()
+
+proc setScale*(ch: Chart, minVal, maxVal: float) =
+  ch.autoScale = false
+  ch.minValue = minVal
+  ch.maxValue = maxVal
+  if ch.visibility:
+    ch.render()
