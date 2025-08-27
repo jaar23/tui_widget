@@ -1,7 +1,7 @@
 import illwill, base_wg, os, sequtils, strutils, deques, times, 
        input_box_wg, display_wg, listview_wg
 import std/wordwrap, std/enumerate
-import nimclipboard/libclipboard
+#import nimclipboard/libclipboard
 import tables, threading/channels, std/math
 
 type
@@ -58,9 +58,9 @@ type
 
   TextArea* = ref TextAreaObj
 
-var cb = clipboard_new(nil)
+#var cb = clipboard_new(nil)
 
-cb.clipboard_clear(LCB_CLIPBOARD)
+#cb.clipboard_clear(LCB_CLIPBOARD)
 
 const cursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
 
@@ -146,7 +146,8 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     textArea.normalKeyEvents[Key.QuestionMark] = help
     textArea.visualKeyEvents[Key.QuestionMark] = help
   textArea.keepOriginalSize()
-  textArea.value = repeat(' ', textArea.rows * textArea.cols)
+  # textArea.value = repeat(' ', textArea.rows * textArea.cols)
+  textArea.value = val & repeat(' ', max(100, textArea.rows * textArea.cols))
   return textArea
 
 
@@ -386,18 +387,30 @@ func backspace(t: TextArea) =
 
 
 ## continue here, replace might be a good strategy
-func insert(t: TextArea, value: string, pos: int) =
-  if t.value[pos] == ' ' and value != " ":
-    t.value[pos] = value[0]
-    t.value.add(" ")
-  else:
-    t.value.insert(value, pos)
-    if t.textRows.len > 0 and t.value.len > t.cols:
-      let currLineEndCursor = min(t.value.len - 1, 
-                              ((t.rowCursor + 1) * t.cols) - 2)
+# func insert(t: TextArea, value: string, pos: int) =
+#   if t.value[pos] == ' ' and value != " ":
+#     t.value[pos] = value[0]
+#     t.value.add(" ")
+#   else:
+#     t.value.insert(value, pos)
+#     if t.textRows.len > 0 and t.value.len > t.cols:
+#       let currLineEndCursor = min(t.value.len - 1, 
+#                               ((t.rowCursor + 1) * t.cols) - 2)
 
-      t.value.delete(currLineEndCursor..currLineEndCursor)
+#       t.value.delete(currLineEndCursor..currLineEndCursor)
     
+#   if t.cursor >= (max(t.rowCursor + 1, 1) * t.cols):
+#     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+
+func insert(t: TextArea, value: string, pos: int) =
+  # Simple insertion that pushes all text forward
+  t.value.insert(value, pos)
+  
+  # If we've exceeded the allocated space, expand it
+  if t.value.len > t.rows * t.cols:
+    t.value &= " "  # Add space at the end to maintain buffer
+  
+  # Update row cursor if we've moved to next line
   if t.cursor >= (max(t.rowCursor + 1, 1) * t.cols):
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
@@ -1324,10 +1337,11 @@ method onUpdate*(t: TextArea, key: Key) =
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
     t.moveDown()
   of Key.CtrlV:
-    let copiedText = $cb.clipboard_text()
-    t.insert(copiedText, t.cursor)
-    t.cursor = t.cursor + copiedText.len
-    t.rowReCal()
+    #let copiedText = $cb.clipboard_text()
+    #t.insert(copiedText, t.cursor)
+    #t.cursor = t.cursor + copiedText.len
+    #t.rowReCal()
+    discard
   of Key.Enter:
     t.enter()
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)

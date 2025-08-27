@@ -26,6 +26,11 @@ type
     barChar*: string
     lineChar*: string
     pointChar*: string
+    maxVisiblePoints*: int
+    scrollOffset*: int
+    showLeftIndicator*: bool
+    showRightIndicator*: bool
+    autoScroll*: bool  # Auto-scroll to show latest data
     events*: Table[string, EventFn[Chart]]
     keyEvents*: Table[Key, EventFn[Chart]]
 
@@ -34,11 +39,13 @@ proc on*(ch: Chart, key: Key, fn: EventFn[Chart]) {.raises: [EventKeyError].}
 proc toggleChartType(ch: Chart, args: varargs[string]): void
 proc toggleGrid(ch: Chart, args: varargs[string]): void
 proc toggleLabels(ch: Chart, args: varargs[string]): void
+proc toggleAutoScroll(ch: Chart, args: varargs[string]): void
+proc calculateMaxVisiblePoints*(ch: Chart) : void
 
 # Forbidden keys for chart widget
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
                           Key.Down, Key.PageUp, Key.PageDown, Key.Home,
-                          Key.End, Key.Left, Key.Right}
+                          Key.End}
 
 proc newChart*(px, py, w, h: int, id = "";
                title: string = "", data: ChartData = @[], 
@@ -82,6 +89,12 @@ proc newChart*(px, py, w, h: int, id = "";
     barChar: "█",
     lineChar: "─",
     pointChar: "●",
+    # Initialize scrolling properties
+    maxVisiblePoints: 0,
+    scrollOffset: 0,
+    showLeftIndicator: false,
+    showRightIndicator: false,
+    autoScroll: true,
     events: initTable[string, EventFn[Chart]](),
     keyEvents: initTable[Key, EventFn[Chart]]()
   )
@@ -90,6 +103,8 @@ proc newChart*(px, py, w, h: int, id = "";
                     " [G]   toggle grid\n" &
                     " [L]   toggle labels\n" &
                     " [V]   toggle values\n" &
+                    " [←→]  scroll left/right\n" &
+                    " [A]   toggle auto-scroll\n" &
                     " [?]   for help\n" &
                     " [Tab] to go next widget\n" & 
                     " [Esc] to exit this window"
@@ -101,6 +116,8 @@ proc newChart*(px, py, w, h: int, id = "";
   result.on(Key.ShiftT, toggleChartType)
   result.on(Key.ShiftG, toggleGrid)
   result.on(Key.ShiftL, toggleLabels)
+  result.on(Key.ShiftA, toggleAutoScroll)
+  result.calculateMaxVisiblePoints()
   result.keepOriginalSize()
 
 proc newChart*(px, py: int, w, h: WidgetSize, id = "";
@@ -134,6 +151,11 @@ proc newChart*(id: string): Chart =
     barChar: "█",
     lineChar: "─",
     pointChar: "●",
+    maxVisiblePoints: 0,
+    scrollOffset: 0,
+    showLeftIndicator: false,
+    showRightIndicator: false,
+    autoScroll: true,
     events: initTable[string, EventFn[Chart]](),
     keyEvents: initTable[Key, EventFn[Chart]]()
   )
@@ -175,6 +197,53 @@ proc normalizeValue(ch: Chart, value: float): float =
     return 0.5
   return (value - ch.minValue) / (ch.maxValue - ch.minValue)
 
+proc calculateMaxVisiblePoints*(ch: Chart) =
+  let availableWidth = ch.x2 - ch.x1 - 2  # Reserve 1 char each side for indicators
+  ch.maxVisiblePoints = max(1, availableWidth)  # At least 1 point visible
+  
+  # Update scroll indicators
+  ch.showLeftIndicator = ch.scrollOffset > 0
+  ch.showRightIndicator = ch.scrollOffset + ch.maxVisiblePoints < ch.data.len
+
+proc scrollLeft*(ch: Chart) =
+  if ch.scrollOffset > 0:
+    ch.scrollOffset -= 1
+    ch.calculateMaxVisiblePoints()
+
+proc scrollRight*(ch: Chart) =
+  if ch.scrollOffset + ch.maxVisiblePoints < ch.data.len:
+    ch.scrollOffset += 1
+    ch.calculateMaxVisiblePoints()
+
+proc autoScrollToEnd*(ch: Chart) =
+  if ch.data.len > ch.maxVisiblePoints:
+    ch.scrollOffset = ch.data.len - ch.maxVisiblePoints
+  else:
+    ch.scrollOffset = 0
+  ch.calculateMaxVisiblePoints()
+
+proc getVisibleData*(ch: Chart): ChartData =
+  if ch.data.len == 0:
+    return @[]
+  
+  let startIdx = ch.scrollOffset
+  let endIdx = min(startIdx + ch.maxVisiblePoints, ch.data.len)
+  result = ch.data[startIdx..<endIdx]
+
+proc toggleAutoScroll(ch: Chart, args: varargs[string]) =
+  ch.autoScroll = not ch.autoScroll
+  if ch.autoScroll:
+    ch.autoScrollToEnd()
+
+proc renderScrollIndicators(ch: Chart) =
+  # Render left scroll indicator
+  if ch.showLeftIndicator:
+    ch.tb.write(ch.x1, ch.y1 + (ch.y2 - ch.y1) div 2, fgYellow, ch.bg, "◀")
+  
+  # Render right scroll indicator  
+  if ch.showRightIndicator:
+    ch.tb.write(ch.x2 - 1, ch.y1 + (ch.y2 - ch.y1) div 2, fgYellow, ch.bg, "▶")
+
 proc renderGrid(ch: Chart) =
   if not ch.showGrid: return
   
@@ -194,17 +263,19 @@ proc renderGrid(ch: Chart) =
         ch.tb.write(ch.x1 + i, y, fgWhite, ch.bg, ch.gridChar)
 
 proc renderLineChart(ch: Chart) =
-  if ch.data.len == 0: return
+  let visibleData = ch.getVisibleData()
+  if visibleData.len == 0: return
   
-  let chartWidth = ch.x2 - ch.x1
+  let chartWidth = ch.x2 - ch.x1 - (if ch.showLeftIndicator: 1 else: 0) - (if ch.showRightIndicator: 1 else: 0)
   let chartHeight = ch.y2 - ch.y1
+  let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
   
   if chartHeight <= 0 or chartWidth <= 0: return
   
-  # Calculate points
+  # Calculate points for visible data
   var points: seq[tuple[x: int, y: int]] = @[]
-  for i, dataPoint in ch.data:
-    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len - 1)
+  for i, dataPoint in visibleData:
+    let x = startX + (i * chartWidth) div max(1, visibleData.len - 1)
     let normalizedValue = ch.normalizeValue(dataPoint.value)
     let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
     points.add((x: x, y: y))
@@ -214,69 +285,83 @@ proc renderLineChart(ch: Chart) =
     let p1 = points[i]
     let p2 = points[i + 1]
     
-    # Simple line drawing (horizontal segments)
+    # Simple line drawing
     let steps = abs(p2.x - p1.x) + abs(p2.y - p1.y)
     if steps > 0:
       for step in 0..steps:
         let t = step.float / steps.float
         let x = int(p1.x.float + t * (p2.x - p1.x).float)
         let y = int(p1.y.float + t * (p2.y - p1.y).float)
-        if x >= ch.x1 and x < ch.x2 and y >= ch.y1 and y < ch.y2:
+        let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
+        if x >= startX and x < endX and y >= ch.y1 and y < ch.y2:
           ch.tb.write(x, y, ch.fg, ch.bg, ch.lineChar)
   
   # Draw points
   for point in points:
-    if point.x >= ch.x1 and point.x < ch.x2 and point.y >= ch.y1 and point.y < ch.y2:
+    let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
+    if point.x >= startX and point.x < endX and point.y >= ch.y1 and point.y < ch.y2:
       ch.tb.write(point.x, point.y, fgYellow, ch.bg, ch.pointChar)
 
 proc renderBarChart(ch: Chart) =
-  if ch.data.len == 0: return
+  let visibleData = ch.getVisibleData()
+  if visibleData.len == 0: return
   
-  let chartWidth = ch.x2 - ch.x1
+  let chartWidth = ch.x2 - ch.x1 - (if ch.showLeftIndicator: 1 else: 0) - (if ch.showRightIndicator: 1 else: 0)
   let chartHeight = ch.y2 - ch.y1
+  let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
   
   if chartHeight <= 0 or chartWidth <= 0: return
   
-  let barWidth = max(1, chartWidth div ch.data.len)
+  let barWidth = max(1, chartWidth div visibleData.len)
   
-  for i, dataPoint in ch.data:
+  for i, dataPoint in visibleData:
     let normalizedValue = ch.normalizeValue(dataPoint.value)
     let barHeight = int(normalizedValue * float(chartHeight))
-    let x = ch.x1 + (i * chartWidth) div ch.data.len
+    let x = startX + (i * chartWidth) div visibleData.len
+    let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
     
     # Draw bar from bottom up
     for h in 0..<barHeight:
       let y = ch.y2 - 1 - h
       if y >= ch.y1 and y < ch.y2:
-        for w in 0..<min(barWidth, ch.x2 - x):
-          if x + w < ch.x2:
+        for w in 0..<min(barWidth, endX - x):
+          if x + w < endX:
             ch.tb.write(x + w, y, ch.fg, ch.bg, ch.barChar)
 
 proc renderLabels(ch: Chart) =
-  if not ch.showLabels or ch.data.len == 0: return
+  if not ch.showLabels: return
   
-  let chartWidth = ch.x2 - ch.x1
+  let visibleData = ch.getVisibleData()
+  if visibleData.len == 0: return
   
-  # Render data point labels at the bottom
-  for i, dataPoint in ch.data:
-    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len)
-    let labelX = max(ch.x1, min(x, ch.x2 - dataPoint.label.len))
+  let chartWidth = ch.x2 - ch.x1 - (if ch.showLeftIndicator: 1 else: 0) - (if ch.showRightIndicator: 1 else: 0)
+  let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
+  
+  # Render visible data point labels at the bottom
+  for i, dataPoint in visibleData:
+    let x = startX + (i * chartWidth) div max(1, visibleData.len)
+    let labelX = max(startX, min(x, ch.x2 - dataPoint.label.len - 1))
     if ch.y2 < ch.height:
       ch.tb.write(labelX, ch.y2, ch.fg, ch.bg, dataPoint.label[0..min(dataPoint.label.len-1, 10)])
 
 proc renderValues(ch: Chart) =
-  if not ch.showValues or ch.data.len == 0: return
+  if not ch.showValues: return
   
-  let chartWidth = ch.x2 - ch.x1
+  let visibleData = ch.getVisibleData()
+  if visibleData.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1 - (if ch.showLeftIndicator: 1 else: 0) - (if ch.showRightIndicator: 1 else: 0)
   let chartHeight = ch.y2 - ch.y1
+  let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
+  let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
   
-  for i, dataPoint in ch.data:
-    let x = ch.x1 + (i * chartWidth) div max(1, ch.data.len)
+  for i, dataPoint in visibleData:
+    let x = startX + (i * chartWidth) div max(1, visibleData.len)
     let normalizedValue = ch.normalizeValue(dataPoint.value)
     let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
     let valueStr = dataPoint.value.formatFloat(ffDecimal, 1)
     
-    if y > ch.y1 and x + valueStr.len < ch.x2:
+    if y > ch.y1 and x + valueStr.len < endX:
       ch.tb.write(x, y - 1, fgCyan, ch.bg, valueStr)
 
 proc help(ch: Chart, args: varargs[string]) = 
@@ -308,7 +393,13 @@ proc renderStatusbar(ch: Chart) =
     ch.call("statusbar")
   else:
     let typeStr = if ch.chartType == LineChart: "Line" else: "Bar"
-    ch.statusbarText = " " & typeStr & " | Points: " & $ch.data.len & " "
+    let scrollInfo = if ch.data.len > ch.maxVisiblePoints: 
+                      " | Showing " & $(ch.scrollOffset + 1) & "-" & 
+                      $(min(ch.scrollOffset + ch.maxVisiblePoints, ch.data.len)) & 
+                      " of " & $ch.data.len else: ""
+    let autoScrollStr = if ch.autoScroll: " [AUTO]" else: ""
+    ch.statusbarText = " " & typeStr & " | Points: " & $ch.data.len & scrollInfo & autoScrollStr & " "
+    
     ch.renderCleanRect(ch.x1, ch.height, ch.statusbarText.len, ch.height)
     ch.tb.write(ch.x1, ch.height, bgBlue, fgWhite, ch.statusbarText, resetStyle)
     
@@ -323,9 +414,11 @@ proc renderStatusbar(ch: Chart) =
     if indicators.len > 0:
       ch.tb.write(ch.x2 - len(indicators & help), ch.height, bgWhite, fgBlack, indicators, resetStyle)
 
+
 method resize*(ch: Chart) =
   let statusbarSize = if ch.statusbar: 1 else: 0
   ch.size = ch.height - statusbarSize - ch.posY - (ch.paddingY1 * 2)
+  ch.calculateMaxVisiblePoints()
 
 proc on*(ch: Chart, event: string, fn: EventFn[Chart]) =
   ch.events[event] = fn
@@ -355,12 +448,16 @@ method render*(ch: Chart) =
   if not ch.illwillInit: return
   
   ch.calculateScale()
+  ch.calculateMaxVisiblePoints()
   ch.clear()
   ch.renderBorder()
   ch.renderTitle()
   
   if ch.showGrid:
     ch.renderGrid()
+  
+  # Render scroll indicators first
+  ch.renderScrollIndicators()
   
   case ch.chartType:
   of LineChart:
@@ -392,8 +489,14 @@ method onUpdate*(ch: Chart, key: Key) =
   
   case key
   of Key.None: discard
+  of Key.Left:
+    ch.scrollLeft()
+  of Key.Right:
+    ch.scrollRight()
   of Key.ShiftV:
     ch.showValues = not ch.showValues
+  of Key.ShiftA:
+    ch.toggleAutoScroll()
   of Key.Escape, Key.Tab:
     ch.focus = false
   else:
@@ -424,6 +527,11 @@ proc setData*(ch: Chart, data: ChartData) =
 
 proc addDataPoint*(ch: Chart, label: string, value: float) =
   ch.data.add(DataPoint(label: label, value: value))
+  
+  # Auto-scroll to show latest data if enabled
+  if ch.autoScroll:
+    ch.autoScrollToEnd()
+  
   if ch.width > 0:
     ch.render()
 
