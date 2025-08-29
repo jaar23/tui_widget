@@ -17,7 +17,8 @@ type
     customRowRecal*: Option[CustomRowRecal]
     events*: Table[string, EventFn[Display]]
     keyEvents*: Table[Key, EventFn[Display]]
-
+    mouseEvents*: Table[MouseButton, EventFn[Display]]
+    mouseEnabled: bool = false
 
 proc help(dp: Display, args: varargs[string]): void
 
@@ -36,6 +37,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
                  statusbar = true, wordwrap = false, enableHelp = false,
                  bgColor: BackgroundColor = bgNone,
                  fgColor: ForegroundColor = fgWhite,
+                 mouseEnabled: bool = false,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
                  tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Display =
   let padding = if border: 1 else: 0
@@ -65,6 +67,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
     style: style,
     wordwrap: wordwrap,
     customRowRecal: customRowRecal,
+    mouseEnabled: mouseEnabled,
     useCustomTextRow: if customRowRecal.isSome: true else: false,
     events: initTable[string, EventFn[Display]](),
     keyEvents: initTable[Key, EventFn[Display]]()
@@ -77,7 +80,7 @@ proc newDisplay*(px, py, w, h: int, id = "";
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
     result.on(Key.QuestionMark, help)
-
+  result.mouseEvents = initTable[MouseButton, EventFn[Display]]()  # Initialize mouse events
   result.on(Key.ShiftW, toggleWordWrap)
   result.keepOriginalSize()
 
@@ -87,13 +90,14 @@ proc newDisplay*(px, py: int, w, h: WidgetSize, id = "";
                  statusbar = true, wordwrap = false, enableHelp = false,
                  bgColor = bgNone,
                  fgColor = fgWhite,
+                 mouseEnabled = false,
                  customRowRecal: Option[CustomRowRecal] = none(CustomRowRecal),
                  tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Display =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newDisplay(px, py, width, height, id, title, text, border,
-                    statusbar, wordwrap, enableHelp, bgColor, fgColor,
-                    customRowRecal, tb)
+                    statusbar, wordwrap, enableHelp, bgColor, fgColor, 
+                    mouseEnabled, customRowRecal, tb)
 
 
 proc newDisplay*(id: string): Display =
@@ -121,6 +125,31 @@ proc newDisplay*(id: string): Display =
   display.channel = newChan[WidgetBgEvent]()
   return display
  
+
+## Mouse events
+
+proc onMouse*(dp: Display, button: MouseButton, fn: EventFn[Display]) =
+  ## Set mouse event handler for specific button
+  dp.mouseEvents[button] = fn
+
+proc handleMouseEvent*(dp: Display, mouseInfo: MouseInfo) =
+  ## Handle mouse events including wheel scrolling
+  if mouseInfo.scroll:
+    # Handle mouse wheel scrolling
+    case mouseInfo.scrollDir
+    of sdUp:
+      dp.rowCursor = max(0, dp.rowCursor - 3)  # Scroll up 3 lines
+    of sdDown:
+      dp.rowCursor = min(dp.rowCursor + 3, max(dp.textRows.len - dp.size, 0))  # Scroll down 3 lines
+    else:
+      discard
+    
+    dp.render()
+  
+  # Handle mouse button clicks
+  elif mouseInfo.action == mbaPressed and dp.mouseEvents.hasKey(mouseInfo.button):
+    let fn = dp.mouseEvents[mouseInfo.button]
+    fn(dp, @[$mouseInfo.x, $mouseInfo.y])
 
 
 proc splitBySize(val: string, size: int, rows: int,
@@ -304,6 +333,10 @@ method onUpdate*(dp: Display, key: Key) =
   dp.call("preupdate", $key) 
   # key binding action
   case key
+  of Key.Mouse:  # Handle mouse events in onUpdate
+    if dp.mouseEnabled:
+      let mouseInfo = getMouse()
+      dp.handleMouseEvent(mouseInfo)
   of Key.None: discard
   of Key.Up:
     dp.rowCursor = max(0, dp.rowCursor - 1)
@@ -348,7 +381,13 @@ method onControl*(dp: Display) =
   dp.clear()
   while dp.focus:
     var key = getKeyWithTimeout(dp.rpms)
-    dp.onUpdate(key)
+    case key
+    of Key.Mouse:  # Handle mouse events in onControl
+      if dp.mouseEnabled:
+        let mouseInfo = getMouse()
+        dp.handleMouseEvent(mouseInfo)
+    else:
+      dp.onUpdate(key)
     sleep(dp.rpms)
 
 
