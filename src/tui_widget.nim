@@ -13,7 +13,8 @@ import
   widget/gauge_wg,
   widget/textarea_wg,
   widget/container_wg,
-  widget/chart_wg
+  widget/chart_wg,
+  widget/dropdown_wg
 
 export
   base_wg,
@@ -29,7 +30,8 @@ export
   textarea_wg,
   container_wg,
   illwill,
-  chart_wg
+  chart_wg,
+  dropdown_wg
 
 type
   TerminalApp* = object
@@ -47,6 +49,7 @@ type
     rpms: int = 50
     origWidth: int
     origHeight: int
+    mouseEnabled: bool = false 
 
   SizeOverflow = object of CatchableError
 
@@ -68,7 +71,8 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
     widgets: newSeq[ref BaseWidget](),
     tb: tb,
     origWidth: terminalWidth(),
-    origHeight: terminalHeight()
+    origHeight: terminalHeight(),
+    mouseEnabled: false # disabled by default
   )
 
 
@@ -396,7 +400,7 @@ proc exitProc() {.noconv.} =
 
 
 proc go(app: var TerminalApp) =
-  illwillInit(fullscreen = app.fullscreen)
+  illwillInit(fullscreen = app.fullscreen, mouse = app.mouseEnabled)
   setControlCHook(exitProc)
   hideCursor()
 
@@ -431,6 +435,12 @@ proc go(app: var TerminalApp) =
     of Key.Tab:
       app.widgets[app.cursor].focus = false
       app.nonBlockingControl()
+    of Key.Mouse:  # Handle mouse events
+      if app.mouseEnabled:
+        let mouseInfo = getMouse()
+        for widget in app.widgets:
+          if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+            widget.onMouseEvent(mouseInfo)
     else:
       app.widgets[app.cursor].focus = true
       app.widgets[app.cursor].onUpdate(key)
@@ -441,7 +451,7 @@ proc go(app: var TerminalApp) =
 
 
 proc hold(app: var TerminalApp) =
-  illwillInit(fullscreen = app.fullscreen)
+  illwillInit(fullscreen = app.fullscreen, mouse = app.mouseEnabled)
   setControlCHook(exitProc)
   hideCursor()
 
@@ -480,6 +490,12 @@ proc hold(app: var TerminalApp) =
         let err = getCurrentException()
         app.widgets[app.cursor].onError(err.getStackTrace())
       inc app.cursor
+    of Key.Mouse:  # Handle mouse events in blocking mode
+      if app.mouseEnabled:
+        let mouseInfo = getMouse()
+        for widget in app.widgets:
+          if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+            widget.onMouseEvent(mouseInfo)
     else: discard
     
     sleep(app.rpms)
@@ -493,3 +509,4 @@ proc run*(app: var TerminalApp, nonBlocking=false) =
   else:
     # run and hold on one control 
     app.hold()
+  illwillDeinit()

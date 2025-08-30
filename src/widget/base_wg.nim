@@ -1,4 +1,5 @@
 import illwill, threading/channels, unicode, std/wordwrap
+import os, osproc, streams
 
 type
   Alignment* = enum
@@ -77,6 +78,7 @@ type
     origHeight*: int
     origPosX*: int
     origPosY*: int
+    onMouse*: proc(wg: ref BaseWidget, mouseInfo: MouseInfo) {.closure.}
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -393,3 +395,91 @@ proc experimental*(bw: ref BaseWidget) =
   bw.tb.write(bw.x2 - len(text) - 3, bw.height, bgWhite, fgBlack, text, resetStyle)
 
 
+proc contains*(wg: ref BaseWidget, x, y: int): bool =
+  ## Check if the given coordinates are within the widget's bounds
+  result = x >= wg.posX and x < wg.posX + wg.width and
+           y >= wg.posY and y < wg.posY + wg.height
+
+proc onMouseEvent*(wg: ref BaseWidget, mouseInfo: MouseInfo) =
+  ## Default mouse event handler
+  if not wg.onMouse.isNil:
+    wg.onMouse(wg, mouseInfo)
+
+proc onMouse*(wg: ref BaseWidget, handler: proc(wg: ref BaseWidget, mouseInfo: MouseInfo) {.closure.}) =
+  ## Set mouse event handler
+  wg.onMouse = handler
+
+# OS-specific clipboard functions
+proc getClipboardText*(): string =
+  ## Get text from OS clipboard
+  when defined(windows):
+    try:
+      let (output, _) = execCmdEx("powershell -Command \"Get-Clipboard\"")
+      return output.strip()
+    except:
+      return ""
+  elif defined(macosx):
+    try:
+      let (output, _) = execCmdEx("pbpaste")
+      return output.strip()
+    except:
+      return ""
+  else: # Linux/Unix
+    # Try xclip first, then xsel as fallback
+    try:
+      let (output, exitCode) = execCmdEx("xclip -o -selection clipboard")
+      if exitCode == 0:
+        return output.strip()
+    except:
+      discard
+    try:
+      let (output, exitCode) = execCmdEx("xsel --clipboard --output")
+      if exitCode == 0:
+        return output.strip()
+    except:
+      discard
+    return ""
+
+proc setClipboardText*(text: string) =
+  ## Set text to OS clipboard
+  when defined(windows):
+    try:
+      # Use a temporary file approach for Windows to avoid shell escaping issues
+      let tempFile = getTempDir() / "nim_clipboard.tmp"
+      writeFile(tempFile, text)
+      discard execCmdEx("powershell -Command \"Get-Content '" & tempFile & "' | Set-Clipboard\"")
+      removeFile(tempFile)
+    except:
+      discard
+  elif defined(macosx):
+    try:
+      # Use printf instead of echo to handle special characters properly
+      let process = startProcess("pbcopy", options={poStdErrToStdOut, poUsePath})
+      let inputStream = process.inputStream()
+      inputStream.write(text)
+      inputStream.close()
+      discard process.waitForExit()
+      process.close()
+    except:
+      discard
+  else: # Linux/Unix
+    # Try xclip first, then xsel as fallback
+    try:
+      let process = startProcess("xclip", args=["-selection", "clipboard"], 
+                                options={poStdErrToStdOut, poUsePath})
+      let inputStream = process.inputStream()
+      inputStream.write(text)
+      inputStream.close()
+      discard process.waitForExit()
+      process.close()
+    except:
+      try:
+        let process = startProcess("xsel", args=["--clipboard", "--input"],
+                                  options={poStdErrToStdOut, poUsePath})
+        let inputStream = process.inputStream()
+        inputStream.write(text)
+        inputStream.close()
+        discard process.waitForExit()
+        process.close()
+      except:
+        discard

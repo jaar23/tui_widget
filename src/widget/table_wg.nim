@@ -50,7 +50,7 @@ type
     events*: systable.Table[string, EventFn[ref TableObj]]
     keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
     mouseEvents*: systable.Table[MouseButton, EventFn[ref TableObj]]
-    mouseEnabled: bool = false
+    mouseEnabled*: bool = false
   
   Table* = ref TableObj
 

@@ -1,6 +1,5 @@
 import illwill, strutils, base_wg, sequtils, encodings
-import tables, threading/channels
-import nimclipboard/libclipboard
+import tables, threading/channels, os, osproc, streams
 
 type
   InputBoxObj* = object of BaseWidget
@@ -15,11 +14,6 @@ type
     Left, Right
 
   InputBox* = ref InputBoxObj
-
-var cb = clipboard_new(nil)
-
-cb.clipboard_clear(LCB_CLIPBOARD)
-
 
 const allowKeyBind = {Key.Up, Key.Down}
 
@@ -69,11 +63,18 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
   )
   # to ensure key responsive, default to < 50  
   if result.rpms > 50: result.rpms = 50
-  # register paste event
-  result.on(Key.CtrlV, proc(ib: InputBox, args:varargs[string]) =
-    let copiedText = $cb.clipboard_text()
-    ib.value.insert(formatText(copiedText), ib.cursor)
-    ib.cursor = ib.cursor + copiedText.len
+  # register copy and paste events
+  result.on(Key.CtrlC, proc(ib: InputBox, args: varargs[string]) =
+    if ib.value.len > 0:
+      base_wg.setClipboardText(ib.value)
+  )
+  
+  result.on(Key.CtrlV, proc(ib: InputBox, args: varargs[string]) =
+    let clipText = base_wg.getClipboardText()
+    if clipText.len > 0:
+      let formattedText = formatText(clipText)
+      ib.value.insert(formattedText, ib.cursor)
+      ib.cursor = ib.cursor + formattedText.len
   )
   result.channel = newChan[WidgetBgEvent]()
   result.keepOriginalSize()
@@ -106,6 +107,20 @@ proc newInputBox*(id: string): InputBox =
   )
   # to ensure key responsive, default to < 50  
   if input.rpms > 50: input.rpms = 50
+  # register copy and paste events
+  input.on(Key.CtrlC, proc(ib: InputBox, args: varargs[string]) =
+    if ib.value.len > 0:
+      base_wg.setClipboardText(ib.value)
+  )
+  
+  input.on(Key.CtrlV, proc(ib: InputBox, args: varargs[string]) =
+    let clipText = base_wg.getClipboardText()
+    if clipText.len > 0:
+      let formattedText = formatText(clipText)
+      ib.value.insert(formattedText, ib.cursor)
+      ib.cursor = ib.cursor + formattedText.len
+  )
+  
   input.channel = newChan[WidgetBgEvent]()
   return input
 
@@ -354,10 +369,10 @@ method onUpdate*(ib: InputBox, key: Key) =
     ib.value.insert("]", ib.cursor)
     ib.overflowWidth()
   of Key.LeftBrace:
-    ib.value.insert("(", ib.cursor)
+    ib.value.insert("{", ib.cursor)
     ib.overflowWidth()
   of Key.RightBrace:
-    ib.value.insert(")", ib.cursor)
+    ib.value.insert("}", ib.cursor)
     ib.overflowWidth()
   of Key.Percent:
     ib.value.insert("%", ib.cursor)
@@ -397,6 +412,12 @@ method onUpdate*(ib: InputBox, key: Key) =
   of Key.Right: 
     ib.cursorMove(Right)
     ib.rerender()
+  of Key.LeftParen:
+    ib.value.insert("(", ib.cursor)
+    ib.overflowWidth()
+  of Key.RightParen:
+    ib.value.insert(")", ib.cursor)
+    ib.overflowWidth()
   of Key.Enter:
     ib.call("enter")
   of allowKeyBind:

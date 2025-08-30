@@ -1,7 +1,6 @@
 import illwill, base_wg, os, sequtils, strutils, deques, times, 
        input_box_wg, display_wg, listview_wg
 import std/wordwrap, std/enumerate
-#import nimclipboard/libclipboard
 import tables, threading/channels, std/math
 
 type
@@ -58,11 +57,11 @@ type
 
   TextArea* = ref TextAreaObj
 
-#var cb = clipboard_new(nil)
-
-#cb.clipboard_clear(LCB_CLIPBOARD)
-
 const cursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
+
+proc on*(t: TextArea, event: string, fn: EventFn[TextArea]): void {.raises: [EventKeyError]} 
+
+proc on*(t: TextArea, key: Key, fn: EventFn[TextArea], vimode: ViMode = Insert): void {.raises: [EventKeyError].}
 
 proc help(t: TextArea, args: varargs[string]): void
 
@@ -148,6 +147,18 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
   textArea.keepOriginalSize()
   # textArea.value = repeat(' ', textArea.rows * textArea.cols)
   textArea.value = val & repeat(' ', max(100, textArea.rows * textArea.cols))
+  # register copy and paste events
+  textArea.on(Key.CtrlC, proc(t: TextArea, args: varargs[string]) =
+    if t.value.len > 0:
+      base_wg.setClipboardText(t.value)
+  )
+  
+  textArea.on(Key.CtrlV, proc(t: TextArea, args: varargs[string]) =
+    let clipText = base_wg.getClipboardText()
+    if clipText.len > 0:
+      t.value.insert(clipText, t.cursor)
+      t.cursor = t.cursor + clipText.len
+  )
   return textArea
 
 
@@ -197,6 +208,18 @@ proc newTextArea*(id: string): TextArea =
   textArea.normalKeyEvents[Key.QuestionMark] = help
   textArea.visualKeyEvents[Key.QuestionMark] = help
   textArea.value = repeat(' ', textArea.rows * textArea.cols)
+  # register copy and paste events
+  textArea.on(Key.CtrlC, proc(t: TextArea, args: varargs[string]) =
+    if t.value.len > 0:
+      base_wg.setClipboardText(t.value)
+  )
+  
+  textArea.on(Key.CtrlV, proc(t: TextArea, args: varargs[string]) =
+    let clipText = base_wg.getClipboardText()
+    if clipText.len > 0:
+      t.value.insert(clipText, t.cursor)
+      t.cursor = t.cursor + clipText.len
+  )
   return textarea
 
 
@@ -543,7 +566,7 @@ proc onEditMode(t: TextArea, key: Key, fn: EventFn[TextArea]) =
                          Key.CtrlG, Key.CtrlH, Key.CtrlJ, Key.CtrlK, Key.CtrlL,
                          Key.CtrlN, Key.CtrlO, Key.CtrlP, Key.CtrlQ, Key.CtrlR,
                          Key.CtrlS, Key.CtrlT, Key.CtrlU, Key.CtrlW, Key.CtrlX,
-                         Key.CtrlY, Key.CtrlZ}
+                         Key.CtrlY, Key.CtrlZ, Key.CtrlV}
 
   if key in allowFnKeys or key in allowCtrlKeys:
     t.editKeyEvents[key] = fn
@@ -1336,12 +1359,6 @@ method onUpdate*(t: TextArea, key: Key) =
   of Key.Down:
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
     t.moveDown()
-  of Key.CtrlV:
-    #let copiedText = $cb.clipboard_text()
-    #t.insert(copiedText, t.cursor)
-    #t.cursor = t.cursor + copiedText.len
-    #t.rowReCal()
-    discard
   of Key.Enter:
     t.enter()
     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
