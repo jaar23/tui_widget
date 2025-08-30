@@ -25,7 +25,7 @@ proc newLabel*(px, py, w, h: int, id = "", text = "",
   )
   result = Label(
     width: w,
-    height: if border and ((h - py) < 2): py + 2 else: h,
+    height: h,
     posX: px,
     posY: py,
     id: id,
@@ -88,9 +88,12 @@ method call*(lb: LabelObj, event: string, args: varargs[string]) =
 method render*(lb: Label) =
   if not lb.illwillInit: return
   lb.clear()
+  lb.tb.fill(lb.posX, lb.posY, lb.posX + lb.width, lb.height + 1, bgNone, fgNone, " ")
+  
   lb.renderBorder()
   if lb.border and (lb.y2 - lb.y1) < 2:
     lb.height = lb.posY + 2
+  
   var text: string = ""
 
   lb.size = max(3, lb.x2 - lb.x1)
@@ -106,6 +109,7 @@ method render*(lb: Label) =
   else:
     text = alignLeft(text, lb.x2 - lb.x1)
 
+  # Fixed: Only write to the actual label position, not beyond
   lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
   lb.tb.display()
 
