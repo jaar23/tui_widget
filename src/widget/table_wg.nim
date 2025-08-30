@@ -49,6 +49,8 @@ type
     maxColWidth*: int = 64
     events*: systable.Table[string, EventFn[ref TableObj]]
     keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
+    mouseEvents*: systable.Table[MouseButton, EventFn[ref TableObj]]
+    mouseEnabled: bool = false
   
   Table* = ref TableObj
 
@@ -190,6 +192,7 @@ proc newTable*(px, py, w, h: int, rows: seq[TableRow],
                statusbar = true, enableHelp=false,
                bgColor = bgNone, fgColor = fgWhite,
                selectionStyle: SelectionStyle, maxColWidth = w,
+               mouseEnabled: bool = false,
                tb = newTerminalBuffer(w + 2, h + py + 4)): Table =
   var seqColWidth = ($rows.len).len
   for i in 0..<rows.len:
@@ -225,7 +228,9 @@ proc newTable*(px, py, w, h: int, rows: seq[TableRow],
     statusbar: statusbar,
     enableHelp: enableHelp,
     events: initTable[string, EventFn[Table]](),
-    keyEvents: initTable[Key, EventFn[Table]]()
+    keyEvents: initTable[Key, EventFn[Table]](),
+    mouseEnabled: mouseEnabled,
+    mouseEvents: initTable[MouseButton, EventFn[Table]]()
   )
   if headers.isSome: 
     table.size -= 1
@@ -245,6 +250,7 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
                statusbar = true, enableHelp = false,
                bgColor = bgNone, fgColor = fgWhite,                
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w,
+               mouseEnabled: bool = false,
                tb = newTerminalBuffer(w + 2, h + py + 4)): Table =
   var rows = newSeq[TableRow]()
   let padding = 1
@@ -276,7 +282,9 @@ proc newTable*(px, py, w, h: int, id = "", title = "", border = true,
     statusbar: statusbar,
     enableHelp: enableHelp,
     events: initTable[string, EventFn[Table]](),
-    keyEvents: initTable[Key, EventFn[Table]]()
+    keyEvents: initTable[Key, EventFn[Table]](),
+    mouseEnabled: mouseEnabled,
+    mouseEvents: initTable[MouseButton, EventFn[Table]]()
   )
   table.channel = newChan[WidgetBgEvent]()
   if enableHelp:
@@ -290,11 +298,12 @@ proc newTable*(px, py: int, w, h: WidgetSize, rows: seq[TableRow],
                id = "", title = "", border = true, statusbar = true, 
                enableHelp = false, bgColor = bgNone, fgColor = fgWhite,
                selectionStyle: SelectionStyle = Highlight, maxColWidth=w.toInt,
+               mouseEnabled: bool = false,
                tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): Table =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newTable(px, py, width, height, rows, headers, id, title, border, statusbar,
-                  enableHelp, bgColor, fgColor, selectionStyle, maxColWidth, tb) 
+                  enableHelp, bgColor, fgColor, selectionStyle, maxColWidth, mouseEnabled, tb) 
 
 
 proc newTable*(id: string): Table =
@@ -314,7 +323,9 @@ proc newTable*(id: string): Table =
     rows: newSeq[TableRow](),
     size: 0,
     events: initTable[string, EventFn[Table]](),
-    keyEvents: initTable[Key, EventFn[Table]]()
+    keyEvents: initTable[Key, EventFn[Table]](),
+    mouseEnabled: false,
+    mouseEvents: initTable[MouseButton, EventFn[Table]]()
   )
   table.channel = newChan[WidgetBgEvent]()
   table.on(Key.QuestionMark, help)
@@ -349,7 +360,6 @@ proc dtmColumnToDisplay(table: Table) =
       posX += table.headers.get.columns[i].width
     for i in 0..<table.colCursor:
       table.headers.get.columns[i].visible = false
-
 
 proc prevSelection(table: Table, size: int = 1) =
   let rows = table.vrows()
@@ -434,6 +444,31 @@ proc calColWidth(table: Table, cindex: int, defaultWidth: int): int =
   else:
     result = defaultWidth
 
+# Mouse events
+proc onMouse*(table: Table, button: MouseButton, fn: EventFn[Table]) =
+  ## Set mouse event handler for specific button
+  table.mouseEvents[button] = fn
+
+proc handleMouseEvent*(table: Table, mouseInfo: MouseInfo) =
+  ## Handle mouse events including wheel scrolling
+  if mouseInfo.scroll:
+    # Handle mouse wheel scrolling
+    case mouseInfo.scrollDir
+    of sdUp:
+      table.rowCursor = max(0, table.rowCursor - 3)  # Scroll up 3 lines
+    of sdDown:
+      let rowSize = if table.mode == Filter: table.vrows().len else: table.rows.len
+      table.rowCursor = min(table.rowCursor + 3, max(rowSize - table.size, 0))  # Scroll down 3 lines
+    else:
+      discard
+    
+    table.prevSelection()
+    table.render()
+  
+  # Handle mouse button clicks
+  elif mouseInfo.action == mbaPressed and table.mouseEvents.hasKey(mouseInfo.button):
+    let fn = table.mouseEvents[mouseInfo.button]
+    fn(table, @[$mouseInfo.x, $mouseInfo.y])
 
 # TODO: multi row render for height > 1
 proc renderTableRow(table: Table, row: TableRow, index: int) =
@@ -631,6 +666,10 @@ method poll*(table: Table) =
 method onUpdate*(table: Table, key: Key) =
   table.call("preupdate", $key)
   case key
+  of Key.Mouse:  # Handle mouse events in onUpdate
+    if table.mouseEnabled:
+      let mouseInfo = getMouse()
+      table.handleMouseEvent(mouseInfo)
   of Key.None: 
     #table.dtmColumnToDisplay()
     table.render()
@@ -704,7 +743,13 @@ method onControl*(table: Table): void =
   table.focus = true
   while table.focus:
     var key = getKeyWithTimeout(table.rpms)
-    table.onUpdate(key) 
+    case key
+    of Key.Mouse:  # Handle mouse events in onControl
+      if table.mouseEnabled:
+        let mouseInfo = getMouse()
+        table.handleMouseEvent(mouseInfo)
+    else:
+      table.onUpdate(key)
 
 
 method wg*(table: Table): ref BaseWidget = table
