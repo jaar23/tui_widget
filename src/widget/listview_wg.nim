@@ -22,6 +22,8 @@ type
     selectionStyle*: SelectionStyle
     events*: Table[string, EventFn[ListView]]
     keyEvents*: Table[Key, EventFn[ListView]]
+    mouseEvents*: Table[MouseButton, EventFn[ListView]]
+    mouseEnabled*: bool = false
 
   ListView* = ref ListViewObj
 
@@ -55,6 +57,7 @@ proc newListView*(px, py, w, h: int, id = "",
                   rows: seq[ListRow] = newSeq[ListRow](),
                   bgColor = bgNone, fgColor = fgWhite,
                   selectionStyle: SelectionStyle = Highlight,
+                  mouseEnabled: bool = false,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py + 4)): ListView =
   let padding = if border: 1 else: 0
   # let statusbarSize = if statusbar: 1 else: 0
@@ -96,7 +99,9 @@ proc newListView*(px, py, w, h: int, id = "",
     statusbarText: statusbarText,
     statusbarSize: statusbarText.len(),
     events: initTable[string, EventFn[ListView]](),
-    keyEvents: initTable[Key, EventFn[ListView]]()
+    keyEvents: initTable[Key, EventFn[ListView]](),
+    mouseEnabled: mouseEnabled,
+    mouseEvents: initTable[MouseButton, EventFn[ListView]]()
   )
   result.channel = newChan[WidgetBgEvent]()
   if enableHelp:
@@ -110,12 +115,13 @@ proc newListView*(px, py: int, w, h: WidgetSize, id = "",
                   rows: seq[ListRow] = newSeq[ListRow](),
                   bgColor = bgNone, fgColor = fgWhite,
                   selectionStyle: SelectionStyle = Highlight,
+                  mouseEnabled: bool = false,
                   tb = newTerminalBuffer(w.toInt + 2, h.toInt + py + 4)): ListView =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newListView(px, py, width, height, id, title, border, statusbar,
                     statusbarText, enableHelp, rows,bgColor, fgColor,
-                    selectionStyle, tb)
+                    selectionStyle, mouseEnabled, tb)
 
 
 proc newListView*(id: string): ListView =
@@ -132,7 +138,9 @@ proc newListView*(id: string): ListView =
     ),
     selectionStyle: SelectionStyle.Arrow,
     events: initTable[string, EventFn[ListView]](),
-    keyEvents: initTable[Key, EventFn[ListView]]()
+    keyEvents: initTable[Key, EventFn[ListView]](),
+    mouseEnabled: false,
+    mouseEvents: initTable[MouseButton, EventFn[ListView]]()
   )
   lv.channel = newChan[WidgetBgEvent]()
   lv.on(Key.QuestionMark, help)
@@ -180,7 +188,6 @@ proc renderClearRow(lv: ListView, index: int, full = false) =
   else:
     lv.tb.fill(lv.posX + lv.paddingX1, lv.posY + index,
                lv.width - lv.paddingX1, lv.posY + index, " ")
-
 
 proc renderListRow(lv: ListView, row: ListRow, index: int) =
   var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
@@ -381,6 +388,31 @@ proc resetCursor*(lv: ListView) =
       lv.rows[r].selected = false
       #lv.rows[r].visible = true
 
+## Mouse events
+proc onMouse*(lv: ListView, button: MouseButton, fn: EventFn[ListView]) =
+  ## Set mouse event handler for specific button
+  lv.mouseEvents[button] = fn
+
+proc handleMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
+  ## Handle mouse events including wheel scrolling
+  if mouseInfo.scroll:
+    # Handle mouse wheel scrolling
+    case mouseInfo.scrollDir
+    of sdUp:
+      lv.rowCursor = max(0, lv.rowCursor - 3)  # Scroll up 3 lines
+    of sdDown:
+      let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
+      lv.rowCursor = min(lv.rowCursor + 3, max(rowSize - lv.size, 0))  # Scroll down 3 lines
+    else:
+      discard
+    
+    lv.prevSelection()
+    lv.render()
+  
+  # Handle mouse button clicks
+  elif mouseInfo.action == mbaPressed and lv.mouseEvents.hasKey(mouseInfo.button):
+    let fn = lv.mouseEvents[mouseInfo.button]
+    fn(lv, @[$mouseInfo.x, $mouseInfo.y])
 
 
 method onUpdate*(lv: ListView, key: Key) =
@@ -390,6 +422,10 @@ method onUpdate*(lv: ListView, key: Key) =
     lv.mode = Filter
 
   case key
+  of Key.Mouse:  # Handle mouse events in onUpdate
+    if lv.mouseEnabled:
+      let mouseInfo = getMouse()
+      lv.handleMouseEvent(mouseInfo)
   of Key.None: lv.render()
   of Key.Up:
     if lv.rowCursor == 0:
@@ -438,7 +474,13 @@ method onControl*(lv: ListView): void =
   lv.focus = true
   while lv.focus:
     var key = getKeyWithTimeout(lv.rpms)
-    lv.onUpdate(key)  
+    case key
+    of Key.Mouse:  # Handle mouse events in onControl
+      if lv.mouseEnabled:
+        let mouseInfo = getMouse()
+        lv.handleMouseEvent(mouseInfo)
+    else:
+      lv.onUpdate(key)
 
 
 method wg*(lv: ListView): ref BaseWidget = lv
