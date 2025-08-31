@@ -288,6 +288,22 @@ proc toConsoleWidth*(w: float): int = (consoleWidth().toFloat * w).toInt
 
 proc toConsoleHeight*(h: float): int = (consoleHeight().toFloat * h).toInt
 
+proc wsPercent*(percent: float): WidgetSize =
+  ## Create a WidgetSize from percentage (0.0 to 1.0)
+  ## Example: wsPercent(0.5) = 50% of available space
+  result = WidgetSize(percent)
+
+proc wsPercent*(percent: int): WidgetSize =
+  ## Create a WidgetSize from percentage (0 to 100)
+  ## Example: wsPercent(50) = 50% of available space
+  result = WidgetSize(percent.float / 100.0)
+
+# Helper conversion functions
+proc toConsoleWidth*(ws: WidgetSize): int = 
+  toConsoleWidth(ws.float)
+
+proc toConsoleHeight*(ws: WidgetSize): int = 
+  toConsoleHeight(ws.float)
 
 method resize*(bw: ref BaseWidget): void {.base.} =
   return

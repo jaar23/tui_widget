@@ -51,6 +51,7 @@ type
     keyEvents*: systable.Table[Key, EventFn[ref TableObj]]
     mouseEvents*: systable.Table[MouseButton, EventFn[ref TableObj]]
     mouseEnabled*: bool = false
+    filteredValue*: string = ""
   
   Table* = ref TableObj
 
@@ -519,6 +520,9 @@ proc renderStatusBar(table: Table) =
       if table.enableHelp:
         let q = "[?]"
         table.tb.write(table.x2 - q.len, table.height, bgWhite, fgBlack, q, resetStyle)
+  else:
+    # table.tb.write(table.x1, table.height, fgBlack, bgWhite, , resetStyle)
+    table.renderBorder()
 
 
 
@@ -611,6 +615,7 @@ proc onFilter(table: Table) =
                           tb=table.tb)
   let enterEv = proc(ib: InputBox, x: varargs[string]) = 
     table.filter(ib.value)
+    table.filteredValue = ib.value
     table.prevSelection()
     input.focus = false
     input.remove()
@@ -631,6 +636,7 @@ proc resetFilter(table: Table) =
   table.cursor = 0
   table.colCursor = 0
   table.renderClearRow(0)
+  table.filteredValue = ""
   table.prevSelection()
 
 

@@ -185,7 +185,7 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
         visibleText.add(line)
       if visibleText.len >= width:
         # Trim to fit within width
-        formattedText.add(visibleText[0..width-1]) 
+        formattedText.add(visibleText[0..max(0, width-1)]) 
         visibleText = ""
         continue
     visibleText = alignLeft(visibleText, max(width, visibleText.len), ' ')
@@ -299,7 +299,7 @@ method render*(dp: Display) =
     let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
     let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
     #setDoubleBuffering(false)
-    for row in dp.textRows[rowStart..min(rowEnd, dp.textRows.len - 1)]:
+    for row in dp.textRows[rowStart..min(rowEnd, max(0, dp.textRows.len - 1))]:
       #dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index

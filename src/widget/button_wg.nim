@@ -6,7 +6,7 @@ type
     Pressed, Unpressed
 
   ButtonObj* = object of BaseWidget
-    label: string = ""
+    label*: string = ""
     disabled*: bool = false
     buttonState: ButtonState = Unpressed
     events*: Table[string, EventFn[ref ButtonObj]]
