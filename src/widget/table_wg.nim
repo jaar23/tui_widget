@@ -523,6 +523,7 @@ proc renderStatusBar(table: Table) =
   else:
     # table.tb.write(table.x1, table.height, fgBlack, bgWhite, , resetStyle)
     table.renderBorder()
+    table.renderTitle()
 
 
 
