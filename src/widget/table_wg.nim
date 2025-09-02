@@ -891,5 +891,3 @@ proc loadFromSeq*(table: Table, rows: openArray[seq[string]]) =
   table.resetCursor()
   table.prevSelection()
   table.render()
-
-

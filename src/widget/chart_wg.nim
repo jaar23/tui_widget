@@ -53,6 +53,7 @@ proc newChart*(px, py, w, h: int, id = "";
                statusbar = true, enableHelp = true,
                bgColor: BackgroundColor = bgNone,
                fgColor: ForegroundColor = fgWhite,
+               maxVisiblePoints = 0,
                tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): Chart =
   let padding = if border: 1 else: 0
   let statusbarSize = if statusbar: 1 else: 0
@@ -90,7 +91,7 @@ proc newChart*(px, py, w, h: int, id = "";
     lineChar: "─",
     pointChar: "●",
     # Initialize scrolling properties
-    maxVisiblePoints: 0,
+    maxVisiblePoints: maxVisiblePoints,
     scrollOffset: 0,
     showLeftIndicator: false,
     showRightIndicator: false,
@@ -124,11 +125,12 @@ proc newChart*(px, py: int, w, h: WidgetSize, id = "";
                title = "", data: ChartData = @[], chartType = LineChart,
                border = true, statusbar = true, enableHelp = true,
                bgColor = bgNone, fgColor = fgWhite,
+               maxVisiblePoints = 0,
                tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Chart =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
   return newChart(px, py, width, height, id, title, data, chartType,
-                  border, statusbar, enableHelp, bgColor, fgColor, tb)
+                  border, statusbar, enableHelp, bgColor, fgColor, maxVisiblePoints, tb)
 
 proc newChart*(id: string): Chart =
   var chart = Chart(
@@ -199,7 +201,7 @@ proc normalizeValue(ch: Chart, value: float): float =
 
 proc calculateMaxVisiblePoints*(ch: Chart) =
   let availableWidth = ch.x2 - ch.x1 - 2  # Reserve 1 char each side for indicators
-  ch.maxVisiblePoints = max(1, availableWidth)  # At least 1 point visible
+  # ch.maxVisiblePoints = max(1, availableWidth)  # At least 1 point visible
   
   # Update scroll indicators
   ch.showLeftIndicator = ch.scrollOffset > 0
