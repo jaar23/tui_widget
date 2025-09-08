@@ -14,7 +14,8 @@ import
   widget/textarea_wg,
   widget/container_wg,
   widget/chart_wg,
-  widget/dropdown_wg
+  widget/dropdown_wg,
+  widget/md_display_wg
 
 export
   base_wg,
@@ -31,7 +32,8 @@ export
   container_wg,
   illwill,
   chart_wg,
-  dropdown_wg
+  dropdown_wg,
+  md_display_wg
 
 type
   TerminalApp* = object
@@ -197,6 +199,37 @@ proc addWidget*(app: var TerminalApp,
   let h = toConsoleHeight(height)
   app.addWidget(widget, w, h, offsetLeft, offsetTop, offsetRight, offsetBottom)
 
+
+proc addWidget*(app: var TerminalApp,
+                widget: ref BaseWidget,
+                width, height, 
+                offsetLeft, offsetTop, 
+                offsetRight, offsetBottom: WidgetSize) {.raises: [SizeOverflow, Exception].} =
+  let totalWidth = consoleWidth()
+  let totalHeight = consoleHeight()
+  
+  # Convert offsets to actual pixel/character values
+  let oleft = toConsoleWidth(offsetLeft)
+  let otop = toConsoleHeight(offsetTop)
+  let oright = toConsoleWidth(offsetRight)
+  let obtm = toConsoleHeight(offsetBottom)
+  
+  # Position widget starts from the offset
+  widget.posX = oleft + 1
+  widget.posY = otop + 1
+  
+  # Calculate end positions - if offset is 0, go to the edge
+  let endX = if oright == 0: totalWidth else: totalWidth - oright
+  let endY = if obtm == 0: totalHeight else: totalHeight - obtm
+  
+  # Widget dimensions are from start position to end position
+  let w = toConsoleWidth(width)
+  let h = toConsoleHeight(height)
+  widget.width = min(oleft + w, totalWidth)
+  widget.height = min(otop + h, totalHeight)
+  
+  # widget.resize()
+  app.addWidget(widget)
 
 proc widgets*(app: var TerminalApp): seq[ref BaseWidget] =
   app.widgets
