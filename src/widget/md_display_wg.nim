@@ -652,27 +652,68 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
     
     # Handle list items - simplified approach
     if trimmedLine.startsWith("- ") or trimmedLine.startsWith("* ") or trimmedLine.startsWith("+ "):
-      let listText = "• " & trimmedLine[2..^1]
+      # Calculate indentation level
+      var indentLevel = 0
+      var i = 0
+      while i < line.len and line[i] == ' ':
+        indentLevel += 1
+        i += 1
+      
+      # Convert indentation to visual nesting (2 spaces per level)
+      let visualIndent = "  ".repeat(indentLevel div 2)
+      let listText = visualIndent & "• " & trimmedLine[2..^1]
+      result.add(listText)
+      continue
+
+    # Handle numbered lists with proper nesting
+    var numListMatch = false
+    var dotPos = -1
+    # Find the dot position after digits
+    for i in 0..<min(line.len, 10):
+      if line[i].isDigit:
+        continue
+      elif line[i] == '.' and i > 0:
+        # Check if there's a space after the dot
+        if i + 1 < line.len and line[i + 1] == ' ':
+          dotPos = i
+          numListMatch = true
+          break
+        else:
+          break
+      else:
+        break
+
+    if numListMatch:
+      # Calculate indentation level
+      var indentLevel = 0
+      var i = 0
+      while i < line.len and line[i] == ' ':
+        indentLevel += 1
+        i += 1
+      
+      # Convert indentation to visual nesting
+      let visualIndent = "  ".repeat(indentLevel div 2)
+      let listText = visualIndent & line[dotPos-1..dotPos] & " " & line[dotPos + 2..^1]
       result.add(listText)
       continue
     
     # Handle numbered lists
-    var numListMatch = false
-    var dotPos = -1
-    for i in 0..<min(trimmedLine.len, 10):  # Limit search to first 10 chars
-      if trimmedLine[i].isDigit:
-        continue
-      elif trimmedLine[i] == '.' and i > 0:
-        dotPos = i
-        numListMatch = true
-        break
-      else:
-        break
+    # var numListMatch = false
+    # var dotPos = -1
+    # for i in 0..<min(trimmedLine.len, 10):  # Limit search to first 10 chars
+    #   if trimmedLine[i].isDigit:
+    #     continue
+    #   elif trimmedLine[i] == '.' and i > 0:
+    #     dotPos = i
+    #     numListMatch = true
+    #     break
+    #   else:
+    #     break
     
-    if numListMatch and dotPos + 1 < trimmedLine.len and trimmedLine[dotPos + 1] == ' ':
-      let listText = trimmedLine[0..dotPos] & " " & trimmedLine[dotPos + 2..^1]
-      result.add(listText)
-      continue
+    # if numListMatch and dotPos + 1 < trimmedLine.len and trimmedLine[dotPos + 1] == ' ':
+    #   let listText = trimmedLine[0..dotPos] & " " & trimmedLine[dotPos + 2..^1]
+    #   result.add(listText)
+    #   continue
     
     # Regular text
     result.add(line)
@@ -729,6 +770,13 @@ proc renderMarkdownRow(md: Markdown, text: string, row: int) =
     let segments = parseInlineMarkdown(text, md.markdownStyle)
     var currentX = md.x1
     
+    # Handle leading spaces for indentation
+    var i = 0
+    while i < text.len and text[i] == ' ':
+      currentX += 1
+      i += 1
+    
+    # Render the actual content (skip leading spaces already handled)
     for segment in segments:
       let segmentText = segment.text
       if currentX + segmentText.len <= md.x2:
