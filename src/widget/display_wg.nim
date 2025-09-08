@@ -236,18 +236,20 @@ proc renderStatusbar(dp: Display) =
     dp.call("statusbar")
   else:
     dp.statusbarText = " " & $dp.rowCursor & ":" & $(max(0, dp.textRows.len() - dp.size)) & " "
+    let borderSize = if dp.border: 2 else: 1
+    dp.statusbarText = dp.statusbarText & " ".repeat(dp.width - dp.statusbarText.len() - borderSize)
     dp.renderCleanRect(dp.x1, dp.height, dp.statusbarText.len, dp.height)
-    dp.tb.write(dp.x1, dp.height, bgBlue, fgWhite, dp.statusbarText, 
-                resetStyle)
+    dp.tb.write(dp.x1 , dp.height - 1, bgWhite, fgBlack, dp.statusbarText, resetStyle)
     
     let ww = " W "
     let q = "[?]"
     if dp.enableHelp:
-      dp.tb.write(dp.x2 - len(q), dp.height, bgWhite, fgBlack,
+      dp.tb.write(dp.x2 - len(q), dp.height - 1, bgWhite, fgBlack,
                   q, resetStyle)
     if dp.wordwrap:
       dp.tb.write(dp.x2 - len(ww & q), dp.height, bgWhite, fgBlack,
                   ww, resetStyle)
+  if dp.border: dp.renderBorder()
 
 
 method resize*(dp: Display) =
