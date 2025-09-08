@@ -1,4 +1,4 @@
-import illwill, base_wg, os, std/wordwrap, strutils, options, tables, re, std/sequtils
+import illwill, base_wg, os, std/wordwrap, strutils, options, tables, re, std/sequtils, sets
 import threading/channels
 import algorithm, strformat
 
@@ -169,6 +169,125 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
       formattedText.add("")
   return formattedText
 
+# proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: string, fg: ForegroundColor, bg: BackgroundColor]] =
+#   result = @[]
+#   var pos = 0
+  
+#   while pos < text.len:
+#     var foundFormat = false
+    
+#     # Look for code blocks (backticks)
+#     for i in pos..<text.len:
+#       if text[i] == '`':
+#         # Add text before code
+#         if i > pos:
+#           result.add((text[pos..<i], style.normalColor, bgNone))
+        
+#         # Find closing backtick
+#         var codeEnd = -1
+#         for j in (i+1)..<text.len:
+#           if text[j] == '`':
+#             codeEnd = j
+#             break
+        
+#         if codeEnd > i:
+#           let codeText = text[(i+1)..<codeEnd]
+#           result.add((codeText, style.codeColor, style.codeBgColor))
+#           pos = codeEnd + 1
+#           foundFormat = true
+#           break
+    
+#     if foundFormat:
+#       continue
+    
+#     # Look for bold text (**)
+#     for i in pos..<(text.len-1):
+#       if text[i] == '*' and text[i+1] == '*':
+#         # Add text before bold
+#         if i > pos:
+#           result.add((text[pos..<i], style.normalColor, bgNone))
+        
+#         # Find closing **
+#         var boldEnd = -1
+#         for j in (i+2)..<(text.len-1):
+#           if text[j] == '*' and text[j+1] == '*':
+#             boldEnd = j
+#             break
+        
+#         if boldEnd > i:
+#           let boldText = text[(i+2)..<boldEnd]
+#           result.add((boldText, style.boldColor, bgNone))
+#           pos = boldEnd + 2
+#           foundFormat = true
+#           break
+    
+#     if foundFormat:
+#       continue
+    
+#     # Look for italic text (single *)
+#     for i in pos..<text.len:
+#       if text[i] == '*' and (i == 0 or text[i-1] != '*') and (i == text.len-1 or text[i+1] != '*'):
+#         # Add text before italic
+#         if i > pos:
+#           result.add((text[pos..<i], style.normalColor, bgNone))
+        
+#         # Find closing *
+#         var italicEnd = -1
+#         for j in (i+1)..<text.len:
+#           if text[j] == '*' and (j == text.len-1 or text[j+1] != '*'):
+#             italicEnd = j
+#             break
+        
+#         if italicEnd > i:
+#           let italicText = text[(i+1)..<italicEnd]
+#           result.add((italicText, style.italicColor, bgNone))
+#           pos = italicEnd + 1
+#           foundFormat = true
+#           break
+    
+#     if foundFormat:
+#       continue
+    
+#     # Look for links [text](url)
+#     for i in pos..<text.len:
+#       if text[i] == '[':
+#         var linkTextEnd = -1
+#         for j in (i+1)..<text.len:
+#           if text[j] == ']':
+#             linkTextEnd = j
+#             break
+        
+#         if linkTextEnd > i and linkTextEnd + 1 < text.len and text[linkTextEnd + 1] == '(':
+#           var linkEnd = -1
+#           for j in (linkTextEnd + 2)..<text.len:
+#             if text[j] == ')':
+#               linkEnd = j
+#               break
+          
+#           if linkEnd > linkTextEnd:
+#             # Add text before link
+#             if i > pos:
+#               result.add((text[pos..<i], style.normalColor, bgNone))
+            
+#             let linkText = text[(i+1)..<linkTextEnd]
+#             result.add((linkText, style.linkColor, bgNone))
+#             pos = linkEnd + 1
+#             foundFormat = true
+#             break
+    
+#     if foundFormat:
+#       continue
+    
+#     # If no formatting found, add the rest as normal text
+#     result.add((text[pos..^1], style.normalColor, bgNone))
+#     break
+
+
+proc isPunct(c: char): bool =
+  let punctuationChars = {'!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+                          ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~'}
+  return c in punctuationChars
+
 proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: string, fg: ForegroundColor, bg: BackgroundColor]] =
   result = @[]
   var pos = 0
@@ -176,111 +295,200 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
   while pos < text.len:
     var foundFormat = false
     
-    # Look for code blocks (backticks)
-    for i in pos..<text.len:
-      if text[i] == '`':
-        # Add text before code
-        if i > pos:
-          result.add((text[pos..<i], style.normalColor, bgNone))
-        
-        # Find closing backtick
+    # Look for code blocks (backticks) - single ` or ```
+    if text[pos] == '`':
+      var markerLen = 1
+      
+      # Check for triple backticks
+      if pos + 2 < text.len and text[pos+1] == '`' and text[pos+2] == '`':
+        markerLen = 3
+      
+      # Add text before code
+      if pos > 0:
+        let prevText = text[0..pos-1]
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+          result.add((prevText, style.normalColor, bgNone))
+        else:
+          result[^1].text &= prevText
+      
+      if markerLen == 3:
+        # For triple backticks, we need to find the closing triple backticks
         var codeEnd = -1
-        for j in (i+1)..<text.len:
+        for j in (pos + 3)..<text.len-2:
+          if text[j] == '`' and text[j+1] == '`' and text[j+2] == '`':
+            codeEnd = j
+            break
+        
+        if codeEnd > pos:
+          let codeText = text[(pos + 3)..<codeEnd]
+          result.add((codeText, style.codeColor, style.codeBgColor))
+          pos = codeEnd + 3
+          foundFormat = true
+        else:
+          # No closing triple backticks, treat as normal text
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+            result.add((text[pos..pos+2], style.normalColor, bgNone))
+          else:
+            result[^1].text &= text[pos..pos+2]
+          pos += 3
+          foundFormat = true
+      else:
+        # Single backtick
+        var codeEnd = -1
+        for j in (pos + 1)..<text.len:
           if text[j] == '`':
             codeEnd = j
             break
         
-        if codeEnd > i:
-          let codeText = text[(i+1)..<codeEnd]
+        if codeEnd > pos:
+          let codeText = text[(pos + 1)..<codeEnd]
           result.add((codeText, style.codeColor, style.codeBgColor))
           pos = codeEnd + 1
           foundFormat = true
-          break
+        else:
+          # No closing backtick, treat as normal text
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+            result.add((text[pos..pos], style.normalColor, bgNone))
+          else:
+            result[^1].text &= text[pos]
+          pos += 1
+          foundFormat = true
     
     if foundFormat:
       continue
     
     # Look for bold text (**)
-    for i in pos..<(text.len-1):
-      if text[i] == '*' and text[i+1] == '*':
-        # Add text before bold
-        if i > pos:
-          result.add((text[pos..<i], style.normalColor, bgNone))
-        
-        # Find closing **
-        var boldEnd = -1
-        for j in (i+2)..<(text.len-1):
-          if text[j] == '*' and text[j+1] == '*':
-            boldEnd = j
-            break
-        
-        if boldEnd > i:
-          let boldText = text[(i+2)..<boldEnd]
-          result.add((boldText, style.boldColor, bgNone))
-          pos = boldEnd + 2
-          foundFormat = true
+    if pos + 1 < text.len and text[pos] == '*' and text[pos+1] == '*':
+      # Add text before bold
+      if pos > 0:
+        let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
+        if prevText.len > 0:
+          if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
+            result[^1].text &= prevText
+          else:
+            result.add((prevText, style.normalColor, bgNone))
+      
+      # Find closing **
+      var boldEnd = -1
+      for j in (pos + 2)..<text.len-1:
+        if text[j] == '*' and text[j+1] == '*':
+          boldEnd = j
           break
+      
+      if boldEnd > pos:
+        let boldText = text[(pos + 2)..<boldEnd]
+        result.add((boldText, style.boldColor, bgNone))
+        pos = boldEnd + 2
+        foundFormat = true
+      else:
+        # No closing **, treat as normal text
+        let boldChars = if pos + 1 < text.len: text[pos..pos+1] else: text[pos..^1]
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+          result.add((boldChars, style.normalColor, bgNone))
+        else:
+          result[^1].text &= boldChars
+        pos += 2
+        foundFormat = true
     
     if foundFormat:
       continue
     
-    # Look for italic text (single *)
-    for i in pos..<text.len:
-      if text[i] == '*' and (i == 0 or text[i-1] != '*') and (i == text.len-1 or text[i+1] != '*'):
-        # Add text before italic
-        if i > pos:
-          result.add((text[pos..<i], style.normalColor, bgNone))
-        
-        # Find closing *
-        var italicEnd = -1
-        for j in (i+1)..<text.len:
-          if text[j] == '*' and (j == text.len-1 or text[j+1] != '*'):
-            italicEnd = j
-            break
-        
-        if italicEnd > i:
-          let italicText = text[(i+1)..<italicEnd]
-          result.add((italicText, style.italicColor, bgNone))
-          pos = italicEnd + 1
-          foundFormat = true
+    # Look for italic text (*)
+    if text[pos] == '*' and 
+       (pos == 0 or text[pos-1] == ' ' or text[pos-1].isPunct) and
+       (pos == text.len-1 or (text[pos+1] != '*' and (text[pos+1] == ' ' or text[pos+1].isPunct or pos+1 < text.len))):
+      
+      # Add text before italic
+      if pos > 0:
+        let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
+        if prevText.len > 0:
+          if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
+            result[^1].text &= prevText
+          else:
+            result.add((prevText, style.normalColor, bgNone))
+      
+      # Find closing *
+      var italicEnd = -1
+      for j in (pos + 1)..<text.len:
+        if text[j] == '*' and 
+           (j == text.len-1 or text[j+1] == ' ' or text[j+1].isPunct):
+          italicEnd = j
           break
+      
+      if italicEnd > pos:
+        let italicText = text[(pos + 1)..<italicEnd]
+        result.add((italicText, style.italicColor, bgNone))
+        pos = italicEnd + 1
+        foundFormat = true
+      else:
+        # No closing *, treat as normal text
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+          result.add((text[pos..pos], style.normalColor, bgNone))
+        else:
+          result[^1].text &= text[pos]
+        pos += 1
+        foundFormat = true
     
     if foundFormat:
       continue
     
     # Look for links [text](url)
-    for i in pos..<text.len:
-      if text[i] == '[':
-        var linkTextEnd = -1
-        for j in (i+1)..<text.len:
-          if text[j] == ']':
-            linkTextEnd = j
+    if text[pos] == '[':
+      var linkTextEnd = -1
+      for j in (pos + 1)..<text.len:
+        if text[j] == ']':
+          linkTextEnd = j
+          break
+      
+      if linkTextEnd > pos and linkTextEnd + 1 < text.len and text[linkTextEnd + 1] == '(':
+        var linkEnd = -1
+        for j in (linkTextEnd + 2)..<text.len:
+          if text[j] == ')':
+            linkEnd = j
             break
         
-        if linkTextEnd > i and linkTextEnd + 1 < text.len and text[linkTextEnd + 1] == '(':
-          var linkEnd = -1
-          for j in (linkTextEnd + 2)..<text.len:
-            if text[j] == ')':
-              linkEnd = j
-              break
+        if linkEnd > linkTextEnd:
+          # Add text before link
+          if pos > 0:
+            let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
+            if prevText.len > 0:
+              if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
+                result[^1].text &= prevText
+              else:
+                result.add((prevText, style.normalColor, bgNone))
           
-          if linkEnd > linkTextEnd:
-            # Add text before link
-            if i > pos:
-              result.add((text[pos..<i], style.normalColor, bgNone))
-            
-            let linkText = text[(i+1)..<linkTextEnd]
-            result.add((linkText, style.linkColor, bgNone))
-            pos = linkEnd + 1
-            foundFormat = true
-            break
-    
-    if foundFormat:
-      continue
-    
-    # If no formatting found, add the rest as normal text
-    result.add((text[pos..^1], style.normalColor, bgNone))
-    break
+          let linkText = text[(pos + 1)..<linkTextEnd]
+          result.add((linkText, style.linkColor, bgNone))
+          pos = linkEnd + 1
+          foundFormat = true
+        else:
+          # Malformed link, treat as normal text
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+            result.add((text[pos..pos], style.normalColor, bgNone))
+          else:
+            result[^1].text &= text[pos]
+          pos += 1
+          foundFormat = true
+      else:
+        # Malformed link, treat as normal text
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+          result.add((text[pos..pos], style.normalColor, bgNone))
+        else:
+          result[^1].text &= text[pos]
+        pos += 1
+        foundFormat = true
+    else:
+      # Add normal character
+      if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
+        result.add((text[pos..pos], style.normalColor, bgNone))
+      else:
+        result[^1].text &= text[pos]
+      pos += 1
+  
+  # Handle case where no formatting was found
+  if result.len == 0:
+    result.add((text, style.normalColor, bgNone))
+  
 
 proc renderTableRows(tableHeaders: seq[string], tableRows: seq[seq[string]], tableAlignments: seq[string]): seq[string] =
   var tableLines = newSeq[string]()
@@ -367,21 +575,24 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
       if inCodeBlock:
         # Ending code block - now render with proper sizing
         if codeBlockContent.len > 0:
-          # Calculate max width needed
-          var maxWidth = 10  # Minimum width
+          # Calculate max width needed (account for padding)
+          var maxWidth = 0
           for contentLine in codeBlockContent:
             maxWidth = max(maxWidth, contentLine.len)
           
+          # Ensure minimum width
+          maxWidth = max(maxWidth, 4)
+          
           # Add top border
-          result.add("┌" & "─".repeat(maxWidth + 2) & "┐")
+          result.add("┌" & "─".repeat(maxWidth) & "┐")
           
           # Add content lines
           for contentLine in codeBlockContent:
             let paddedLine = contentLine & " ".repeat(maxWidth - contentLine.len)
-            result.add("│ " & paddedLine & " │")
+            result.add("│" & paddedLine & "│")
           
           # Add bottom border
-          result.add("└" & "─".repeat(maxWidth + 2) & "┘")
+          result.add("└" & "─".repeat(maxWidth) & "┘")
         
         codeBlockContent.setLen(0)
       inCodeBlock = not inCodeBlock
@@ -439,24 +650,28 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
       result.add(quoteText)
       continue
     
+    # Handle list items - simplified approach
     if trimmedLine.startsWith("- ") or trimmedLine.startsWith("* ") or trimmedLine.startsWith("+ "):
-      let listText = line.replace(re"^(\s*)([-*+])(\s+)", "$1• $3")
+      let listText = "• " & trimmedLine[2..^1]
       result.add(listText)
       continue
     
     # Handle numbered lists
     var numListMatch = false
-    for i in 0..<trimmedLine.len:
+    var dotPos = -1
+    for i in 0..<min(trimmedLine.len, 10):  # Limit search to first 10 chars
       if trimmedLine[i].isDigit:
         continue
-      elif trimmedLine[i] == '.' and i > 0 and i + 1 < trimmedLine.len and trimmedLine[i + 1] == ' ':
+      elif trimmedLine[i] == '.' and i > 0:
+        dotPos = i
         numListMatch = true
         break
       else:
         break
     
-    if numListMatch:
-      result.add(line)
+    if numListMatch and dotPos + 1 < trimmedLine.len and trimmedLine[dotPos + 1] == ' ':
+      let listText = trimmedLine[0..dotPos] & " " & trimmedLine[dotPos + 2..^1]
+      result.add(listText)
       continue
     
     # Regular text
