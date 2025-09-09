@@ -16,7 +16,7 @@ let products = ["A", "B", "C", "D", "E"]
 for i, product in enumerate(products):
   sampleData3.add(DataPoint(label: product, value: rand(80.0) + 20))
 
-# Create chart widgets
+# Create chart widgets - now showcasing all three chart types
 var lineChart = newChart(id="linechart")
 lineChart.border = true
 lineChart.title = "Line Chart - Sine Wave"
@@ -24,6 +24,7 @@ lineChart.chartType = LineChart
 lineChart.setData(sampleData1)
 lineChart.showGrid = true
 lineChart.showLabels = true
+lineChart.showLegend = true  # Enable legend
 
 var barChart = newChart(id="barchart") 
 barChart.border = true
@@ -32,13 +33,16 @@ barChart.chartType = BarChart
 barChart.setData(sampleData2)
 barChart.showGrid = false
 barChart.showLabels = true
+barChart.showLegend = true  # Enable legend
 
-var productChart = newChart(id="productchart")
-productChart.border = true
-productChart.title = "Product Performance"
-productChart.chartType = BarChart
-productChart.setData(sampleData3)
-productChart.showValues = true
+var dottedChart = newChart(id="dottedchart")  # Changed from productChart to showcase dotted chart
+dottedChart.border = true
+dottedChart.title = "Dotted Chart - Product Performance" 
+dottedChart.chartType = DottedChart  # Use the new dotted chart type
+dottedChart.setData(sampleData3)
+dottedChart.showValues = true
+dottedChart.showLegend = true  # Enable legend
+dottedChart.dotChar = "o"
 
 # Create control widgets
 var button1 = newButton(id="btn1")
@@ -53,13 +57,21 @@ button3.label = "Generate New Data"
 var display = newDisplay(id="info")
 display.title = "Chart Info"
 display.text = """
-Chart Widget Demo
+Chart Widget Demo - Enhanced
+
+Chart Types:
+- Line Chart: Connected points with lines
+- Bar Chart: Vertical bars  
+- Dotted Chart: Scatter plot with * symbols
 
 Controls:
-- [T] Toggle chart type (Line/Bar)
+- [T] Toggle chart type (Line/Bar/Dotted)
 - [G] Toggle grid display
 - [L] Toggle labels
 - [V] Toggle values
+- [E] Toggle legend display
+- [A] Toggle auto-scroll
+- [←→] Scroll left/right through data
 - [?] Help
 
 Use buttons to:
@@ -68,6 +80,8 @@ Use buttons to:
 - Generate completely new datasets
 
 Enter numeric values in input box and press Enter to add data points.
+
+Legend appears in top-right corner when enabled.
 """
 
 var progress = newProgressBar(id="progress")
@@ -77,13 +91,13 @@ button1.onEnter = proc (btn: Button, args: varargs[string]) =
   let newPoint = DataPoint(label: "R" & $rand(99), value: rand(100.0))
   lineChart.addDataPoint(newPoint.label, newPoint.value)
   barChart.addDataPoint(newPoint.label, newPoint.value)
-  productChart.addDataPoint(newPoint.label, newPoint.value)
+  dottedChart.addDataPoint(newPoint.label, newPoint.value)  # Updated reference
   progress.update(10.0)
 
 button2.onEnter = proc (btn: Button, args: varargs[string]) =
   lineChart.clearData()
   barChart.clearData() 
-  productChart.clearData()
+  dottedChart.clearData()  # Updated reference
   progress.reset()
 
 button3.onEnter = proc (btn: Button, args: varargs[string]) =
@@ -100,12 +114,12 @@ button3.onEnter = proc (btn: Button, args: varargs[string]) =
     newData2.add(DataPoint(label: quarter, value: rand(150.0) + 50))
   barChart.setData(newData2)
   
-  # Generate new product data
+  # Generate new scattered product data (good for dotted chart)
   var newData3: ChartData = @[]
   let categories = ["Cat1", "Cat2", "Cat3", "Cat4", "Cat5", "Cat6"]
   for i, category in enumerate(categories):
     newData3.add(DataPoint(label: category, value: rand(120.0) + 10))
-  productChart.setData(newData3)
+  dottedChart.setData(newData3)  # Updated reference
   
   progress.update(25.0)
 
@@ -122,28 +136,28 @@ inputBox.onEnter = proc (ib: InputBox, args: varargs[string]) =
       let label = "U" & $rand(99)
       lineChart.addDataPoint(label, value)
       barChart.addDataPoint(label, value)
-      productChart.addDataPoint(label, value)
+      dottedChart.addDataPoint(label, value)  # Updated reference
       ib.value = ""  # Clear input box
       progress.update(5.0)
     except:
       # Invalid number, ignore silently or could add error feedback
       ib.value = ""  # Clear invalid input
 
-var app = newTerminalApp(title="Chart Widget Demo")
+var app = newTerminalApp(title="Chart Widget Demo - Enhanced")
 
 # Layout: 
 # - Top row: info display (left) and input box (right)
-# - Middle row: three charts side by side
+# - Middle row: three charts side by side (Line, Bar, Dotted)
 # - Bottom row: control buttons and progress bar
 
 # Info and input
-app.addWidget(display, 0.6, 0.25)
-app.addWidget(inputBox, 0.4, 0.08)
+# app.addWidget(display, 0.6, 0.25)
+# app.addWidget(inputBox, 0.4, 0.08)
 
-# Three charts in a row  
+# Three charts in a row showcasing all chart types
 app.addWidget(lineChart, 0.33, 0.4)
 app.addWidget(barChart, 0.33, 0.4)
-app.addWidget(productChart, 0.34, 0.4)
+app.addWidget(dottedChart, 0.34, 0.4)  # Updated reference
 
 # Control buttons
 app.addWidget(button1, 0.25, 0.08)

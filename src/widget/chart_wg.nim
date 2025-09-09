@@ -3,7 +3,7 @@ import threading/channels
 
 type
   ChartType* = enum
-    LineChart, BarChart
+    LineChart, BarChart, DottedChart
   
   DataPoint* = object
     label*: string
@@ -22,9 +22,11 @@ type
     showGrid*: bool
     showLabels*: bool
     showValues*: bool
+    showLegend*: bool
     gridChar*: string
     barChar*: string
     lineChar*: string
+    dotChar*: string
     pointChar*: string
     maxVisiblePoints*: int
     scrollOffset*: int
@@ -41,6 +43,7 @@ proc toggleGrid(ch: Chart, args: varargs[string]): void
 proc toggleLabels(ch: Chart, args: varargs[string]): void
 proc toggleAutoScroll(ch: Chart, args: varargs[string]): void
 proc calculateMaxVisiblePoints*(ch: Chart) : void
+proc toggleLegend(ch: Chart, args: varargs[string]): void  # New procedure declaration
 
 # Forbidden keys for chart widget
 const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
@@ -86,6 +89,8 @@ proc newChart*(px, py, w, h: int, id = "";
     showGrid: true,
     showLabels: true,
     showValues: false,
+    showLegend: true,
+    dotChar: "●",
     gridChar: "·",
     barChar: "█",
     lineChar: "─",
@@ -100,10 +105,11 @@ proc newChart*(px, py, w, h: int, id = "";
     keyEvents: initTable[Key, EventFn[Chart]]()
   )
   
-  result.helpText = " [T]   toggle chart type (line/bar)\n" &
+  result.helpText = " [T]   toggle chart type (line/bar/dot)\n" &
                     " [G]   toggle grid\n" &
                     " [L]   toggle labels\n" &
                     " [V]   toggle values\n" &
+                    " [E]   toggle legend\n" & 
                     " [←→]  scroll left/right\n" &
                     " [A]   toggle auto-scroll\n" &
                     " [?]   for help\n" &
@@ -118,6 +124,7 @@ proc newChart*(px, py, w, h: int, id = "";
   result.on(Key.ShiftG, toggleGrid)
   result.on(Key.ShiftL, toggleLabels)
   result.on(Key.ShiftA, toggleAutoScroll)
+  result.on(Key.ShiftE, toggleLegend)
   result.calculateMaxVisiblePoints()
   result.keepOriginalSize()
 
@@ -149,6 +156,8 @@ proc newChart*(id: string): Chart =
     showGrid: true,
     showLabels: true,
     showValues: false,
+    showLegend: true,
+    dotChar: "●",
     gridChar: "·",
     barChar: "█",
     lineChar: "─",
@@ -201,7 +210,7 @@ proc normalizeValue(ch: Chart, value: float): float =
 
 proc calculateMaxVisiblePoints*(ch: Chart) =
   let availableWidth = ch.x2 - ch.x1 - 2  # Reserve 1 char each side for indicators
-  # ch.maxVisiblePoints = max(1, availableWidth)  # At least 1 point visible
+  ch.maxVisiblePoints = max(1, availableWidth)  # At least 1 point visible
   
   # Update scroll indicators
   ch.showLeftIndicator = ch.scrollOffset > 0
@@ -357,14 +366,37 @@ proc renderValues(ch: Chart) =
   let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
   let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
   
+  # Calculate legend area to avoid overlap
+  let legendWidth = if ch.showLegend and ch.data.len > 0: 
+                     min(ch.data.mapIt(it.label.len).max + 10, (ch.x2 - ch.x1) div 3)
+                   else: 0
+  let legendX = if ch.showLegend: ch.x2 - legendWidth - 1 else: ch.x2
+  let legendHeight = if ch.showLegend and ch.data.len > 0:
+                      min(ch.data.len + 2, (ch.y2 - ch.y1) div 2)
+                    else: 0
+  let legendY = ch.y1 + 1
+  
   for i, dataPoint in visibleData:
     let x = startX + (i * chartWidth) div max(1, visibleData.len)
     let normalizedValue = ch.normalizeValue(dataPoint.value)
     let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
     let valueStr = dataPoint.value.formatFloat(ffDecimal, 1)
     
-    if y > ch.y1 and x + valueStr.len < endX:
-      ch.tb.write(x, y - 1, fgCyan, ch.bg, valueStr)
+    # Check bounds and avoid legend overlap
+    let valueY = max(ch.y1, y - 1)  # Position above the data point
+    let valueX = min(x, endX - valueStr.len)  # Ensure it fits within chart area
+    
+    # Avoid rendering values that would overlap with legend
+    let wouldOverlapLegend = ch.showLegend and 
+                           valueX + valueStr.len > legendX and 
+                           valueX < legendX + legendWidth and
+                           valueY >= legendY and 
+                           valueY < legendY + legendHeight
+    
+    if valueY >= ch.y1 and valueY < ch.y2 and 
+       valueX >= startX and valueX + valueStr.len < endX and
+       not wouldOverlapLegend:
+      ch.tb.write(valueX, valueY, fgCyan, ch.bg, valueStr)
 
 proc help(ch: Chart, args: varargs[string]) = 
   let wsize = ((ch.width - ch.posX).toFloat * 0.3).toInt()
@@ -382,7 +414,13 @@ proc help(ch: Chart, args: varargs[string]) =
   display.clear()
 
 proc toggleChartType(ch: Chart, args: varargs[string]) = 
-  ch.chartType = if ch.chartType == LineChart: BarChart else: LineChart
+  case ch.chartType:
+  of LineChart: ch.chartType = BarChart
+  of BarChart: ch.chartType = DottedChart
+  of DottedChart: ch.chartType = LineChart
+
+proc toggleLegend(ch: Chart, args: varargs[string]) =
+  ch.showLegend = not ch.showLegend
 
 proc toggleGrid(ch: Chart, args: varargs[string]) = 
   ch.showGrid = not ch.showGrid
@@ -390,11 +428,88 @@ proc toggleGrid(ch: Chart, args: varargs[string]) =
 proc toggleLabels(ch: Chart, args: varargs[string]) = 
   ch.showLabels = not ch.showLabels
 
+proc renderDottedChart(ch: Chart) =
+  let visibleData = ch.getVisibleData()
+  if visibleData.len == 0: return
+  
+  let chartWidth = ch.x2 - ch.x1 - (if ch.showLeftIndicator: 1 else: 0) - (if ch.showRightIndicator: 1 else: 0)
+  let chartHeight = ch.y2 - ch.y1
+  let startX = ch.x1 + (if ch.showLeftIndicator: 1 else: 0)
+  
+  if chartHeight <= 0 or chartWidth <= 0: return
+  
+  # Calculate and render dots for each data point
+  for i, dataPoint in visibleData:
+    let x = startX + (i * chartWidth) div max(1, visibleData.len - 1)
+    let normalizedValue = ch.normalizeValue(dataPoint.value)
+    let y = ch.y2 - 1 - int(normalizedValue * float(chartHeight - 1))
+    let endX = startX + chartWidth - (if ch.showRightIndicator: 1 else: 0)
+    
+    if x >= startX and x < endX and y >= ch.y1 and y < ch.y2:
+      ch.tb.write(x, y, fgGreen, ch.bg, ch.dotChar)
+
+
+proc renderLegend(ch: Chart) =
+  if not ch.showLegend or ch.data.len == 0: return
+  
+  # Calculate legend dimensions and position
+  let maxLabelLen = ch.data.mapIt(it.label.len).max
+  let legendWidth = min(maxLabelLen + 10, (ch.x2 - ch.x1) div 3)  # Max 1/3 of chart width
+  let legendHeight = min(ch.data.len + 2, (ch.y2 - ch.y1) div 2)  # Max half of chart height
+  let legendX = ch.x2 - legendWidth - 1
+  let legendY = ch.y1 + 1
+  
+  # Draw legend box border
+  for x in legendX..<(legendX + legendWidth):
+    ch.tb.write(x, legendY, fgWhite, ch.bg, "─")  # Top border
+    ch.tb.write(x, legendY + legendHeight - 1, fgWhite, ch.bg, "─")  # Bottom border
+  
+  for y in legendY..<(legendY + legendHeight):
+    ch.tb.write(legendX, y, fgWhite, ch.bg, "│")  # Left border
+    ch.tb.write(legendX + legendWidth - 1, y, fgWhite, ch.bg, "│")  # Right border
+  
+  # Draw corners
+  ch.tb.write(legendX, legendY, fgWhite, ch.bg, "┌")
+  ch.tb.write(legendX + legendWidth - 1, legendY, fgWhite, ch.bg, "┐")
+  ch.tb.write(legendX, legendY + legendHeight - 1, fgWhite, ch.bg, "└")
+  ch.tb.write(legendX + legendWidth - 1, legendY + legendHeight - 1, fgWhite, ch.bg, "┘")
+  
+  # Fill legend background
+  for y in (legendY + 1)..<(legendY + legendHeight - 1):
+    for x in (legendX + 1)..<(legendX + legendWidth - 1):
+      ch.tb.write(x, y, ch.fg, bgBlack, " ")
+  
+  # Render legend title
+  ch.tb.write(legendX + 2, legendY + 1, fgYellow, bgBlack, "Legend")
+  
+  # Render visible data entries in legend
+  let visibleData = ch.getVisibleData()
+  let maxEntries = legendHeight - 3  # Reserve space for borders and title
+  
+  for i, dataPoint in visibleData:
+    if i >= maxEntries: break
+    
+    let entryY = legendY + 2 + i
+    let symbol = case ch.chartType:
+      of LineChart: ch.pointChar
+      of BarChart: ch.barChar
+      of DottedChart: ch.dotChar
+    
+    # Render symbol and label
+    ch.tb.write(legendX + 2, entryY, fgGreen, bgBlack, symbol)
+    let truncatedLabel = if dataPoint.label.len > legendWidth - 6: 
+                          dataPoint.label[0..<(legendWidth - 6)] else: dataPoint.label
+    ch.tb.write(legendX + 4, entryY, fgWhite, bgBlack, truncatedLabel)
+
 proc renderStatusbar(ch: Chart) =
   if ch.events.hasKey("statusbar"):
     ch.call("statusbar")
   else:
-    let typeStr = if ch.chartType == LineChart: "Line" else: "Bar"
+    let typeStr = case ch.chartType:
+      of LineChart: "Line"
+      of BarChart: "Bar" 
+      of DottedChart: "Dot"
+    
     let scrollInfo = if ch.data.len > ch.maxVisiblePoints: 
                       " | Showing " & $(ch.scrollOffset + 1) & "-" & 
                       $(min(ch.scrollOffset + ch.maxVisiblePoints, ch.data.len)) & 
@@ -405,9 +520,13 @@ proc renderStatusbar(ch: Chart) =
     ch.renderCleanRect(ch.x1, ch.height, ch.statusbarText.len, ch.height)
     ch.tb.write(ch.x1, ch.height, bgBlue, fgWhite, ch.statusbarText, resetStyle)
     
-    let indicators = if ch.showGrid and ch.showLabels: "[G][L]" 
+    let indicators = if ch.showGrid and ch.showLabels and ch.showLegend: "[G][L][E]" 
+                    elif ch.showGrid and ch.showLabels: "[G][L]"
+                    elif ch.showGrid and ch.showLegend: "[G][E]"
+                    elif ch.showLabels and ch.showLegend: "[L][E]"
                     elif ch.showGrid: "[G]"
-                    elif ch.showLabels: "[L]" 
+                    elif ch.showLabels: "[L]"
+                    elif ch.showLegend: "[E]"
                     else: ""
     
     let help = "[?]"
@@ -415,7 +534,6 @@ proc renderStatusbar(ch: Chart) =
       ch.tb.write(ch.x2 - len(help), ch.height, bgWhite, fgBlack, help, resetStyle)
     if indicators.len > 0:
       ch.tb.write(ch.x2 - len(indicators & help), ch.height, bgWhite, fgBlack, indicators, resetStyle)
-
 
 method resize*(ch: Chart) =
   let statusbarSize = if ch.statusbar: 1 else: 0
@@ -466,10 +584,17 @@ method render*(ch: Chart) =
     ch.renderLineChart()
   of BarChart:
     ch.renderBarChart()
+  of DottedChart:
+    ch.renderDottedChart()
   
   if ch.showLabels:
     ch.renderLabels()
   
+  # Render legend before values to establish the area to avoid
+  if ch.showLegend:
+    ch.renderLegend()
+  
+  # Render values after legend to avoid overlap
   if ch.showValues:
     ch.renderValues()
   
@@ -499,6 +624,8 @@ method onUpdate*(ch: Chart, key: Key) =
     ch.showValues = not ch.showValues
   of Key.ShiftA:
     ch.toggleAutoScroll()
+  of Key.ShiftE:
+    ch.toggleLegend()
   of Key.Escape, Key.Tab:
     ch.focus = false
   else:

@@ -18,7 +18,8 @@ Features
 - NAT and Conntrack Support: Monitor network address translation and connection tracking (requires appropriate permissions)
 - Interactive Interface: Navigate and filter connections with keyboard controls
 
-### Installation
+Installation
+===
 
 **Prerequisites**
 
@@ -83,6 +84,8 @@ let markdownText2 = """# Features Demo
 - `Code snippets` for technical content
 - [Links](url) for references
 
+---
+
 ## Quotes
 > "The best way to predict the future is to invent it."
 > - Alan Kay
@@ -94,6 +97,15 @@ let markdownText2 = """# Features Demo
 #### H4 Header
 ##### H5 Header
 ###### H6 Header
+
+Header 
+===
+
+xxxxx
+
+
+Header 
+---
 
 Raw text without formatting.
 Multiple lines
@@ -112,7 +124,7 @@ let rawComparisonText = """# This is raw markdown
 var md1 = newMarkdown(1, 1, 50, 12, 
                      title="Markdown Widget 1", 
                      text=markdownText1,
-                     bgColor=bgBlack, 
+                     bgColor=bgNone, 
                      fgColor=fgWhite,
                      mouseEnabled=true)
 
