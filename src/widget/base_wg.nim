@@ -408,7 +408,7 @@ proc hide*(bw: ref BaseWidget) =
 
 proc experimental*(bw: ref BaseWidget) =
   let text = " experimental "
-  bw.tb.write(bw.x2 - len(text) - 3, bw.height, bgWhite, fgBlack, text, resetStyle)
+  bw.tb.write(bw.x2 - len(text) - 3, bw.height - 1, bgWhite, fgBlack, text, resetStyle)
 
 
 proc contains*(wg: ref BaseWidget, x, y: int): bool =

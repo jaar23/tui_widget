@@ -1004,9 +1004,11 @@ method render*(t: TextArea) =
       if t.events.hasKey("statusbar"):
         t.call("statusbar")
       else:
-        let statusbarText = " " & $t.cursor & ":" & $(t.value.len - 1) & " "
-        t.renderCleanRect(t.x1, t.height, statusbarText.len, t.height)
-        t.tb.write(t.x1, t.height, fgCyan, statusbarText, resetStyle)
+        var statusbarText = " " & $t.cursor & ":" & $(t.value.len - 1)
+        let borderSize = if t.border: 2 else: 1
+        statusbarText = statusbarText & " ".repeat(t.width - statusbarText.len() - borderSize)
+        t.renderCleanRect(t.x1, t.height - 1, statusbarText.len, t.height - 1)
+        t.tb.write(t.x1, t.height - 1, fgCyan, statusbarText, resetStyle)
 
     else:
       # vi mode style for statusbar
@@ -1020,24 +1022,25 @@ method render*(t: TextArea) =
         bgColor = t.viStyle.visualBg
         fgColor = t.viStyle.visualFg
 
-      t.tb.write(t.x1, t.height, bgColor, fgColor, center(toUpper($t.vimode),
+      t.tb.write(t.x1, t.height - 1, bgColor, fgColor, center(toUpper($t.vimode),
           len($t.vimode) + 4), resetStyle)
 
       let (r, c) = if t.vimode == Visual: (t.viSelection.startat,
           t.viSelection.endat) else: t.cursorAtLine()
 
-      let statusbarText = if t.statusbarText != "": t.statusbarText
+      var statusbarText = if t.statusbarText != "": t.statusbarText
         else: " " & $r & ":" & $c
-
-      t.tb.write(t.x1 + len($t.vimode) + 4, t.height, t.viStyle.cursorAtLineBg,
+      let borderSize = if t.border: 2 else: 1
+      statusbarText = statusbarText & " ".repeat(max(0, t.width - statusbarText.len() - borderSize - len($t.vimode) - 4))
+      t.tb.write(t.x1 + len($t.vimode) + 4, t.height - 1, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
       
       if t.enableHelp:
         let q = "[?]"
-        t.tb.write(t.x2 - q.len, t.height, bgWhite, fgBlack, q, resetStyle)
+        t.tb.write(t.x2 - q.len, t.height - 1, bgWhite, fgBlack, q, resetStyle)
 
       # experimantal feature
-      t.experimental()
+      # t.experimental()
 
   t.tb.display()
 
