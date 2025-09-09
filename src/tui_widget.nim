@@ -15,7 +15,8 @@ import
   widget/container_wg,
   widget/chart_wg,
   widget/dropdown_wg,
-  widget/md_display_wg
+  widget/md_display_wg,
+  widget/heatmap_wg
 
 export
   base_wg,
@@ -33,7 +34,8 @@ export
   illwill,
   chart_wg,
   dropdown_wg,
-  md_display_wg
+  md_display_wg,
+  heatmap_wg
 
 type
   TerminalApp* = object
