@@ -4,6 +4,7 @@ import threading/channels
 type
   MarkdownStyle* = object
     headerColor*: ForegroundColor
+    headerBgColor*: BackgroundColor  
     boldColor*: ForegroundColor
     italicColor*: ForegroundColor
     codeColor*: ForegroundColor
@@ -49,6 +50,7 @@ const forbiddenKeyBind = {Key.Tab, Key.Escape, Key.None, Key.Up,
 proc defaultMarkdownStyle*(): MarkdownStyle =
   result = MarkdownStyle(
     headerColor: fgYellow,
+    headerBgColor: bgBlue,
     boldColor: fgWhite,
     italicColor: fgCyan,
     codeColor: fgGreen,
@@ -406,6 +408,191 @@ proc renderTableRows(tableHeaders: seq[string], tableRows: seq[seq[string]], tab
   
   return tableLines
 
+# proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
+#   result = @[]
+#   let lines = text.splitLines()
+#   var inCodeBlock = false
+#   var codeBlockContent: seq[string] = @[]
+#   var tableRows: seq[seq[string]] = @[]
+#   var tableHeaders: seq[string] = @[]
+#   var tableAlignments: seq[string] = @[]
+#   var inTable = false
+  
+#   for line in lines:
+#     let trimmedLine = line.strip()
+    
+#     # Handle code blocks - check if line starts with ``` 
+#     if trimmedLine.startsWith("```"):
+#       if inCodeBlock:
+#         # Ending code block - now render with proper sizing
+#         if codeBlockContent.len > 0:
+#           # Calculate max width needed (account for padding)
+#           var maxWidth = 0
+#           for contentLine in codeBlockContent:
+#             maxWidth = max(maxWidth, contentLine.len)
+          
+#           # Ensure minimum width
+#           maxWidth = max(maxWidth, 4)
+          
+#           # Add top border
+#           result.add("┌" & "─".repeat(maxWidth) & "┐")
+          
+#           # Add content lines
+#           for contentLine in codeBlockContent:
+#             let paddedLine = contentLine & " ".repeat(maxWidth - contentLine.len)
+#             result.add("│" & paddedLine & "│")
+          
+#           # Add bottom border
+#           result.add("└" & "─".repeat(maxWidth) & "┘")
+        
+#         codeBlockContent.setLen(0)
+#       inCodeBlock = not inCodeBlock
+#       continue
+    
+#     if inCodeBlock:
+#       codeBlockContent.add(line)
+#       continue
+    
+#     # Handle table rows
+#     if trimmedLine.startsWith("|") and trimmedLine.endsWith("|") and "|" in trimmedLine[1..^1]:
+#       let cells = trimmedLine[1..^1].split('|').mapIt(it.strip())
+      
+#       # Check if it's an alignment row
+#       if cells.allIt(it.allCharsInSet({'-', ':', ' '})) and cells.anyIt(it.contains('-')):
+#         tableAlignments = cells
+#         inTable = true
+#         continue
+      
+#       # If we don't have headers yet, this is the header row
+#       if not inTable:
+#         tableHeaders = cells
+#         inTable = true
+#         continue
+      
+#       # This is a data row
+#       tableRows.add(cells)
+#       continue
+    
+#     # If we were in a table and hit a non-table line, flush the table
+#     if inTable:
+#       let tableLines = renderTableRows(tableHeaders.filter(proc(x: string): bool = x.len() > 0), tableRows, tableAlignments)
+#       result.add(tableLines)
+#       # Reset table state
+#       tableHeaders = @[]
+#       tableRows = @[]
+#       tableAlignments = @[]
+#       inTable = false
+    
+#     # Handle other markdown elements
+#     if trimmedLine.startsWith("#"):
+#       var level = 0
+#       var i = 0
+#       while i < trimmedLine.len and trimmedLine[i] == '#' and level < 6:
+#         level += 1
+#         i += 1
+      
+#       if level > 0 and i < trimmedLine.len and trimmedLine[i] == ' ':
+#         let headerText = "│" & "═".repeat(level) & " " & trimmedLine[(i+1)..^1]
+#         result.add(headerText)
+#         continue
+    
+#     if trimmedLine.startsWith(">"):
+#       let quoteText = "┃ " & trimmedLine[1..^1].strip()
+#       result.add(quoteText)
+#       continue
+    
+#     # Handle list items - simplified approach
+#     if trimmedLine.startsWith("- ") or trimmedLine.startsWith("* ") or trimmedLine.startsWith("+ "):
+#       # Calculate indentation level
+#       var indentLevel = 0
+#       var i = 0
+#       while i < line.len and line[i] == ' ':
+#         indentLevel += 1
+#         i += 1
+      
+#       # Convert indentation to visual nesting (2 spaces per level)
+#       let visualIndent = "  ".repeat(indentLevel div 2)
+#       let listText = visualIndent & "• " & trimmedLine[2..^1]
+#       result.add(listText)
+#       continue
+
+#     # Handle numbered lists with proper nesting
+#     var numListMatch = false
+#     var dotPos = -1
+#     # Find the dot position after digits
+#     for i in 0..<min(line.len, 10):
+#       if line[i].isDigit:
+#         continue
+#       elif line[i] == '.' and i > 0:
+#         # Check if there's a space after the dot
+#         if i + 1 < line.len and line[i + 1] == ' ':
+#           dotPos = i
+#           numListMatch = true
+#           break
+#         else:
+#           break
+#       else:
+#         break
+
+#     if numListMatch:
+#       # Calculate indentation level
+#       var indentLevel = 0
+#       var i = 0
+#       while i < line.len and line[i] == ' ':
+#         indentLevel += 1
+#         i += 1
+      
+#       # Convert indentation to visual nesting
+#       let visualIndent = "  ".repeat(indentLevel div 2)
+#       let listText = visualIndent & line[dotPos-1..dotPos] & " " & line[dotPos + 2..^1]
+#       result.add(listText)
+#       continue
+    
+#     # Handle numbered lists
+#     # var numListMatch = false
+#     # var dotPos = -1
+#     # for i in 0..<min(trimmedLine.len, 10):  # Limit search to first 10 chars
+#     #   if trimmedLine[i].isDigit:
+#     #     continue
+#     #   elif trimmedLine[i] == '.' and i > 0:
+#     #     dotPos = i
+#     #     numListMatch = true
+#     #     break
+#     #   else:
+#     #     break
+    
+#     # if numListMatch and dotPos + 1 < trimmedLine.len and trimmedLine[dotPos + 1] == ' ':
+#     #   let listText = trimmedLine[0..dotPos] & " " & trimmedLine[dotPos + 2..^1]
+#     #   result.add(listText)
+#     #   continue
+    
+#     # Regular text
+#     result.add(line)
+  
+#   # Flush any remaining code block
+#   if inCodeBlock and codeBlockContent.len > 0:
+#     # Calculate max width needed
+#     var maxWidth = 10  # Minimum width
+#     for contentLine in codeBlockContent:
+#       maxWidth = max(maxWidth, contentLine.len)
+    
+#     # Add top border
+#     result.add("┌" & "─".repeat(maxWidth + 2) & "┐")
+    
+#     # Add content lines
+#     for contentLine in codeBlockContent:
+#       let paddedLine = contentLine & " ".repeat(maxWidth - contentLine.len)
+#       result.add("│ " & paddedLine & " │")
+    
+#     # Add bottom border
+#     result.add("└" & "─".repeat(maxWidth + 2) & "┘")
+  
+#   # Flush any remaining table
+#   if inTable:
+#     let tableLines = renderTableRows(tableHeaders.filter(proc(x: string): bool = x.len() > 0), tableRows, tableAlignments)
+#     result.add(tableLines)
+
+# Replace the parseMarkdown proc with this corrected version
 proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
   result = @[]
   let lines = text.splitLines()
@@ -415,8 +602,10 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
   var tableHeaders: seq[string] = @[]
   var tableAlignments: seq[string] = @[]
   var inTable = false
+  var i = 0
   
-  for line in lines:
+  while i < lines.len:
+    let line = lines[i]
     let trimmedLine = line.strip()
     
     # Handle code blocks - check if line starts with ``` 
@@ -445,11 +634,44 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
         
         codeBlockContent.setLen(0)
       inCodeBlock = not inCodeBlock
+      i += 1
       continue
     
     if inCodeBlock:
       codeBlockContent.add(line)
+      i += 1
       continue
+    
+    # Handle thematic breaks (---, ***, ___) - MUST come before Setext headers
+    if trimmedLine.len >= 3 and trimmedLine.allCharsInSet({'-', '*', '_'}):
+      # Create a horizontal line across the width
+      result.add("-".repeat(80))  # Adjust width as needed or make dynamic
+      i += 1
+      continue
+    
+    # Handle Setext-style headers (underlined with === or ---)
+    if i + 1 < lines.len:
+      let nextLine = lines[i + 1].strip()
+      if nextLine.len > 0 and nextLine.allCharsInSet({'='}):
+        # Level 1 header with ===
+        let headerText = line.strip()
+        let headerWidth = max(headerText.len + 4, 10)  # Minimum width
+        result.add("┌" & "─".repeat(headerWidth - 2) & "┐")
+        let paddedText = " " & headerText & " ".repeat(headerWidth - headerText.len - 3)
+        result.add("│" & paddedText & "│")
+        result.add("└" & "─".repeat(headerWidth - 2) & "┘")
+        i += 2  # Skip both lines
+        continue
+      # elif nextLine.len > 0 and nextLine.allCharsInSet({'-'}):
+      #   # Level 2 header with ---
+      #   let headerText = line.strip()
+      #   let headerWidth = max(headerText.len + 4, 10)  # Minimum width
+      #   result.add("┌" & "╌".repeat(headerWidth - 2) & "┐")  # Different border for level 2
+      #   let paddedText = " " & headerText & " ".repeat(headerWidth - headerText.len - 3)
+      #   result.add("│" & paddedText & "│")
+      #   result.add("└" & "╌".repeat(headerWidth - 2) & "┘")
+      #   i += 2  # Skip both lines
+      #   continue
     
     # Handle table rows
     if trimmedLine.startsWith("|") and trimmedLine.endsWith("|") and "|" in trimmedLine[1..^1]:
@@ -459,16 +681,19 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
       if cells.allIt(it.allCharsInSet({'-', ':', ' '})) and cells.anyIt(it.contains('-')):
         tableAlignments = cells
         inTable = true
+        i += 1
         continue
       
       # If we don't have headers yet, this is the header row
       if not inTable:
         tableHeaders = cells
         inTable = true
+        i += 1
         continue
       
       # This is a data row
       tableRows.add(cells)
+      i += 1
       continue
     
     # If we were in a table and hit a non-table line, flush the table
@@ -481,50 +706,60 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
       tableAlignments = @[]
       inTable = false
     
-    # Handle other markdown elements
+    # Handle ATX-style headers (# Header)
     if trimmedLine.startsWith("#"):
       var level = 0
-      var i = 0
-      while i < trimmedLine.len and trimmedLine[i] == '#' and level < 6:
+      var j = 0
+      while j < trimmedLine.len and trimmedLine[j] == '#' and level < 6:
         level += 1
-        i += 1
+        j += 1
       
-      if level > 0 and i < trimmedLine.len and trimmedLine[i] == ' ':
-        let headerText = "│" & "═".repeat(level) & " " & trimmedLine[(i+1)..^1]
-        result.add(headerText)
+      if level > 0 and j < trimmedLine.len and trimmedLine[j] == ' ':
+        let headerText = trimmedLine[(j+1)..^1]
+        # Create a header with background color
+        let headerWidth = max(headerText.len + 4, 10)
+        let bgColor = if style.headerBgColor != bgNone: $style.headerBgColor else: ""
+        let fgColor = if style.headerColor != fgWhite: $style.headerColor else: ""
+        # For simplicity in terminal, we'll just add visual indicators
+        result.add "+" & "=".repeat(headerWidth - 2) & "+"
+        result.add "| " & headerText & " ".repeat(headerWidth - headerText.len - 3) & "|"
+        result.add "+" & "=".repeat(headerWidth - 2) & "+"
+        i += 1
         continue
     
     if trimmedLine.startsWith(">"):
       let quoteText = "┃ " & trimmedLine[1..^1].strip()
       result.add(quoteText)
+      i += 1
       continue
     
     # Handle list items - simplified approach
     if trimmedLine.startsWith("- ") or trimmedLine.startsWith("* ") or trimmedLine.startsWith("+ "):
       # Calculate indentation level
       var indentLevel = 0
-      var i = 0
-      while i < line.len and line[i] == ' ':
+      var j = 0
+      while j < line.len and line[j] == ' ':
         indentLevel += 1
-        i += 1
+        j += 1
       
       # Convert indentation to visual nesting (2 spaces per level)
       let visualIndent = "  ".repeat(indentLevel div 2)
       let listText = visualIndent & "• " & trimmedLine[2..^1]
       result.add(listText)
+      i += 1
       continue
 
     # Handle numbered lists with proper nesting
     var numListMatch = false
     var dotPos = -1
     # Find the dot position after digits
-    for i in 0..<min(line.len, 10):
-      if line[i].isDigit:
+    for j in 0..<min(line.len, 10):
+      if line[j].isDigit:
         continue
-      elif line[i] == '.' and i > 0:
+      elif line[j] == '.' and j > 0:
         # Check if there's a space after the dot
-        if i + 1 < line.len and line[i + 1] == ' ':
-          dotPos = i
+        if j + 1 < line.len and line[j + 1] == ' ':
+          dotPos = j
           numListMatch = true
           break
         else:
@@ -535,37 +770,21 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
     if numListMatch:
       # Calculate indentation level
       var indentLevel = 0
-      var i = 0
-      while i < line.len and line[i] == ' ':
+      var j = 0
+      while j < line.len and line[j] == ' ':
         indentLevel += 1
-        i += 1
+        j += 1
       
       # Convert indentation to visual nesting
       let visualIndent = "  ".repeat(indentLevel div 2)
       let listText = visualIndent & line[dotPos-1..dotPos] & " " & line[dotPos + 2..^1]
       result.add(listText)
+      i += 1
       continue
-    
-    # Handle numbered lists
-    # var numListMatch = false
-    # var dotPos = -1
-    # for i in 0..<min(trimmedLine.len, 10):  # Limit search to first 10 chars
-    #   if trimmedLine[i].isDigit:
-    #     continue
-    #   elif trimmedLine[i] == '.' and i > 0:
-    #     dotPos = i
-    #     numListMatch = true
-    #     break
-    #   else:
-    #     break
-    
-    # if numListMatch and dotPos + 1 < trimmedLine.len and trimmedLine[dotPos + 1] == ' ':
-    #   let listText = trimmedLine[0..dotPos] & " " & trimmedLine[dotPos + 2..^1]
-    #   result.add(listText)
-    #   continue
     
     # Regular text
     result.add(line)
+    i += 1
   
   # Flush any remaining code block
   if inCodeBlock and codeBlockContent.len > 0:
@@ -576,7 +795,7 @@ proc parseMarkdown(text: string, style: MarkdownStyle): seq[string] =
     
     # Add top border
     result.add("┌" & "─".repeat(maxWidth + 2) & "┐")
-    
+
     # Add content lines
     for contentLine in codeBlockContent:
       let paddedLine = contentLine & " ".repeat(maxWidth - contentLine.len)
