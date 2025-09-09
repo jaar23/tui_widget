@@ -1,4 +1,4 @@
-import illwill, base_wg, os, strutils, options, tables, math, sequtils, display_wg
+import illwill, base_wg, os, strutils, tables, math, sequtils, display_wg
 import threading/channels
 
 type

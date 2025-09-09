@@ -1,6 +1,5 @@
 import illwill, base_wg, os, std/wordwrap, strutils, options, tables, re, std/sequtils, sets
 import threading/channels
-import algorithm, strformat
 
 type
   MarkdownStyle* = object
@@ -169,126 +168,12 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
       formattedText.add("")
   return formattedText
 
-# proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: string, fg: ForegroundColor, bg: BackgroundColor]] =
-#   result = @[]
-#   var pos = 0
-  
-#   while pos < text.len:
-#     var foundFormat = false
-    
-#     # Look for code blocks (backticks)
-#     for i in pos..<text.len:
-#       if text[i] == '`':
-#         # Add text before code
-#         if i > pos:
-#           result.add((text[pos..<i], style.normalColor, bgNone))
-        
-#         # Find closing backtick
-#         var codeEnd = -1
-#         for j in (i+1)..<text.len:
-#           if text[j] == '`':
-#             codeEnd = j
-#             break
-        
-#         if codeEnd > i:
-#           let codeText = text[(i+1)..<codeEnd]
-#           result.add((codeText, style.codeColor, style.codeBgColor))
-#           pos = codeEnd + 1
-#           foundFormat = true
-#           break
-    
-#     if foundFormat:
-#       continue
-    
-#     # Look for bold text (**)
-#     for i in pos..<(text.len-1):
-#       if text[i] == '*' and text[i+1] == '*':
-#         # Add text before bold
-#         if i > pos:
-#           result.add((text[pos..<i], style.normalColor, bgNone))
-        
-#         # Find closing **
-#         var boldEnd = -1
-#         for j in (i+2)..<(text.len-1):
-#           if text[j] == '*' and text[j+1] == '*':
-#             boldEnd = j
-#             break
-        
-#         if boldEnd > i:
-#           let boldText = text[(i+2)..<boldEnd]
-#           result.add((boldText, style.boldColor, bgNone))
-#           pos = boldEnd + 2
-#           foundFormat = true
-#           break
-    
-#     if foundFormat:
-#       continue
-    
-#     # Look for italic text (single *)
-#     for i in pos..<text.len:
-#       if text[i] == '*' and (i == 0 or text[i-1] != '*') and (i == text.len-1 or text[i+1] != '*'):
-#         # Add text before italic
-#         if i > pos:
-#           result.add((text[pos..<i], style.normalColor, bgNone))
-        
-#         # Find closing *
-#         var italicEnd = -1
-#         for j in (i+1)..<text.len:
-#           if text[j] == '*' and (j == text.len-1 or text[j+1] != '*'):
-#             italicEnd = j
-#             break
-        
-#         if italicEnd > i:
-#           let italicText = text[(i+1)..<italicEnd]
-#           result.add((italicText, style.italicColor, bgNone))
-#           pos = italicEnd + 1
-#           foundFormat = true
-#           break
-    
-#     if foundFormat:
-#       continue
-    
-#     # Look for links [text](url)
-#     for i in pos..<text.len:
-#       if text[i] == '[':
-#         var linkTextEnd = -1
-#         for j in (i+1)..<text.len:
-#           if text[j] == ']':
-#             linkTextEnd = j
-#             break
-        
-#         if linkTextEnd > i and linkTextEnd + 1 < text.len and text[linkTextEnd + 1] == '(':
-#           var linkEnd = -1
-#           for j in (linkTextEnd + 2)..<text.len:
-#             if text[j] == ')':
-#               linkEnd = j
-#               break
-          
-#           if linkEnd > linkTextEnd:
-#             # Add text before link
-#             if i > pos:
-#               result.add((text[pos..<i], style.normalColor, bgNone))
-            
-#             let linkText = text[(i+1)..<linkTextEnd]
-#             result.add((linkText, style.linkColor, bgNone))
-#             pos = linkEnd + 1
-#             foundFormat = true
-#             break
-    
-#     if foundFormat:
-#       continue
-    
-#     # If no formatting found, add the rest as normal text
-#     result.add((text[pos..^1], style.normalColor, bgNone))
-#     break
-
-
 proc isPunct(c: char): bool =
   let punctuationChars = {'!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
                           ':', ';', '<', '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~'}
   return c in punctuationChars
-
-proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: string, fg: ForegroundColor, bg: BackgroundColor]] =
+  
+proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: string, fg: ForegroundColor, bg: BackgroundColor, textStyle: set[Style]]] =
   result = @[]
   var pos = 0
   
@@ -303,14 +188,6 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
       if pos + 2 < text.len and text[pos+1] == '`' and text[pos+2] == '`':
         markerLen = 3
       
-      # Add text before code
-      if pos > 0:
-        let prevText = text[0..pos-1]
-        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-          result.add((prevText, style.normalColor, bgNone))
-        else:
-          result[^1].text &= prevText
-      
       if markerLen == 3:
         # For triple backticks, we need to find the closing triple backticks
         var codeEnd = -1
@@ -321,13 +198,13 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
         
         if codeEnd > pos:
           let codeText = text[(pos + 3)..<codeEnd]
-          result.add((codeText, style.codeColor, style.codeBgColor))
+          result.add((codeText, style.codeColor, style.codeBgColor, {styleBright}))
           pos = codeEnd + 3
           foundFormat = true
         else:
           # No closing triple backticks, treat as normal text
-          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-            result.add((text[pos..pos+2], style.normalColor, bgNone))
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+            result.add((text[pos..pos+2], style.normalColor, bgNone, {}))
           else:
             result[^1].text &= text[pos..pos+2]
           pos += 3
@@ -342,13 +219,13 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
         
         if codeEnd > pos:
           let codeText = text[(pos + 1)..<codeEnd]
-          result.add((codeText, style.codeColor, style.codeBgColor))
+          result.add((codeText, style.codeColor, style.codeBgColor, {styleBright}))
           pos = codeEnd + 1
           foundFormat = true
         else:
           # No closing backtick, treat as normal text
-          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-            result.add((text[pos..pos], style.normalColor, bgNone))
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+            result.add((text[pos..pos], style.normalColor, bgNone, {}))
           else:
             result[^1].text &= text[pos]
           pos += 1
@@ -359,15 +236,6 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
     
     # Look for bold text (**)
     if pos + 1 < text.len and text[pos] == '*' and text[pos+1] == '*':
-      # Add text before bold
-      if pos > 0:
-        let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
-        if prevText.len > 0:
-          if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
-            result[^1].text &= prevText
-          else:
-            result.add((prevText, style.normalColor, bgNone))
-      
       # Find closing **
       var boldEnd = -1
       for j in (pos + 2)..<text.len-1:
@@ -377,14 +245,14 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
       
       if boldEnd > pos:
         let boldText = text[(pos + 2)..<boldEnd]
-        result.add((boldText, style.boldColor, bgNone))
+        result.add((boldText, style.boldColor, bgNone, {styleBright}))
         pos = boldEnd + 2
         foundFormat = true
       else:
         # No closing **, treat as normal text
         let boldChars = if pos + 1 < text.len: text[pos..pos+1] else: text[pos..^1]
-        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-          result.add((boldChars, style.normalColor, bgNone))
+        if result.len == 0 or result[^1].fg != style.headerColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+          result.add((boldChars, style.boldColor, bgNone, {}))
         else:
           result[^1].text &= boldChars
         pos += 2
@@ -398,15 +266,6 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
        (pos == 0 or text[pos-1] == ' ' or text[pos-1].isPunct) and
        (pos == text.len-1 or (text[pos+1] != '*' and (text[pos+1] == ' ' or text[pos+1].isPunct or pos+1 < text.len))):
       
-      # Add text before italic
-      if pos > 0:
-        let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
-        if prevText.len > 0:
-          if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
-            result[^1].text &= prevText
-          else:
-            result.add((prevText, style.normalColor, bgNone))
-      
       # Find closing *
       var italicEnd = -1
       for j in (pos + 1)..<text.len:
@@ -417,13 +276,13 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
       
       if italicEnd > pos:
         let italicText = text[(pos + 1)..<italicEnd]
-        result.add((italicText, style.italicColor, bgNone))
+        result.add((italicText, style.italicColor, bgNone, {styleItalic}))
         pos = italicEnd + 1
         foundFormat = true
       else:
         # No closing *, treat as normal text
-        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-          result.add((text[pos..pos], style.normalColor, bgNone))
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+          result.add((text[pos..pos], style.normalColor, bgNone, {}))
         else:
           result[^1].text &= text[pos]
         pos += 1
@@ -448,47 +307,37 @@ proc parseInlineMarkdown(text: string, style: MarkdownStyle): seq[tuple[text: st
             break
         
         if linkEnd > linkTextEnd:
-          # Add text before link
-          if pos > 0:
-            let prevText = if result.len == 0: text[0..pos-1] else: text[result[^1].text.len..pos-1]
-            if prevText.len > 0:
-              if result.len > 0 and result[^1].fg == style.normalColor and result[^1].bg == bgNone:
-                result[^1].text &= prevText
-              else:
-                result.add((prevText, style.normalColor, bgNone))
-          
           let linkText = text[(pos + 1)..<linkTextEnd]
-          result.add((linkText, style.linkColor, bgNone))
+          result.add((linkText, style.linkColor, bgNone, {styleUnderscore}))
           pos = linkEnd + 1
           foundFormat = true
         else:
           # Malformed link, treat as normal text
-          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-            result.add((text[pos..pos], style.normalColor, bgNone))
+          if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+            result.add((text[pos..pos], style.normalColor, bgNone, {}))
           else:
             result[^1].text &= text[pos]
           pos += 1
           foundFormat = true
       else:
         # Malformed link, treat as normal text
-        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-          result.add((text[pos..pos], style.normalColor, bgNone))
+        if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+          result.add((text[pos..pos], style.normalColor, bgNone, {}))
         else:
           result[^1].text &= text[pos]
         pos += 1
         foundFormat = true
     else:
       # Add normal character
-      if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone:
-        result.add((text[pos..pos], style.normalColor, bgNone))
+      if result.len == 0 or result[^1].fg != style.normalColor or result[^1].bg != bgNone or result[^1].textStyle != {}:
+        result.add((text[pos..pos], style.normalColor, bgNone, {}))
       else:
         result[^1].text &= text[pos]
       pos += 1
   
   # Handle case where no formatting was found
   if result.len == 0:
-    result.add((text, style.normalColor, bgNone))
-  
+    result.add((text, style.normalColor, bgNone, {}))
 
 proc renderTableRows(tableHeaders: seq[string], tableRows: seq[seq[string]], tableAlignments: seq[string]): seq[string] =
   var tableLines = newSeq[string]()
@@ -780,14 +629,22 @@ proc renderMarkdownRow(md: Markdown, text: string, row: int) =
     for segment in segments:
       let segmentText = segment.text
       if currentX + segmentText.len <= md.x2:
-        md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, segmentText, resetStyle)
+        # Pass style and resetStyle as separate arguments to the write macro
+        if segment.textStyle.len > 0:
+          md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, segmentText, segment.textStyle, resetStyle)
+        else:
+          md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, segmentText, resetStyle)
         currentX += segmentText.len
       else:
         # Truncate if too long
         let availableWidth = md.x2 - currentX
         if availableWidth > 0:
           let truncated = segmentText[0..<min(availableWidth, segmentText.len)]
-          md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, truncated, resetStyle)
+          # Pass style and resetStyle as separate arguments to the write macro
+          if segment.textStyle.len > 0:
+            md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, truncated, segment.textStyle, resetStyle)
+          else:
+            md.tb.write(currentX, md.posY + row, segment.fg, segment.bg, truncated, resetStyle)
         break
   else:
     md.renderRow(text, row)
