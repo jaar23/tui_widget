@@ -25,7 +25,7 @@ proc newContainer*(px, py, w, h: int, id = "", title = "",
     fgColor: fgColor,
     bgColor: bgColor
   )
- 
+
   result = Container(
     width: w,
     height: h,
@@ -47,10 +47,10 @@ proc newContainer*(px, py: int, w, h: WidgetSize, id = "", title = "",
                   border = true, bgColor = bgNone,
                   fgColor = fgWhite, widgets = newSeq[ref BaseWidget](),
                   tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): Container =
-  let width = toConsoleWidth(w) 
+  let width = toConsoleWidth(w)
   let height = toConsoleHeight(h)
   return newContainer(px, py, width, height, id, title,
-                      border, bgColor, fgColor, widgets, tb) 
+                      border, bgColor, fgColor, widgets, tb)
 
 
 proc newContainer*(id: string): Container =
@@ -74,7 +74,6 @@ proc newContainer*(id: string): Container =
 
 
 proc add*(ctr: Container, wg: ref BaseWidget, width: float, height: float) =
-  # calculate w, h in container
   let w = ((ctr.x2 - ctr.x1).toFloat * width).toInt
   let h = ((ctr.y2 - ctr.y1).toFloat * height).toInt
   if ctr.widgets.len == 0:
@@ -97,8 +96,10 @@ proc add*(ctr: Container, wg: ref BaseWidget, width: float, height: float) =
   wg.bg(ctr.bg)
   wg.fg(ctr.fg)
   wg.tb = ctr.tb
+  wg.rpms = ctr.rpms
+  wg.illwillInit = true
+  wg.resize()   # recompute size/derived fields after repositioning
   ctr.widgets.add(wg)
-
 
 
 method setChildTb*(ctr: Container, tb: TerminalBuffer): void =
@@ -110,10 +111,10 @@ proc on*(ctr: Container, event: string, fn: EventFn[Container]) =
 
 
 proc on*(ctr: Container, key: Key, fn: EventFn[Container]) {.raises: [EventKeyError]} =
-  if key in forbiddenKeyBind: 
+  if key in forbiddenKeyBind:
     raise newException(EventKeyError, $key & " is used for widget default behavior, forbidden to overwrite")
   ctr.keyEvents[key] = fn
-    
+
 
 method call*(ctr: Container, event: string, args: varargs[string]) =
   if ctr.events.hasKey(event):
@@ -126,7 +127,7 @@ method call*(ctr: ContainerObj, event: string, args: varargs[string]) =
     let fn = ctr.events[event]
     let ctrRef = ctr.asRef()
     fn(ctrRef, args)
-    
+
 
 proc call(ctr: Container, key: Key) =
   if ctr.keyEvents.hasKey(key):
@@ -144,54 +145,107 @@ method render*(ctr: Container) =
   ctr.tb.display()
 
 
-proc baseControl(ctr: Container) =
-  # container widget
-  while true:
-    var key = getKeyWithTimeout(ctr.rpms)
-    case key
-    of Key.Escape:
-      ctr.focus = false
-      break
-    of Key.Tab:
-      inc ctr.cursor
-      break
-    else:
-      if ctr.keyEvents.hasKey(key):
-        ctr.call(key)
-      #ctr.render()
+method poll*(ctr: Container) =
+  ## Propagate channel poll to all children (needed in non-blocking mode).
+  for w in ctr.widgets:
+    w.poll()
+
+
+proc show*(ctr: Container, resetCursors = false) =
+  ## Make Container and all children visible. Call before onControl() for popup use.
+  ## Clears the full terminal buffer first so background widgets don't bleed through.
+  ctr.visibility = true
+  ctr.cursor = 0
+  for w in ctr.widgets:
+    w.visibility = true
+    w.tb = ctr.tb
+    w.illwillInit = true
+    if resetCursors: w.resetCursor()
+  ctr.tb.fill(0, 0, terminalWidth(), terminalHeight(), bgNone, fgWhite, " ")
+  ctr.render()
+
+
+proc hide*(ctr: Container) =
+  ## Hide Container and all children. Releases focus.
+  ctr.focus = false
+  ctr.visibility = false
+  for w in ctr.widgets:
+    w.visibility = false
+    w.focus = false
+  ctr.clear()
 
 
 method onUpdate*(ctr: Container, key: Key) =
+  ## Non-blocking mode: Tab cycles focus between children; other keys are
+  ## forwarded to the currently focused child.
   case key
-  of Key.Tab, Key.None:
-    if ctr.cursor == 0:
-      ctr.baseControl
-    if not ctr.focus: return
-    if ctr.cursor > ctr.widgets.len: ctr.cursor = 0
-    ctr.widgets[ctr.cursor - 1].onControl()
-    inc ctr.cursor
-  of Key.Escape: 
+  of Key.Escape:
     ctr.focus = false
-  else: discard
+  of Key.Tab:
+    if ctr.widgets.len > 0:
+      if ctr.cursor < ctr.widgets.len:
+        ctr.widgets[ctr.cursor].focus = false
+      inc ctr.cursor
+      if ctr.cursor >= ctr.widgets.len:
+        ctr.cursor = 0
+      ctr.widgets[ctr.cursor].focus = true
+  of Key.None: discard
+  else:
+    if ctr.keyEvents.hasKey(key):
+      ctr.call(key)
+    elif ctr.cursor < ctr.widgets.len:
+      ctr.widgets[ctr.cursor].onUpdate(key)
   ctr.render()
- 
+
 
 method onControl*(ctr: Container) =
-  # another main loop for the child widget
+  ## Blocking mode: Tab enters child widgets sequentially; Escape exits Container.
+  ## Mirrors TerminalApp.hold() but scoped to Container's child list.
+  ## Returns immediately if the container is hidden (visibility = false).
+  if not ctr.visibility: return
   ctr.focus = true
-  for w in ctr.widgets: 
-    w.blocking = true
+  ctr.cursor = 0
+
+  # ensure all children are ready
+  for w in ctr.widgets:
     w.illwillInit = true
+    w.rpms = ctr.rpms
+    w.tb = ctr.tb
+    w.focus = false
+
   while ctr.focus:
-    ctr.clear()
+    # highlight the focused child (double border)
+    for i, w in ctr.widgets:
+      w.focus = (i == ctr.cursor)
     ctr.render()
+
     var key = getKeyWithTimeout(ctr.rpms)
-    ctr.onUpdate(key)
+    case key
+    of Key.Escape:
+      # Container always owns Esc — never let a child consume it
+      ctr.focus = false
+    of Key.Tab:
+      # Advance focus to next child; Container owns Tab too
+      if ctr.widgets.len > 0:
+        inc ctr.cursor
+        if ctr.cursor >= ctr.widgets.len:
+          ctr.cursor = 0
+    of Key.None:
+      discard
+    else:
+      # Forward all other keys to the focused child via onUpdate.
+      # This keeps the Container's event loop alive so Esc/Tab are
+      # always interceptable (calling child.onControl() would block
+      # and the child would consume Esc before Container sees it).
+      if ctr.keyEvents.hasKey(key):
+        ctr.call(key)
+      elif ctr.cursor < ctr.widgets.len:
+        ctr.widgets[ctr.cursor].onUpdate(key)
+
+  # clear all child focus on container exit
+  for w in ctr.widgets:
+    w.focus = false
+  ctr.render()
 
 
 method wg*(ctr: Container): ref BaseWidget = ctr
-
-
-
-
-

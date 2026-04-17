@@ -7,3 +7,6 @@ src/layout
 tests/tui_test
 .idea
 examples/framedata.txt
+.claude
+CLAUDE.md
+*.png

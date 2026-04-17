@@ -1,6 +1,6 @@
-import illwill, base_wg, os, sequtils, strutils, deques, times, 
+import illwill, base_wg, os, sequtils, strutils, deques, times,
        input_box_wg, display_wg, listview_wg
-import std/wordwrap, std/enumerate
+import std/enumerate
 import tables, threading/channels, std/math
 
 type
@@ -28,6 +28,7 @@ type
 
   TextAreaObj* = object of BaseWidget
     textRows: seq[string] = newSeq[string]()
+    rowStartPos*: seq[int] = newSeq[int]()
     value: string = ""
     rows: int = 0
     cols: int = 0
@@ -40,7 +41,7 @@ type
     viHistory: Deque[ViHistory]
     history*: seq[string]
     historyCursor*: int
-    maxHistory*: int 
+    maxHistory*: int
     viStyle*: ViStyle
     viSelection: ViSelection
     events*: Table[string, EventFn[TextArea]]
@@ -53,10 +54,10 @@ type
     autocompleteWindowSize*: int = 5
     autocompleteBgColor*: BackgroundColor = bgCyan
     autocompleteFgColor*: ForegroundColor = fgWhite
- 
+
   WordToken* = object
-    startat*: int 
-    endat*: int 
+    startat*: int
+    endat*: int
     token*: string
 
   TextArea* = ref TextAreaObj
@@ -68,7 +69,7 @@ type
 
 const cursorStyleArr: array[CursorStyle, string] = ["█", "|", "_"]
 
-proc on*(t: TextArea, event: string, fn: EventFn[TextArea]): void {.raises: [EventKeyError]} 
+proc on*(t: TextArea, event: string, fn: EventFn[TextArea]): void {.raises: [EventKeyError]}
 
 proc on*(t: TextArea, key: Key, fn: EventFn[TextArea], vimode: ViMode = Insert): void {.raises: [EventKeyError].}
 
@@ -121,7 +122,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     height: h,
     posX: px,
     posY: py,
-    value: val,
+    value: if val == " ": " " else: val & " ",
     cols: w - px - padding,
     rows: h - py - (padding * 2),
     size: h - statusbarSize - py,
@@ -157,14 +158,12 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
     textArea.normalKeyEvents[Key.QuestionMark] = help
     textArea.visualKeyEvents[Key.QuestionMark] = help
   textArea.keepOriginalSize()
-  # textArea.value = repeat(' ', textArea.rows * textArea.cols)
-  textArea.value = val & repeat(' ', max(100, textArea.rows * textArea.cols))
   # register copy and paste events
   textArea.on(Key.CtrlC, proc(t: TextArea, args: varargs[string]) =
     if t.value.len > 0:
       base_wg.setClipboardText(t.value)
   )
-  
+
   textArea.on(Key.CtrlV, proc(t: TextArea, args: varargs[string]) =
     let clipText = base_wg.getClipboardText()
     if clipText.len > 0:
@@ -176,7 +175,7 @@ proc newTextArea*(px, py, w, h: int, title = ""; val = " ";
 
 proc newTextArea*(px, py: int, w, h: WidgetSize, title = ""; val = " ";
                   border = true; statusbar = false; enableHelp=false;
-                  bgColor = bgNone; fgColor = fgWhite; 
+                  bgColor = bgNone; fgColor = fgWhite;
                   cursorBg = bgBlue; cursorFg = fgWhite; cursorStyle = Block,
                   enableViMode = false; vimode: ViMode = Normal;
                   viStyle: ViStyle = newViStyle();
@@ -186,7 +185,7 @@ proc newTextArea*(px, py: int, w, h: WidgetSize, title = ""; val = " ";
   let height = (consoleHeight().toFloat * h).toInt
   return newTextArea(px, py, width, height, title, val, border, statusbar, enableHelp,
                      bgColor, fgColor, cursorBg, cursorFg, cursorStyle, enableViMode,
-                     viMode, viStyle, enableAutocomplete, autocompleteTrigger, tb) 
+                     viMode, viStyle, enableAutocomplete, autocompleteTrigger, tb)
 
 
 proc newTextArea*(id: string): TextArea =
@@ -218,18 +217,17 @@ proc newTextArea*(id: string): TextArea =
     blocking: true
   )
   # to ensure key responsive, default < 50ms
-  if textArea.rpms > 20: textArea.rpms = 20
-  textArea.channel = newChan[WidgetBgEvent]()
-  textArea.normalKeyEvents[Key.QuestionMark] = help
-  textArea.visualKeyEvents[Key.QuestionMark] = help
-  textArea.value = repeat(' ', textArea.rows * textArea.cols)
+  if textarea.rpms > 50: textarea.rpms = 50
+  textarea.channel = newChan[WidgetBgEvent]()
+  textarea.normalKeyEvents[Key.QuestionMark] = help
+  textarea.visualKeyEvents[Key.QuestionMark] = help
   # register copy and paste events
-  textArea.on(Key.CtrlC, proc(t: TextArea, args: varargs[string]) =
+  textarea.on(Key.CtrlC, proc(t: TextArea, args: varargs[string]) =
     if t.value.len > 0:
       base_wg.setClipboardText(t.value)
   )
-  
-  textArea.on(Key.CtrlV, proc(t: TextArea, args: varargs[string]) =
+
+  textarea.on(Key.CtrlV, proc(t: TextArea, args: varargs[string]) =
     let clipText = base_wg.getClipboardText()
     if clipText.len > 0:
       t.value.insert(clipText, t.cursor)
@@ -238,18 +236,51 @@ proc newTextArea*(id: string): TextArea =
   return textarea
 
 
-func splitBySize(val: string, size: int, rows: int): seq[string] =
-  result = newSeq[string]()
-  if val.len > size:
-    let wrappedWords = val.wrapWords(size,
-                                     seps = {'\t', '\v', '\r', '\n', '\f'})
-    result = wrappedWords.split("\n")
-  else:
-    result.add(val)
-
+# ---------------------------------------------------------------------------
+# Core text model: newline-based storage
+# value stores actual '\n' for line breaks; always ends with a space sentinel.
+# rowStartPos[i] = byte offset in value where visual row i begins.
+# ---------------------------------------------------------------------------
 
 func rowReCal(t: TextArea) =
-  t.textRows = splitBySize(t.value, t.cols, t.rows)
+  ## Rebuild textRows and rowStartPos from value.
+  ## Logical lines are split by '\n'; long lines are soft-wrapped at cols width.
+  t.textRows = newSeq[string]()
+  t.rowStartPos = newSeq[int]()
+  if t.value.len == 0 or t.cols <= 0:
+    t.textRows.add("")
+    t.rowStartPos.add(0)
+    return
+  var vi = 0
+  var lineStart = 0
+  while vi <= t.value.len:
+    if vi == t.value.len or t.value[vi] == '\n':
+      let line = t.value[lineStart ..< vi]
+      if line.len == 0:
+        t.textRows.add("")
+        t.rowStartPos.add(lineStart)
+      else:
+        var pos = 0
+        while pos < line.len:
+          let chunkEnd = min(pos + t.cols, line.len)
+          t.textRows.add(line[pos ..< chunkEnd])
+          t.rowStartPos.add(lineStart + pos)
+          pos += t.cols
+      lineStart = vi + 1
+    inc vi
+  if t.textRows.len == 0:
+    t.textRows.add("")
+    t.rowStartPos.add(0)
+
+
+proc computeVisualRow(t: TextArea): int =
+  ## Return visual row index for current cursor position using rowStartPos.
+  if t.rowStartPos.len == 0: return 0
+  for i in countdown(t.rowStartPos.len - 1, 0):
+    if t.rowStartPos[i] <= t.cursor:
+      return i
+  return 0
+
 
 proc recordHistory(t: TextArea) =
   ## Save current state to history
@@ -257,11 +288,11 @@ proc recordHistory(t: TextArea) =
     # Remove any redo states if we're not at the end of history
     if t.historyCursor < t.history.len - 1:
       t.history = t.history[0..t.historyCursor]
-    
+
     # Add current state
     t.history.add(t.value)
     t.historyCursor = t.history.len - 1
-    
+
     # Limit history size
     if t.history.len > t.maxHistory:
       t.history = t.history[1..^1]
@@ -273,9 +304,8 @@ proc undo*(t: TextArea) =
     t.historyCursor -= 1
     t.value = t.history[t.historyCursor]
     t.rowReCal()
-    # Reset cursor to end of text or maintain relative position
     t.cursor = min(t.cursor, t.value.len - 1)
-    t.rowCursor = min(t.textRows.len - 1, t.cursor div t.cols)
+    t.rowCursor = t.computeVisualRow()
 
 proc redo*(t: TextArea) =
   ## Redo last undone action
@@ -283,428 +313,184 @@ proc redo*(t: TextArea) =
     t.historyCursor += 1
     t.value = t.history[t.historyCursor]
     t.rowReCal()
-    # Reset cursor to end of text or maintain relative position
     t.cursor = min(t.cursor, t.value.len - 1)
-    t.rowCursor = min(t.textRows.len - 1, t.cursor div t.cols)
+    t.rowCursor = t.computeVisualRow()
+
 
 func enter(t: TextArea) =
-  let currentRowStart = t.rowCursor * t.cols
-  let nextRowStart = currentRowStart + t.cols
-  
-  # Ensure we have space for next line
-  while t.value.len <= nextRowStart + t.cols:
-    t.value &= repeat(' ', t.cols)
-  
-  # Get text after cursor on current line
-  var textAfterCursor = ""
-  let currentRowEnd = min(currentRowStart + t.cols - 1, t.value.len - 1)
-  
-  for i in t.cursor..currentRowEnd:
-    if i < t.value.len and t.value[i] != ' ':
-      textAfterCursor &= t.value[i]
-  
-  # Clear text after cursor on current line
-  for i in t.cursor..currentRowEnd:
-    if i < t.value.len:
-      t.value[i] = ' '
-  
-  # Move to next line
-  t.rowCursor += 1
-  t.cursor = nextRowStart
-  
-  # Insert text after cursor at beginning of next line
-  for i, ch in textAfterCursor:
-    if t.cursor + i < t.value.len:
-      t.value[t.cursor + i] = ch
-  
-  # Handle scrolling
+  t.recordHistory()
+  t.value.insert("\n", t.cursor)
+  t.cursor += 1
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
   let visibleRows = t.size - t.statusbarSize
   if t.rowCursor >= t.scrollY + visibleRows:
     t.scrollY = t.rowCursor - visibleRows + 1
-  
-  t.rowReCal()
+
 
 func moveToBegin(t: TextArea) =
-  let currentRowStart = t.rowCursor * t.cols
-  t.cursor = max(0, min(currentRowStart, t.value.len - 1))
+  if t.rowCursor < t.rowStartPos.len:
+    t.cursor = t.rowStartPos[t.rowCursor]
+
 
 func moveToEnd(t: TextArea) =
-  let currentRowStart = t.rowCursor * t.cols
-  let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-  
-  # Find last non-space character on current line
-  var lastContent = currentRowStart
-  for i in countdown(currentRowEnd, currentRowStart):
-    if i < t.value.len and t.value[i] != ' ':
-      lastContent = i
-      break
-  
-  t.cursor = lastContent
+  if t.rowCursor < t.textRows.len:
+    let rowLen = t.textRows[t.rowCursor].len
+    t.cursor = t.rowStartPos[t.rowCursor] + rowLen
+    t.cursor = min(t.cursor, t.value.len - 1)
+
 
 func moveToNextWord(t: TextArea) =
-  var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
+  let charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
                     '(', ')', '*', '&', '^', '%', '$',
                     '#', '@', '!', '`', '~', '|'}
   var space = false
   for p in t.cursor ..< t.value.len:
-    # handling a-z, A-Z and spaces
     if t.value[p].isAlphaNumeric() and not space:
       continue
     elif t.value[p].isAlphaNumeric() and space:
       t.cursor = p
       space = false
       break
-    # skip spaces
-    if t.value[p] == ' ':
+    if t.value[p] in {' ', '\n'}:
       space = true
       continue
-    # handling special chars
     if t.value[p] in charsRange and p != t.cursor:
       t.cursor = p
       space = false
       break
     else: continue
-  
-  # Update row cursor based on new position
-  t.rowCursor = min(t.textRows.len - 1, t.cursor div t.cols)
-  
-  # Handle scrolling
+
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
   let visibleRows = t.size - t.statusbarSize
   if t.rowCursor >= t.scrollY + visibleRows:
     t.scrollY = t.rowCursor - visibleRows + 1
   elif t.rowCursor < t.scrollY:
     t.scrollY = t.rowCursor
 
+
 func moveToPrevWord(t: TextArea) =
-  var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
+  let charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
                     '(', ')', '*', '&', '^', '%', '$',
                     '#', '@', '!', '`', '~', '|'}
   var space = false
   for p in countdown(t.cursor, 0):
-    # handling a-z, A-Z and spaces
     if t.value[p].isAlphaNumeric() and not space:
       continue
     elif t.value[p].isAlphaNumeric() and space:
       t.cursor = p
       space = false
       break
-    # skip spaces
-    if t.value[p] == ' ':
+    if t.value[p] in {' ', '\n'}:
       space = true
       continue
-    # handling special chars
     if t.value[p] in charsRange and p != t.cursor:
       t.cursor = p
       space = false
       break
     else: continue
-  
-  # Update row cursor based on new position
-  t.rowCursor = max(0, t.cursor div t.cols)
-  
-  # Handle scrolling
+
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
   if t.rowCursor < t.scrollY:
     t.scrollY = t.rowCursor
 
 
 func moveToEndOfWord(t: TextArea) =
-  var charsRange = {'.', ',', ';', '"', '\'', '[', ']',
+  let charsRange = {'.', ',', ';', '"', '\'', '[', ']',
                     '\\', '/', '-', '+', '_', '=', '?',
                     '(', ')', '*', '&', '^', '%', '$',
-                    '#', '@', '!', '`', '~', '|', ' '}
-  
+                    '#', '@', '!', '`', '~', '|', ' ', '\n'}
+
   for p in t.cursor ..< t.value.len:
     if p == t.value.len - 1 or t.value[p + 1] in charsRange:
       t.cursor = p
       break
-  
-  # Update row cursor based on new position
-  t.rowCursor = min(t.textRows.len - 1, t.cursor div t.cols)
-  
-  # Handle scrolling
+
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
   let visibleRows = t.size - t.statusbarSize
   if t.rowCursor >= t.scrollY + visibleRows:
     t.scrollY = t.rowCursor - visibleRows + 1
+
 
 func moveUp(t: TextArea) =
-  let prevCursor = t.cursor
-  let prevRowCursor = t.rowCursor
-  
-  # Calculate target cursor position
-  t.cursor = max(0, t.cursor - t.cols)
-  
-  # Update row cursor safely
-  if t.cursor < t.cols * t.rowCursor:
-    t.rowCursor = max(0, t.rowCursor - 1)
-  
-  # Ensure cursor is within valid bounds
-  t.cursor = max(0, min(t.cursor, t.value.len - 1))
-  
-  # Handle scrolling - if cursor moved above visible area
+  if t.rowCursor == 0: return
+  let colOffset = t.cursor - t.rowStartPos[t.rowCursor]
+  t.rowCursor = max(0, t.rowCursor - 1)
+  let prevRowLen = t.textRows[t.rowCursor].len
+  t.cursor = t.rowStartPos[t.rowCursor] + min(colOffset, prevRowLen)
   if t.rowCursor < t.scrollY:
     t.scrollY = t.rowCursor
-  
-  # If we moved to a different row, check for content bounds
-  if t.rowCursor != prevRowCursor and t.textRows.len > t.rowCursor:
-    let currentRowStart = t.rowCursor * t.cols
-    let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-    
-    # Ensure cursor doesn't go beyond actual content on this line
-    if t.cursor > currentRowEnd:
-      t.cursor = currentRowEnd
-    
-    # If cursor lands on trailing spaces at end of line, move to last content
-    if t.cursor < t.value.len - 1:
-      let lineEnd = min(currentRowEnd, t.value.len - 1)
-      var lastContent = currentRowStart
-      
-      # Find last non-space character on this line
-      for i in countdown(lineEnd, currentRowStart):
-        if i < t.value.len and t.value[i] != ' ':
-          lastContent = i + 1
-          break
-      
-      # If cursor is beyond last content and on spaces, adjust position
-      if t.cursor > lastContent and t.cursor <= lineEnd:
-        let columnPos = prevCursor - (prevRowCursor * t.cols)
-        t.cursor = min(lastContent, currentRowStart + columnPos)
+
 
 func moveDown(t: TextArea) =
-  let prevCursor = t.cursor
-  let prevRowCursor = t.rowCursor
-  
-  # Calculate target cursor position
-  t.cursor = min(t.value.len - 1, t.cursor + t.cols)
-  
-  # Update row cursor safely
-  if t.cursor >= t.cols * (t.rowCursor + 1):
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-  
-  # Ensure cursor is within valid bounds
-  t.cursor = max(0, min(t.cursor, t.value.len - 1))
-  
-  # Handle scrolling - if cursor moved below visible area
+  if t.rowCursor >= t.textRows.len - 1: return
+  let colOffset = t.cursor - t.rowStartPos[t.rowCursor]
+  t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
+  let nextRowLen = t.textRows[t.rowCursor].len
+  t.cursor = t.rowStartPos[t.rowCursor] + min(colOffset, nextRowLen)
   let visibleRows = t.size - t.statusbarSize
   if t.rowCursor >= t.scrollY + visibleRows:
     t.scrollY = t.rowCursor - visibleRows + 1
-  
-  # If we moved to a different row, check for content bounds
-  if t.rowCursor != prevRowCursor and t.textRows.len > t.rowCursor:
-    let currentRowStart = t.rowCursor * t.cols
-    let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-    
-    # Ensure cursor doesn't go beyond actual content on this line
-    if t.cursor > currentRowEnd:
-      t.cursor = currentRowEnd
-    
-    # If cursor lands on trailing spaces at end of line, move to last content
-    if t.cursor < t.value.len - 1:
-      let lineEnd = min(currentRowEnd, t.value.len - 1)
-      var lastContent = currentRowStart
-      
-      # Find last non-space character on this line
-      for i in countdown(lineEnd, currentRowStart):
-        if i < t.value.len and t.value[i] != ' ':
-          lastContent = i + 1
-          break
-      
-      # If cursor is beyond last content and on spaces, adjust position
-      if t.cursor > lastContent and t.cursor <= lineEnd:
-        let columnPos = prevCursor - (prevRowCursor * t.cols)
-        t.cursor = min(lastContent, currentRowStart + columnPos)
+
 
 func moveRight(t: TextArea) =
-  let prevCursor = t.cursor
-  let prevRowCursor = t.rowCursor
-  
-  # Move cursor right safely
-  t.cursor = min(t.value.len - 1, t.cursor + 1)
-  
-  # Check if we've moved to next row
-  if t.cursor >= t.cols * (t.rowCursor + 1):
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
-    
-    # Handle scrolling when moving to next row
-    let visibleRows = t.size - t.statusbarSize
-    if t.rowCursor >= t.scrollY + visibleRows:
-      t.scrollY = t.rowCursor - visibleRows + 1
-  
-  # If we're at the end of content, don't move further
-  if t.cursor >= t.value.len - 1:
-    t.cursor = t.value.len - 1
-    return
-  
-  # Handle line wrapping and content boundaries
-  let currentRowStart = t.rowCursor * t.cols
-  let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-  
-  # If we moved to a new row due to cursor movement
-  if t.rowCursor != prevRowCursor:
-    # Check if there's actual content on the new line
-    var hasContent = false
-    for i in currentRowStart..currentRowEnd:
-      if i < t.value.len and t.value[i] != ' ':
-        hasContent = true
-        t.cursor = i
-        break
-    
-    # If no content on new line, find next line with content
-    if not hasContent:
-      t.moveToNextWord()
+  if t.cursor < t.value.len - 1:
+    t.cursor += 1
+  t.rowCursor = t.computeVisualRow()
+  let visibleRows = t.size - t.statusbarSize
+  if t.rowCursor >= t.scrollY + visibleRows:
+    t.scrollY = t.rowCursor - visibleRows + 1
+
 
 func moveLeft(t: TextArea) =
-  let prevCursor = t.cursor
-  let prevRowCursor = t.rowCursor
-  
-  # Move cursor left safely
-  t.cursor = max(0, t.cursor - 1)
-  
-  # Check if we've moved to previous row
-  if t.cursor < t.cols * t.rowCursor:
-    t.rowCursor = max(0, t.rowCursor - 1)
-    
-    # Handle scrolling when moving to previous row
-    if t.rowCursor < t.scrollY:
-      t.scrollY = t.rowCursor
-    
-    # If we moved to previous row, position at end of content
-    if t.rowCursor != prevRowCursor:
-      let currentRowStart = t.rowCursor * t.cols
-      let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-      
-      # Find last non-space character on previous line
-      var lastContent = currentRowStart
-      for i in countdown(currentRowEnd, currentRowStart):
-        if i < t.value.len and t.value[i] != ' ':
-          lastContent = i
-          break
-      
-      t.cursor = lastContent
+  if t.cursor > 0:
+    t.cursor -= 1
+  t.rowCursor = t.computeVisualRow()
+  if t.rowCursor < t.scrollY:
+    t.scrollY = t.rowCursor
 
 
 func cursorMove(t: TextArea, moved: int) =
   t.cursor = t.cursor + moved
   if t.cursor > t.value.len - 1: t.cursor = t.value.len - 1
   if t.cursor < 0: t.cursor = 0
-  
-  # Update row cursor to match actual cursor position
-  t.rowCursor = t.cursor div t.cols
-  
-  # Handle scrolling
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
   let visibleRows = t.size - t.statusbarSize
   if t.rowCursor >= t.scrollY + visibleRows:
     t.scrollY = t.rowCursor - visibleRows + 1
   elif t.rowCursor < t.scrollY:
     t.scrollY = t.rowCursor
 
-  
+
 func backspace(t: TextArea) =
-  t.recordHistory() 
+  t.recordHistory()
   if t.cursor <= 0: return
-  
-  let prevCursor = t.cursor - 1
-  let prevRowCursor = prevCursor div t.cols
-  
-  # If backspacing at beginning of line, merge with previous line
-  if t.cursor == (t.rowCursor * t.cols) and t.rowCursor > 0:
-    let prevRowStart = (t.rowCursor - 1) * t.cols
-    let prevRowEnd = prevRowStart + t.cols - 1
-    
-    # Find end of content in previous line
-    var prevLineEnd = prevRowStart
-    for i in countdown(prevRowEnd, prevRowStart):
-      if i < t.value.len and t.value[i] != ' ':
-        prevLineEnd = i + 1
-        break
-    
-    # Get current line content
-    var currentLineContent = ""
-    let currentRowStart = t.rowCursor * t.cols
-    for i in currentRowStart..<min(currentRowStart + t.cols, t.value.len):
-      if t.value[i] != ' ':
-        currentLineContent &= t.value[i]
-      else:
-        break
-    
-    # Clear current line
-    for i in currentRowStart..<min(currentRowStart + t.cols, t.value.len):
-      t.value[i] = ' '
-    
-    # Move cursor to end of previous line
-    t.cursor = prevLineEnd
-    t.rowCursor = max(0, t.rowCursor - 1)
-    
-    # Insert current line content at previous line end
-    for ch in currentLineContent:
-      if t.cursor < t.value.len and t.cursor < prevRowEnd:
-        t.value[t.cursor] = ch
-        t.cursor += 1
-  else:
-    # Normal backspace within line - simple deletion
-    if prevCursor < t.value.len:
-      t.value[prevCursor] = ' '
-    t.cursor = prevCursor
-    t.rowCursor = prevRowCursor
-    
-    # Handle scrolling
-    if t.rowCursor < t.scrollY:
-      t.scrollY = t.rowCursor
+  t.value.delete(t.cursor - 1 .. t.cursor - 1)
+  t.cursor -= 1
+  if t.value.len == 0: t.value = " "
+  t.rowReCal()
+  t.rowCursor = t.computeVisualRow()
+  if t.rowCursor < t.scrollY:
+    t.scrollY = t.rowCursor
 
-
-
-## continue here, replace might be a good strategy
-# func insert(t: TextArea, value: string, pos: int) =
-#   if t.value[pos] == ' ' and value != " ":
-#     t.value[pos] = value[0]
-#     t.value.add(" ")
-#   else:
-#     t.value.insert(value, pos)
-#     if t.textRows.len > 0 and t.value.len > t.cols:
-#       let currLineEndCursor = min(t.value.len - 1, 
-#                               ((t.rowCursor + 1) * t.cols) - 2)
-
-#       t.value.delete(currLineEndCursor..currLineEndCursor)
-    
-#   if t.cursor >= (max(t.rowCursor + 1, 1) * t.cols):
-#     t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
 
 proc addToHistory(t: TextArea, action: string, cursor: int, content: string) =
   t.viHistory.addLast((cursor: cursor, content: content))
-  
-  # Limit history size to prevent memory issues
   while t.viHistory.len > 100:
     discard t.viHistory.popFirst()
 
+
 func insert(t: TextArea, value: string, pos: int) =
-  t.recordHistory() 
-  # Store state for undo
+  t.recordHistory()
   t.addToHistory("insert", pos, value)
-  
-  # Calculate current row boundaries based on cursor position
-  let actualRowCursor = pos div t.cols
-  let currentRowStart = actualRowCursor * t.cols
-  let currentRowEnd = min(t.value.len - 1, currentRowStart + t.cols - 1)
-  
-  # Ensure position is within bounds
-  if pos >= t.value.len:
-    while t.value.len <= pos:
-      t.value &= " "
-  
-  # Simple character replacement at position
-  if pos < t.value.len:
-    t.value[pos] = value[0]
-  else:
-    t.value &= value
-  
-  # Update row cursor to match actual position
-  t.rowCursor = actualRowCursor
-  
-  # Handle scrolling
-  let visibleRows = t.size - t.statusbarSize
-  if t.rowCursor >= t.scrollY + visibleRows:
-    t.scrollY = t.rowCursor - visibleRows + 1
+  t.value.insert(value, pos)
+
 
 func select(t: TextArea) =
   t.viSelection.startat = t.cursor
@@ -746,39 +532,43 @@ func selectMoveRight(t: TextArea, key: Key) =
     t.viSelection.direction = Right
 
 
-
 func delAtCursor(t: TextArea) =
-  if t.value.len > 0:
+  if t.value.len > 1 and t.cursor < t.value.len - 1:
     t.value.delete(t.cursor .. t.cursor)
-  if t.cursor == t.value.len: t.value &= " "
+  if t.value.len == 0: t.value = " "
 
 
 func delAtStartEndCursor(t: TextArea, startat, endat: int) =
   try:
-    if t.value.len > 0:
-      let endat2 = if endat == t.value.len - 1: endat - 1 else: endat
-      t.value.delete(startat .. endat2)
-    # keep last cursor at space if needed
-    if t.value[^1] != ' ': t.value &= " "
-    elif t.value.len < 1: t.value = " "
-    # ensure cursor positios
-    t.cursor = startat
+    if t.value.len > 1:
+      let safeEnd = min(endat, t.value.len - 2)
+      if startat <= safeEnd:
+        t.value.delete(startat .. safeEnd)
+    if t.value.len == 0: t.value = " "
+    t.cursor = min(startat, t.value.len - 1)
   except:
     t.statusbarText = "failed to delete selected string"
 
 
 func delLine(t: TextArea) =
   try:
-    if t.value.len > 0:
-      t.moveToEnd()
-      let endCursor = t.cursor
-      t.moveToBegin()
-      let startCursor = t.cursor
-      t.viHistory.addLast((cursor: t.cursor, content: t.value[
-          startCursor..endCursor]))
-      t.value.delete(startCursor..endCursor)
-      t.moveToPrevWord()
-      t.rowCursor = max(0, t.rowCursor - 1)
+    # find start of current logical line
+    var lineStart = t.cursor
+    while lineStart > 0 and t.value[lineStart - 1] != '\n':
+      lineStart -= 1
+    # find end of logical line (including the '\n' if present)
+    var lineEnd = t.cursor
+    while lineEnd < t.value.len - 1 and t.value[lineEnd] != '\n':
+      lineEnd += 1
+    if lineEnd < t.value.len - 1:
+      inc lineEnd  # include the '\n'
+    t.viHistory.addLast((cursor: lineStart, content: t.value[lineStart ..< lineEnd]))
+    if lineEnd > lineStart:
+      t.value.delete(lineStart ..< lineEnd)
+    if t.value.len == 0: t.value = " "
+    t.cursor = min(lineStart, t.value.len - 1)
+    t.rowReCal()
+    t.rowCursor = t.computeVisualRow()
   except:
     t.statusbarText = "failed to delete line"
 
@@ -801,10 +591,10 @@ proc putAtCursor(t: TextArea, content: string, cursor: int,
 
 
 func cursorAtLine(t: TextArea): (int, int) =
-  let r = t.rowCursor * t.cols
-  var lineCursor = t.cursor - r
-  lineCursor = if lineCursor < 0: lineCursor *  -1 else: lineCursor
-  return (t.rowCursor, lineCursor)
+  if t.rowCursor < t.rowStartPos.len:
+    let col = t.cursor - t.rowStartPos[t.rowCursor]
+    return (t.rowCursor, col)
+  return (t.rowCursor, 0)
 
 
 proc on*(t: TextArea, event: string, fn: EventFn[TextArea]) =
@@ -865,7 +655,6 @@ proc on*(t: TextArea, key: Key, fn: EventFn[TextArea],
     t.onEditMode(key, fn)
 
 
-
 proc call*(t: TextArea, event: string, args: varargs[string]) =
   if t.events.hasKey(event):
     let fn = t.events[event]
@@ -895,7 +684,7 @@ proc call(t: TextArea, key: Key, args: varargs[string]) =
 proc help(t: TextArea, args: varargs[string]) =
   let wsize = ((t.width - t.posX).toFloat * 0.3).toInt()
   let hsize = ((t.height - t.posY).toFloat * 0.3).toInt()
-  var display = newDisplay(t.x2 - wsize, t.y2 - hsize, 
+  var display = newDisplay(t.x2 - wsize, t.y2 - hsize,
                           t.x2, t.y2, title="help",
                           bgColor=bgWhite, fgColor=fgBlack,
                           tb=t.tb, statusbar=false,
@@ -937,7 +726,7 @@ proc help(t: TextArea, args: varargs[string]) =
                " [d]             delete selected text\n" &
                " [Esc]           back to normal mode\n" &
                " [?]             open help menu\n"
-  
+
   display.text = helpText
   display.illwillInit = true
   display.onControl()
@@ -949,13 +738,13 @@ method resize*(t: TextArea) =
   let statusbarSize = if t.statusbar: 1 else: 0
   t.cols = t.width - t.posX - padding
   t.rows = t.height - t.posY - (padding * 2)
-  t.size = t.height - statusbarSize - t.posY 
-  t.value = repeat(' ', t.rows * t.cols)
+  t.size = t.height - statusbarSize - t.posY
+  t.rowReCal()
 
 
 method render*(t: TextArea) =
   if not t.illwillInit: return
-  
+
   t.clear()
   t.renderBorder()
   t.renderTitle()
@@ -966,23 +755,20 @@ method render*(t: TextArea) =
     let rowStart = max(0, min(t.scrollY, t.textRows.len - 1))
     let visibleRows = t.size - t.statusbarSize
     let rowEnd = min(t.textRows.len - 1, rowStart + visibleRows - 1)
-    var vcursor = if rowStart > 0: rowStart * t.cols else: 0
 
-    for row in t.textRows[rowStart .. min(rowEnd, t.textRows.len - 1)]:
-      #t.renderCleanRow(index)
+    for rowNum in rowStart .. min(rowEnd, t.textRows.len - 1):
+      let row = t.textRows[rowNum]
+      let rowValStart = t.rowStartPos[rowNum]
+
       for i, c in enumerate(row.items()):
+        let vi = rowValStart + i
         if t.enableViMode and t.vimode == Visual:
-          # render selection
-          var bgColor = bgWhite
-          var fgColor = fgBlack
-          if vcursor >= t.viSelection.startat and vcursor <=
-              t.viSelection.endat:
-            t.tb.write(t.x1 + i, t.posY + index, bgColor, fgColor, $c, resetStyle)
+          if vi >= t.viSelection.startat and vi <= t.viSelection.endat:
+            t.tb.write(t.x1 + i, t.posY + index, bgWhite, fgBlack, $c, resetStyle)
           else:
             t.tb.write(t.x1 + i, t.posY + index, $c, resetStyle)
         else:
-          if vcursor == t.cursor:
-            # render cursor style
+          if vi == t.cursor:
             let ch = if c == ' ': cursorStyleArr[t.cursorStyle] else: $c
             if t.cursorStyle == Ibeam:
               t.tb.write(t.x1 + i, t.posY + index, styleBlink,
@@ -991,15 +777,18 @@ method render*(t: TextArea) =
               t.tb.write(t.x1 + i, t.posY + index, styleBlink,
                          styleUnderscore, t.cursorBg, t.cursorFg, ch, resetStyle)
           else:
-            # render character
             t.tb.write(t.x1 + i, t.posY + index, $c, t.bg, t.fg)
-        inc vcursor
+
+      # cursor at end-of-row (after last visible char, e.g. before '\n')
+      if not (t.enableViMode and t.vimode == Visual):
+        let endPos = rowValStart + row.len
+        if endPos == t.cursor and endPos <= t.value.len - 1:
+          t.tb.write(t.x1 + row.len, t.posY + index, styleBlink,
+                     t.cursorBg, t.cursorFg, cursorStyleArr[t.cursorStyle], resetStyle)
+
       inc index
 
   if t.statusbar:
-    # for debug
-    # let cval = if t.value.len > 0: $t.value[t.cursor] else: " "
-    # let statusbarText = $t.cursor & "|" & $t.rowCursor & "|" & cval & "|len:" & $t.value.len
     if not t.enableViMode:
       if t.events.hasKey("statusbar"):
         t.call("statusbar")
@@ -1011,7 +800,6 @@ method render*(t: TextArea) =
         t.tb.write(t.x1, t.height - 1, fgCyan, statusbarText, resetStyle)
 
     else:
-      # vi mode style for statusbar
       var bgColor = t.viStyle.normalBg
       var fgColor = t.viStyle.normalFg
 
@@ -1034,13 +822,10 @@ method render*(t: TextArea) =
       statusbarText = statusbarText & " ".repeat(max(0, t.width - statusbarText.len() - borderSize - len($t.vimode) - 4))
       t.tb.write(t.x1 + len($t.vimode) + 4, t.height - 1, t.viStyle.cursorAtLineBg,
                 t.viStyle.cursorAtLineFg, statusbarText, resetStyle)
-      
+
       if t.enableHelp:
         let q = "[?]"
         t.tb.write(t.x2 - q.len, t.height - 1, bgWhite, fgBlack, q, resetStyle)
-
-      # experimantal feature
-      # t.experimental()
 
   t.tb.display()
 
@@ -1072,8 +857,8 @@ proc splitByToken*(s: string): seq[WordToken] =
   for token in tokens:
     result.add(
       WordToken(
-        startat: pos, 
-        endat: pos + token.len, 
+        startat: pos,
+        endat: pos + token.len,
         token: token
       )
     )
@@ -1085,22 +870,20 @@ proc autocomplete(t: TextArea) =
   # pass in current word token by cursor !
   let tokens = splitByToken(t.value)
   var currToken: WordToken
-  
-  for token in tokens: 
-    #echo $token
+
+  for token in tokens:
     if t.cursor >= token.startat and token.endat >= t.cursor:
       currToken = token
       break
-  
+
   if currToken.token.len >= t.autocompleteTrigger:
-    # read from complete list
     t.call("autocomplete", currToken.token)
   else: t.autocompleteList = newSeq[Completion]()
 
   if t.autocompleteList.len == 0:
     return
-  
-  let x1 = if t.rowCursor == 0: t.cursor + 1 else: (t.cursor - (t.rowCursor * t.cols)) + 1
+
+  let x1 = if t.rowCursor == 0: t.cursor + 1 else: (t.cursor - t.rowStartPos[t.rowCursor]) + 1
   let x2 = max((t.x2 / 2).toInt, t.x2)
   var completionList = newListView(t.x1 + x1, t.y1 + t.rowCursor,
                                 x2, t.y1 + t.rowCursor + t.autocompleteWindowSize,
@@ -1110,15 +893,14 @@ proc autocomplete(t: TextArea) =
 
   var rows = newSeq[ListRow]()
   var enteredKey = ""
-  # populate completion list
   var listWidth = 0
   for i, completion in enumerate(t.autocompleteList):
     let completionText = completion.icon & " " & completion.value & " " & completion.description
-    rows.add(newListRow(i, completionText, completion.value, 
+    rows.add(newListRow(i, completionText, completion.value,
                         bgColor=t.autocompleteBgColor, fgColor=t.autocompleteFgColor))
     if completionText.len > listWidth:
       listWidth = min(t.x2 - t.x1, completionText.len)
-      if completionList.x1 + listWidth >= t.x2: 
+      if completionList.x1 + listWidth >= t.x2:
         completionList.posX = t.x2 - listWidth - 1
         completionList.posY += 1
         completionList.height += 1
@@ -1129,19 +911,19 @@ proc autocomplete(t: TextArea) =
 
   let esc = proc(lv: ListView, args: varargs[string]) = lv.focus = false
 
-  let captureKey = proc(lv: ListView, key: varargs[string]) = 
+  let captureKey = proc(lv: ListView, key: varargs[string]) =
     var numbers = initTable[string, string]()
     numbers["Zero"] = "0"
     numbers["One"] = "1"
     numbers["Two"] = "2"
-    numbers["Three"] = "3" 
+    numbers["Three"] = "3"
     numbers["Four"] = "4"
     numbers["Five"] = "5"
     numbers["Six"] = "6"
     numbers["Seven"] = "7"
     numbers["Eight"] = "8"
     numbers["Nine"] = "9"
-    
+
     var specialChars = initTable[string, string]()
     specialChars["Space"] = " "
     specialChars["ExclamationMark"] = "!"
@@ -1177,7 +959,6 @@ proc autocomplete(t: TextArea) =
     specialChars["RightBrace"] = "}"
     specialChars["Tilde"] = "`"
 
-
     if key[0] == "Escape": enteredKey = ""
     elif numbers.hasKey(key[0]): enteredKey = numbers[key[0]]
     elif specialChars.hasKey(key[0]): enteredKey = specialChars[key[0]]
@@ -1190,15 +971,16 @@ proc autocomplete(t: TextArea) =
       if t.value.len > 0:
         t.value.delete(t.cursor .. t.cursor)
         if t.cursor == t.value.len: t.value &= " "
-    elif key[0] == "Enter" or key[0] == "Left" or key[0] == "Right" or 
-      key[0] == "Insert" or key[0] == "Home" or key[0] == "End" or key[0] == "Tab": 
+    elif key[0] == "Enter" or key[0] == "Left" or key[0] == "Right" or
+      key[0] == "Insert" or key[0] == "Home" or key[0] == "End" or key[0] == "Tab":
       enteredKey = ""
     else: enteredKey = key[0].toLower()
-  
+
   let enterEv = proc(lv: ListView, args: varargs[string]) =
     let selected = lv.selected.value
     for pos in currToken.startat..max(t.cursor, currToken.endat):
-      t.value[pos] = ' '
+      if pos < t.value.len and t.value[pos] != '\n':
+        t.value[pos] = ' '
 
     t.cursor = currToken.startat
 
@@ -1216,15 +998,15 @@ proc autocomplete(t: TextArea) =
     completionList.on(k, esc)
   for k in escapeList2:
     completionList.on(k, esc)
-  
+
   completionList.on(Key.Escape, esc)
-  completionList.on("postupdate", captureKey) 
+  completionList.on("postupdate", captureKey)
   completionList.on("enter", enterEv)
   completionList.rows = rows
   completionList.illwillInit = true
   completionList.render()
   completionList.onControl()
-  
+
   if enteredKey != "":
     t.insert(enteredKey, t.cursor)
     t.cursorMove(1)
@@ -1297,7 +1079,7 @@ proc normalMode(t: TextArea) =
   while true:
     let keys = getKeysWithTimeout()
     let key = identifyKey(keys)
-    
+
     case key
     of Key.I, Key.Insert:
       t.vimode = Insert
@@ -1317,6 +1099,7 @@ proc normalMode(t: TextArea) =
       t.vimode = Insert
       t.moveToEnd()
       inc t.cursor
+      t.cursor = min(t.cursor, t.value.len - 1)
       t.render()
       break
     of Key.O:
@@ -1328,13 +1111,10 @@ proc normalMode(t: TextArea) =
     of Key.ShiftO:
       t.vimode = Insert
       t.moveToBegin()
-      # Insert newline characters to create new line above
-      let spacesToInsert = t.cols
-      var newlineContent = repeat(' ', spacesToInsert)
-      t.value.insert(newlineContent, t.cursor)
-      t.cursor = max(0, t.cursor)
-      if t.rowCursor > 0:
-        t.rowCursor = max(0, t.rowCursor - 1)
+      t.value.insert("\n", t.cursor)
+      # cursor stays at same position (now first char of new line above)
+      t.rowReCal()
+      t.rowCursor = t.computeVisualRow()
       t.render()
       break
     of Key.R:
@@ -1347,7 +1127,7 @@ proc normalMode(t: TextArea) =
         elif replaceKey >= Key.A and replaceKey <= Key.Z:
           if t.cursor < t.value.len - 1:
             t.addToHistory("replace", t.cursor, $t.value[t.cursor])
-            t.value[t.cursor] = chr(replaceKey.ord + 32) # Convert to lowercase
+            t.value[t.cursor] = chr(replaceKey.ord + 32)
             t.moveRight()
           break
         elif replaceKey >= Key.Zero and replaceKey <= Key.Nine:
@@ -1356,7 +1136,7 @@ proc normalMode(t: TextArea) =
             let numKeys = [Key.Zero, Key.One, Key.Two, Key.Three, Key.Four,
                           Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
             let keyPos = numKeys.find(replaceKey)
-            t.value[t.cursor] = chr(48 + keyPos) # Convert to digit
+            t.value[t.cursor] = chr(48 + keyPos)
             t.moveRight()
           break
         elif replaceKey == Key.Space:
@@ -1480,10 +1260,8 @@ proc normalMode(t: TextArea) =
     of Key.Right, Key.L:
       t.moveRight()
     of Key.Up, Key.K:
-      t.rowCursor = max(t.rowCursor - 1, 0)
       t.moveUp()
     of Key.Down, Key.J:
-      t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
       t.moveDown()
     of Key.Home, Key.Caret:
       t.moveToBegin()
@@ -1512,9 +1290,6 @@ proc normalMode(t: TextArea) =
     of Key.U:
       t.undo()
       t.render()
-      # if t.cursor < t.value.len and t.viHistory.len > 0:
-      #   let prevBuff = t.viHistory.popLast()
-      #   t.putAtCursor(prevBuff.content, prevBuff.cursor)
     of Key.CtrlR:
       t.redo()
       t.render()
@@ -1545,7 +1320,8 @@ proc normalMode(t: TextArea) =
       t.render()
     of Key.ShiftG:
       t.cursor = t.value.len - 1
-      t.rowCursor = t.textRows.len - 1
+      t.rowReCal()
+      t.rowCursor = t.computeVisualRow()
       t.render()
     of Key.G:
       t.statusbarText = " G "
@@ -1556,6 +1332,7 @@ proc normalMode(t: TextArea) =
         of Key.G:
           t.cursor = 0
           t.rowCursor = 0
+          t.scrollY = 0
           break
         of Key.Escape:
           break
@@ -1603,10 +1380,10 @@ proc visualMode(t: TextArea) =
   ##   e           = goto end of word
   ##   Escape      = back to normal mode
   var isLineMode = false
-  
+
   while true:
     var key = getKeyWithTimeout(t.rpms)
-    
+
     case key
     of Key.Escape:
       t.vimode = Normal
@@ -1656,7 +1433,6 @@ proc visualMode(t: TextArea) =
         break
     of Key.Left, Key.Backspace, Key.H:
       if isLineMode:
-        t.rowCursor = max(t.rowCursor - 1, 0)
         t.moveUp()
         t.moveToBegin()
         t.viSelection.startat = min(t.viSelection.startat, t.cursor)
@@ -1664,7 +1440,6 @@ proc visualMode(t: TextArea) =
         t.selectMoveLeft(key)
     of Key.Right, Key.L:
       if isLineMode:
-        t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
         t.moveDown()
         t.moveToEnd()
         t.viSelection.endat = max(t.viSelection.endat, t.cursor)
@@ -1672,7 +1447,6 @@ proc visualMode(t: TextArea) =
         t.selectMoveRight(key)
     of Key.Up, Key.K:
       if isLineMode:
-        t.rowCursor = max(t.rowCursor - 1, 0)
         t.moveUp()
         t.moveToBegin()
         t.viSelection.startat = min(t.viSelection.startat, t.cursor)
@@ -1680,7 +1454,6 @@ proc visualMode(t: TextArea) =
         t.selectMoveLeft(key)
     of Key.Down, Key.J:
       if isLineMode:
-        t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
         t.moveDown()
         t.moveToEnd()
         t.viSelection.endat = max(t.viSelection.endat, t.cursor)
@@ -1744,7 +1517,7 @@ method onUpdate*(t: TextArea, key: Key) =
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
   t.call("preupdate", $key)
   case key
-  of Key.None: 
+  of Key.None:
     t.render()
     return
   of Key.Escape:
@@ -1752,7 +1525,7 @@ method onUpdate*(t: TextArea, key: Key) =
       t.normalMode()
       return
     else: t.focus = false
-  of Key.Tab: 
+  of Key.Tab:
     if t.enableViMode and t.vimode == Insert:
       t.insert(" ", t.cursor)
       t.insert(" ", t.cursor)
@@ -1764,9 +1537,11 @@ method onUpdate*(t: TextArea, key: Key) =
   of Key.Backspace:
     t.backspace()
   of Key.Delete:
-    if t.value.len > 0:
+    if t.value.len > 1 and t.cursor < t.value.len - 1:
       t.value.delete(t.cursor .. t.cursor)
-      if t.cursor == t.value.len: t.value &= " "
+      if t.value.len == 0: t.value = " "
+      t.rowReCal()
+      t.rowCursor = t.computeVisualRow()
   of Key.CtrlE:
     t.value = " "
     t.resetCursor()
@@ -1891,10 +1666,8 @@ method onUpdate*(t: TextArea, key: Key) =
   of Key.Right:
     t.moveRight()
   of Key.Up:
-    t.rowCursor = max(t.rowCursor - 1, 0)
     t.moveUp()
   of Key.Down:
-    t.rowCursor = min(t.textRows.len - 1, t.rowCursor + 1)
     t.moveDown()
   of Key.Enter:
     t.enter()
@@ -1909,7 +1682,7 @@ method onUpdate*(t: TextArea, key: Key) =
 
   t.render()
   sleep(t.rpms)
-  
+
   if t.enableAutocomplete: t.autocomplete()
   t.call("postupdate", $key)
 
@@ -1927,7 +1700,7 @@ proc editMode(t: TextArea) =
     elif t.enableViMode and t.vimode == Normal: break
     elif t.enableViMode and t.vimode == Visual: break
     else: t.onUpdate(key)
-   
+
 
 method onControl*(t: TextArea) =
   t.focus = true
@@ -1949,20 +1722,18 @@ method wg*(t: TextArea): ref BaseWidget = t
 
 
 proc value*(t: TextArea): string =
-  return t.value.strip()
+  result = t.value
+  while result.len > 0 and result[^1] in {' ', '\n'}:
+    result.setLen(result.len - 1)
 
 
 proc val(t: TextArea, val: string) =
   t.clear()
-  let valSize = max(val.len + 1, t.value.len)
-  t.value = repeat(' ', valSize)
-  for i in 0 ..< val.len:
-    t.value[i] = val[i]
-  t.value &= " "
+  t.value = val & " "
+  t.cursor = 0
+  t.rowCursor = 0
+  t.scrollY = 0
   t.rowReCal()
-  t.cursor = val.len + 1
-  t.rowCursor = min(t.textRows.len - 1, floorDiv(val.len, t.cols))
-  t.render()
 
 
 proc `value=`*(t: TextArea, val: string) =
@@ -1970,5 +1741,3 @@ proc `value=`*(t: TextArea, val: string) =
 
 proc value*(t: TextArea, val: string) =
   t.val(val)
-
-
