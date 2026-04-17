@@ -380,9 +380,8 @@ proc clear*(bw: ref BaseWidget) =
   bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.bg, bw.fg, " ")
 
 
-proc rerender*(bw: ref BaseWidget)  =
-  # not to render widget without valid x,y
-  if bw.posX == 0 and bw.posY == 0:
+proc rerender*(bw: ref BaseWidget) =
+  if bw.width == 0 or bw.height == 0:
     return
   bw.clear()
   bw.render()

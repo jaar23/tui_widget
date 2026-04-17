@@ -26,7 +26,7 @@ proc newLabel*(px, py, w, h: int, id = "", text = "",
   result = Label(
     width: w,
     height: h,
-    posX: if px == 0: 1 else: px,
+    posX: px,
     posY: py,
     id: id,
     text: text,
