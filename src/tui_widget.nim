@@ -306,18 +306,14 @@ proc render*(app: var TerminalApp, nonBlocking=false) =
   for i, w in app.widgets:
     if i == app.cursor: continue
     if w.visibility:
-      try:
+      w.safeCall "render":
         w.rerender()
-      except:
-        w.onError(getCurrentExceptionMsg())
   # render focused widget last so its popup overlays neighbors
   if app.cursor < app.widgets.len:
     let fw = app.widgets[app.cursor]
     if fw.visibility:
-      try:
+      fw.safeCall "render":
         fw.rerender()
-      except:
-        fw.onError(getCurrentExceptionMsg())
   for w in app.widgets:
     w.suppressDisplay = false
   app.tb.display()
@@ -388,18 +384,35 @@ proc backgroundTasks() {.thread.} =
     let task = bgChannel.recv()
     try:
       task.invoke()
-    except:
-      echo getCurrentExceptionMsg()
+    except CatchableError:
+      # echo would corrupt the TUI; route to the app-level error handler if
+      # one is set, otherwise swallow. Background thread has no widget id.
+      let e = getCurrentException()
+      let msg = (if e.isNil: "unknown" else: e.msg)
+      let trc = (if e.isNil: ""        else: e.getStackTrace())
+      {.gcsafe.}:
+        if not globalErrorHandler.isNil:
+          try: globalErrorHandler("<background>", "task", msg, trc)
+          except CatchableError: discard
+
+
+proc `onWidgetError=`*(app: var TerminalApp, handler: GlobalErrorHandler) =
+  ## Install a process-wide handler that fires every time `safeCall` traps
+  ## a widget exception (or a background task fails). Setting nil disables.
+  globalErrorHandler = handler
 
 
 proc pollWidgetChannel(app: var TerminalApp) =
   for w in app.widgets:
-    w.poll()
+    w.safeCall "poll":
+      w.poll()
 
 
 proc nonBlockingControl(app: var TerminalApp) =
   if app.widgets[app.cursor].blocking:
-    app.widgets[app.cursor].onControl()
+    let w = app.widgets[app.cursor]
+    w.safeCall "onControl":
+      w.onControl()
     inc app.cursor
   else:
     inc app.cursor
@@ -511,11 +524,14 @@ proc go(app: var TerminalApp) =
               break
         for widget in app.widgets:
           if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
-            widget.onMouseEvent(mouseInfo)
+            widget.safeCall "onMouseEvent":
+              widget.onMouseEvent(mouseInfo)
         app.render()
     else:
-      app.widgets[app.cursor].focus = true
-      app.widgets[app.cursor].onUpdate(key)
+      let w = app.widgets[app.cursor]
+      w.focus = true
+      w.safeCall "onUpdate":
+        w.onUpdate(key)
 
       # poll for changes from other widget
       app.pollWidgetChannel()
@@ -555,12 +571,10 @@ proc hold(app: var TerminalApp) =
     var key = getKeyWithTimeout(app.rpms)
     case key
     of Key.Tab, Key.None:
-      try:
-        if app.cursor > app.widgets.len - 1: app.cursor = 0
-        app.widgets[app.cursor].onControl()
-      except:
-        let err = getCurrentException()
-        app.widgets[app.cursor].onError(err.getStackTrace())
+      if app.cursor > app.widgets.len - 1: app.cursor = 0
+      let w = app.widgets[app.cursor]
+      w.safeCall "onControl":
+        w.onControl()
       inc app.cursor
     of Key.Mouse:
       if app.mouseEnabled:
@@ -574,7 +588,8 @@ proc hold(app: var TerminalApp) =
               break
         for widget in app.widgets:
           if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
-            widget.onMouseEvent(mouseInfo)
+            widget.safeCall "onMouseEvent":
+              widget.onMouseEvent(mouseInfo)
     else: discard
     
     sleep(app.rpms)

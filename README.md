@@ -2,13 +2,13 @@
 
 Terminal UI widget based on [illwill](https://github.com/johnnovak/illwill/tree/master)
 
-The widgets is currently in alpha version. API is getting stable and you're welcome to build yout own text based application. 
+The widgets is currently in beta version. API is getting stable and you're welcome to build yout own text based application. 
 
-**Note** Experimental feature in [0.1.1](https://github.com/jaar23/tui_widget/tree/0.1.1) branch.
+**Note** Latest feature in [0.1.4](https://github.com/jaar23/tui_widget/tree/0.1.1) branch.
 
-- merged textarea autocomplete from 0.1.1
+- mouse enabled widgets
 
-- refactor textarea 
+- global exception handling
 
 ### Quick preview
 
@@ -75,6 +75,8 @@ app.run()
 [Events](./docs/events.md), explain how `tui_widget`'s events works
 
 [TerminalApp](./docs/terminal-app.md), bootstrap widget with `TerminalApp`.
+
+[Exception Handling](./docs/exception_handling.md), how widget errors are trapped so they don't crash the app, with a runnable demo.
 
 ### Examples
 

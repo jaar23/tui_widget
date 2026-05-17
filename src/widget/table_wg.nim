@@ -861,7 +861,7 @@ proc loadFromCsv*(table: Table, filepath: string, withHeader = false,
     table.render()
   except IOError, FileNotFoundError:
     table.emptyRows()
-    echo "failed to open file"
+    table.onError("failed to open file: " & getCurrentExceptionMsg())
 
 
 proc headerFromArray*(table: Table, header: openArray[string], 

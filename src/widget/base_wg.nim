@@ -89,6 +89,16 @@ type
 
   XYInitError* = object of CatchableError
 
+  GlobalErrorHandler* = proc(widgetId: string, where: string,
+                             msg: string, trace: string) {.closure, gcsafe.}
+
+
+var globalErrorHandler*: GlobalErrorHandler = nil
+  ## Optional app-level hook for caught widget exceptions. nil = no-op.
+  ## Must be gcsafe — also invoked from the background-task thread.
+  ## Future log file / banner / throttling / telemetry plug in here without
+  ## modifying any call site.
+
 
 proc consoleWidth*(): int =
   return terminalWidth() - 2
@@ -155,9 +165,29 @@ method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
 
 method onError*(this: ref BaseWidget, errorCode: string) {.base.} =
   this.tb.fill(this.posX, this.posY, this.width, this.height, " ")
-  this.tb.write(this.posX +  1, this.posY, fgRed, 
-                bgWhite, "[!] " & wrapWords(errorCode, this.width - this.posX), 
+  this.tb.write(this.posX +  1, this.posY, fgRed,
+                bgWhite, "[!] " & wrapWords(errorCode, this.width - this.posX),
                 resetStyle)
+
+
+template safeCall*(wg: ref BaseWidget, where: string, body: untyped) =
+  ## Run `body` with all CatchableErrors routed to wg.onError so the main
+  ## loop never crashes from user widget code. `where` is a short context
+  ## label ("onUpdate" / "onMouseEvent" / "poll" / "render" / "onControl")
+  ## that prefixes the error so users can tell which surface failed.
+  try:
+    body
+  except CatchableError:
+    let e = getCurrentException()
+    let msg = (if e.isNil: "unknown" else: e.msg)
+    let trc = (if e.isNil: ""        else: e.getStackTrace())
+    if not globalErrorHandler.isNil:
+      try: globalErrorHandler(wg.id, where, msg, trc)
+      except CatchableError: discard
+    try:
+      wg.onError(where & ": " & msg)
+    except CatchableError:
+      discard  # never cascade — swallow secondary failure
 
 
 proc bg*(bw: ref BaseWidget, bgColor: BackgroundColor) =
