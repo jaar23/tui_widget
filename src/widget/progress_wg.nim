@@ -114,7 +114,7 @@ method render*(pb: ProgressBar) =
   pb.tb.drawRect(progressBarWidth, pb.height, pb.posX, pb.posY)
   pb.tb.write(pb.posX + 1, pb.height - 1, pb.bg, pb.fgLoaded, progressLoaded, resetStyle,
               pb.bg, pb.fgLoading, progressLoading, percentage, "%", resetStyle)
-  pb.tb.display()
+  if not pb.suppressDisplay: pb.tb.display()
   
 
 method wg*(pb: ProgressBar): ref BaseWidget = pb

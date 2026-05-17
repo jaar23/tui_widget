@@ -142,7 +142,7 @@ method render*(ctr: Container) =
   for w in ctr.widgets:
     if w.visibility:
       w.rerender()
-  ctr.tb.display()
+  if not ctr.suppressDisplay: ctr.tb.display()
 
 
 method poll*(ctr: Container) =
@@ -247,5 +247,18 @@ method onControl*(ctr: Container) =
     w.focus = false
   ctr.render()
 
+
+method onMouseEvent*(ctr: Container, mouseInfo: MouseInfo) =
+  for i, child in ctr.widgets:
+    if child.visibility and child.contains(mouseInfo.x, mouseInfo.y):
+      if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+        if ctr.cursor < ctr.widgets.len:
+          ctr.widgets[ctr.cursor].focus = false
+        ctr.cursor = i
+        ctr.widgets[ctr.cursor].focus = true
+      child.onMouseEvent(mouseInfo)
+      return
+  if not ctr.onMouse.isNil:
+    ctr.onMouse(ctr, mouseInfo)
 
 method wg*(ctr: Container): ref BaseWidget = ctr

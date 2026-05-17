@@ -122,7 +122,7 @@ method render*(ch: Checkbox) =
     ch.tb.fill(ch.posX + 3, ch.posY + 1, ch.posX + 3, ch.posY + 1, " ")
     ch.tb.fill(ch.posX + 4, ch.posY + 1, ch.posX + 4, ch.posY + 1, "]")
   ch.tb.write(ch.posX + 6, ch.posY + 1, ch.bg, ch.fg, ch.label, resetStyle)
-  ch.tb.display()
+  if not ch.suppressDisplay: ch.tb.display()
 
 
 method poll*(ch: Checkbox) =
@@ -156,6 +156,14 @@ method onControl*(ch: Checkbox) =
     var key = getKeyWithTimeout(ch.rpms)
     ch.onUpdate(key)
 
+
+method onMouseEvent*(ch: Checkbox, mouseInfo: MouseInfo) =
+  if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+    ch.checked = not ch.checked
+    ch.call("enter", ch.checked)
+    ch.render()
+  if not ch.onMouse.isNil:
+    ch.onMouse(ch, mouseInfo)
 
 method wg*(ch: Checkbox): ref BaseWidget = ch
 

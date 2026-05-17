@@ -505,7 +505,7 @@ method render*(yv: YamlViewer) =
   if yv.statusbar:
     yv.renderStatusbar()
   
-  yv.tb.display()
+  if not yv.suppressDisplay: yv.tb.display()
 
 
 method poll*(yv: YamlViewer) =

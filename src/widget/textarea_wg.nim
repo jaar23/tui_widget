@@ -827,7 +827,7 @@ method render*(t: TextArea) =
         let q = "[?]"
         t.tb.write(t.x2 - q.len, t.height - 1, bgWhite, fgBlack, q, resetStyle)
 
-  t.tb.display()
+  if not t.suppressDisplay: t.tb.display()
 
 
 proc resetCursor*(t: TextArea) =
@@ -1717,6 +1717,17 @@ method onControl*(t: TextArea) =
     t.render()
     sleep(t.rpms)
 
+
+method onMouseEvent*(t: TextArea, mouseInfo: MouseInfo) =
+  if mouseInfo.scroll:
+    if mouseInfo.scrollDir == ScrollDirection.sdUp:
+      t.moveUp()
+      t.render()
+    elif mouseInfo.scrollDir == ScrollDirection.sdDown:
+      t.moveDown()
+      t.render()
+  if not t.onMouse.isNil:
+    t.onMouse(t, mouseInfo)
 
 method wg*(t: TextArea): ref BaseWidget = t
 

@@ -1,4 +1,4 @@
-import illwill, base_wg, sequtils, strutils, tables, os
+import illwill, base_wg, sequtils, strutils, tables, os, unicode
 import threading/channels
 
 type
@@ -87,31 +87,20 @@ proc visibleOptions(dd: Dropdown): seq[DropdownOption] =
 
 
 # ---------------------------------------------------------------------------
-# Save / restore the terminal buffer area the expanded list will cover.
-# This ensures that when the list closes, whatever was behind it is restored
-# rather than leaving a blank hole.
+# Clear the expanded-list region on collapse. Resetting the cells to bgNone
+# lets the next app.render() cycle repaint any underlying widgets cleanly;
+# without it, residual bgBlack/fill cells linger in rows not covered by any
+# other widget.
 # ---------------------------------------------------------------------------
 
-proc saveListArea(dd: Dropdown) =
+proc clearListArea(dd: Dropdown) =
   let listY = dd.height
   let listBottom = min(listY + dd.maxVisibleOptions + 2, terminalHeight() - 1)
-  dd.savedList = newSeq[TerminalChar]()
+  let xEnd = min(dd.width, terminalWidth() - 1)
+  let blank = TerminalChar(ch: " ".runeAt(0), fg: fgNone, bg: bgNone, style: {})
   for y in listY..listBottom:
-    for x in dd.posX..min(dd.width, terminalWidth() - 1):
-      dd.savedList.add(dd.tb[x, y])
-
-
-proc restoreListArea(dd: Dropdown) =
-  if dd.savedList.len == 0: return
-  let listY = dd.height
-  let listBottom = min(listY + dd.maxVisibleOptions + 2, terminalHeight() - 1)
-  var idx = 0
-  for y in listY..listBottom:
-    for x in dd.posX..min(dd.width, terminalWidth() - 1):
-      if idx < dd.savedList.len:
-        dd.tb[x, y] = dd.savedList[idx]
-      inc idx
-  dd.savedList = @[]
+    for x in dd.posX..xEnd:
+      dd.tb[x, y] = blank
 
 
 proc renderDropdownBox(dd: Dropdown) =
@@ -148,9 +137,6 @@ proc renderDropdownList(dd: Dropdown) =
   if not dd.expanded or dd.options.len == 0:
     return
 
-  # Save what is behind the list before drawing over it
-  dd.saveListArea()
-
   let visOpts = dd.visibleOptions()
   # Fixed: height is an absolute coordinate, NOT a relative offset
   let listY = dd.height
@@ -179,8 +165,9 @@ proc renderDropdownList(dd: Dropdown) =
 
 
 proc clearDropdownList(dd: Dropdown) =
-  # Restore whatever was behind the list (fixes blank-hole bug)
-  dd.restoreListArea()
+  # Clear the list area so next app.render() can repaint underlying widgets
+  # cleanly without leftover bgBlack cells.
+  dd.clearListArea()
 
 
 proc renderStatusBar(dd: Dropdown) =
@@ -232,7 +219,7 @@ method render*(dd: Dropdown) =
   dd.renderDropdownBox()
   dd.renderDropdownList()
   dd.renderStatusBar()
-  dd.tb.display()
+  if not dd.suppressDisplay: dd.tb.display()
 
 
 method onUpdate*(dd: Dropdown, key: Key) =
@@ -294,6 +281,51 @@ method onControl*(dd: Dropdown): void =
     var key = getKeyWithTimeout(dd.rpms)
     dd.onUpdate(key)
 
+
+method contains*(dd: Dropdown, x, y: int): bool =
+  ## Include the expanded list area in hit-testing so option clicks reach us.
+  if x < dd.posX or x > dd.width: return false
+  if y >= dd.posY and y <= dd.height: return true
+  if dd.expanded:
+    let listBottom = dd.height + min(dd.maxVisibleOptions, dd.options.len) + 1
+    return y > dd.height and y <= listBottom
+  return false
+
+
+method onMouseEvent*(dd: Dropdown, mouseInfo: MouseInfo) =
+  if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+    if dd.expanded:
+      # Detect click on a specific option row in the expanded list
+      let visOpts = dd.visibleOptions()
+      let listCount = min(dd.maxVisibleOptions, visOpts.len)
+      let firstOptionRow = dd.height + 1
+      let lastOptionRow = dd.height + listCount
+      if mouseInfo.y >= firstOptionRow and mouseInfo.y <= lastOptionRow:
+        let optIdx = mouseInfo.y - firstOptionRow
+        if optIdx < visOpts.len:
+          dd.selectedIndex = dd.options.find(visOpts[optIdx])
+      # Either an option was clicked, or the box itself was clicked while
+      # expanded — collapse and fire select with the current selectedIndex.
+      dd.expanded = false
+      dd.clearDropdownList()
+      if dd.selectedIndex >= 0 and dd.selectedIndex < dd.options.len:
+        dd.call("select", dd.options[dd.selectedIndex].value, dd.options[dd.selectedIndex].text)
+    else:
+      dd.expanded = true
+    dd.render()
+  elif mouseInfo.scroll and dd.expanded and dd.options.len > 0:
+    let visOpts = dd.visibleOptions()
+    if visOpts.len > 0:
+      let currentVisIndex = visOpts.find(dd.options[dd.selectedIndex])
+      if mouseInfo.scrollDir == ScrollDirection.sdUp:
+        let newVisIndex = if currentVisIndex <= 0: visOpts.len - 1 else: currentVisIndex - 1
+        dd.selectedIndex = dd.options.find(visOpts[newVisIndex])
+      elif mouseInfo.scrollDir == ScrollDirection.sdDown:
+        let newVisIndex = if currentVisIndex >= visOpts.len - 1: 0 else: currentVisIndex + 1
+        dd.selectedIndex = dd.options.find(visOpts[newVisIndex])
+    dd.render()
+  if not dd.onMouse.isNil:
+    dd.onMouse(dd, mouseInfo)
 
 method wg*(dd: Dropdown): ref BaseWidget = dd
 

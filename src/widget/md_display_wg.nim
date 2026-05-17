@@ -996,7 +996,7 @@ method render*(md: Markdown) =
   if md.statusbar:
     md.renderStatusbar()
   
-  md.tb.display()
+  if not md.suppressDisplay: md.tb.display()
 
 proc resetCursor*(md: Markdown) =
   md.rowCursor = 0

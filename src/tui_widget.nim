@@ -64,6 +64,11 @@ type
 
 var bgChannel = newChan[Task]() 
 
+proc enableMouse*(app: var TerminalApp) =
+  ## Enable mouse event support. Must be called before app.run().
+  app.mouseEnabled = true
+
+
 proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
                      terminalHeight()), title: string = "", border: bool = false,
                      bgColor = illwill.bgNone, fgColor = illwill.fgWhite,
@@ -292,11 +297,30 @@ proc renderAppFrame(app: var TerminalApp) =
 
 proc render*(app: var TerminalApp, nonBlocking=false) =
   for w in app.widgets:
+    w.suppressDisplay = true
+  # Defensive whole-buffer reset: wipes any stale cells from previous frames
+  # (e.g. focus-style borders, popup overlays) so per-widget render bugs can't
+  # leak into neighbour widgets' cells.
+  app.renderAppFrame()
+  # render all non-focused widgets first
+  for i, w in app.widgets:
+    if i == app.cursor: continue
     if w.visibility:
       try:
         w.rerender()
       except:
         w.onError(getCurrentExceptionMsg())
+  # render focused widget last so its popup overlays neighbors
+  if app.cursor < app.widgets.len:
+    let fw = app.widgets[app.cursor]
+    if fw.visibility:
+      try:
+        fw.rerender()
+      except:
+        fw.onError(getCurrentExceptionMsg())
+  for w in app.widgets:
+    w.suppressDisplay = false
+  app.tb.display()
 
 
 proc widgetInit(app: var TerminalApp) =
@@ -474,12 +498,21 @@ proc go(app: var TerminalApp) =
     of Key.Tab:
       app.widgets[app.cursor].focus = false
       app.nonBlockingControl()
-    of Key.Mouse:  # Handle mouse events
+    of Key.Mouse:
       if app.mouseEnabled:
         let mouseInfo = getMouse()
+        # Left-click shifts keyboard focus to the clicked widget
+        if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+          for i, widget in app.widgets:
+            if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+              app.widgets[app.cursor].focus = false
+              app.cursor = i
+              app.widgets[app.cursor].focus = true
+              break
         for widget in app.widgets:
           if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
             widget.onMouseEvent(mouseInfo)
+        app.render()
     else:
       app.widgets[app.cursor].focus = true
       app.widgets[app.cursor].onUpdate(key)
@@ -529,9 +562,16 @@ proc hold(app: var TerminalApp) =
         let err = getCurrentException()
         app.widgets[app.cursor].onError(err.getStackTrace())
       inc app.cursor
-    of Key.Mouse:  # Handle mouse events in blocking mode
+    of Key.Mouse:
       if app.mouseEnabled:
         let mouseInfo = getMouse()
+        if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+          for i, widget in app.widgets:
+            if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+              app.widgets[app.cursor].focus = false
+              app.cursor = i
+              app.widgets[app.cursor].focus = true
+              break
         for widget in app.widgets:
           if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
             widget.onMouseEvent(mouseInfo)

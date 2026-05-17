@@ -119,7 +119,7 @@ method render*(bt: Button) =
     bt.renderRect(bt.x1, bt.y1, bt.x2, bt.y2, bt.bg, bt.fg)
     bt.tb.write(bt.x1, bt.y1, bt.bg, bt.fg, 
                 center(bt.label, bt.width - bt.x1), resetStyle)
-  bt.tb.display()
+  if not bt.suppressDisplay: bt.tb.display()
 
 
 method poll*(bt: Button) =
@@ -161,6 +161,18 @@ method onControl*(bt: Button) =
   bt.render()
   sleep(bt.rpms)
 
+
+method onMouseEvent*(bt: Button, mouseInfo: MouseInfo) =
+  if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
+    if bt.disabled: return
+    bt.buttonState = Pressed
+    bt.render()
+    bt.call("enter")
+    sleep(120)
+    bt.buttonState = Unpressed
+    bt.render()
+  if not bt.onMouse.isNil:
+    bt.onMouse(bt, mouseInfo)
 
 method wg*(bt: Button): ref BaseWidget = bt
 

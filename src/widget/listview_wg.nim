@@ -329,10 +329,10 @@ method render*(lv: ListView) =
     else:
       #lv.renderStatusBar($lv.cursor & "|" & $lv.selectedRow)
       lv.renderStatusBar()
-    lv.tb.display()
+    if not lv.suppressDisplay: lv.tb.display()
   else:
     lv.emptyRows()
-    lv.tb.display()
+    if not lv.suppressDisplay: lv.tb.display()
 
 
 proc prevSelection(lv: ListView) =
@@ -394,25 +394,47 @@ proc onMouse*(lv: ListView, button: MouseButton, fn: EventFn[ListView]) =
   lv.mouseEvents[button] = fn
 
 proc handleMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
-  ## Handle mouse events including wheel scrolling
+  ## Handle mouse events including wheel scrolling and click-to-select.
   if mouseInfo.scroll:
-    # Handle mouse wheel scrolling
     case mouseInfo.scrollDir
     of sdUp:
-      lv.rowCursor = max(0, lv.rowCursor - 3)  # Scroll up 3 lines
+      lv.rowCursor = max(0, lv.rowCursor - 3)
     of sdDown:
       let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
-      lv.rowCursor = min(lv.rowCursor + 3, max(rowSize - lv.size, 0))  # Scroll down 3 lines
+      lv.rowCursor = min(lv.rowCursor + 3, max(rowSize - lv.size, 0))
     else:
       discard
-    
-    lv.prevSelection()
     lv.render()
-  
-  # Handle mouse button clicks
-  elif mouseInfo.action == mbaPressed and lv.mouseEvents.hasKey(mouseInfo.button):
-    let fn = lv.mouseEvents[mouseInfo.button]
-    fn(lv, @[$mouseInfo.x, $mouseInfo.y])
+    return
+
+  if mouseInfo.action == mbaPressed and mouseInfo.button == MouseButton.mbLeft:
+    let rows = lv.vrows()
+    if rows.len > 0:
+      # First visible row is at posY + 1 (posY itself is the title row)
+      let visualOffset = mouseInfo.y - lv.posY
+      if visualOffset >= 1 and visualOffset <= lv.filteredSize:
+        var rowStart = max(0, lv.rowCursor)
+        var rowEnd = rowStart + lv.filteredSize
+        if rowEnd > lv.filteredSize:
+          rowStart = max(0, lv.rowCursor - lv.filteredSize)
+        let targetIdx = rowStart + visualOffset - 1
+        if targetIdx >= 0 and targetIdx < rows.len:
+          lv.cursor = targetIdx
+          let rowIdx = rows[targetIdx].index
+          for r in 0..<lv.rows.len:
+            lv.rows[r].selected = (lv.rows[r].index == rowIdx)
+            if lv.rows[r].index == rowIdx:
+              lv.selectedRow = lv.rows[r].index
+          lv.call("enter", lv.selected.value)
+          lv.render()
+          return
+
+    if lv.mouseEvents.hasKey(mouseInfo.button):
+      let fn = lv.mouseEvents[mouseInfo.button]
+      fn(lv, @[$mouseInfo.x, $mouseInfo.y])
+
+method onMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
+  handleMouseEvent(lv, mouseInfo)
 
 
 method onUpdate*(lv: ListView, key: Key) =

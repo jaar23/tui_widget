@@ -600,8 +600,8 @@ method render*(ch: Chart) =
   
   if ch.statusbar:
     ch.renderStatusbar()
-  
-  ch.tb.display()
+
+  if not ch.suppressDisplay: ch.tb.display()
 
 method poll*(ch: Chart) =
   var widgetEv: WidgetBgEvent

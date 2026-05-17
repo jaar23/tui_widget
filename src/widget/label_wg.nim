@@ -88,8 +88,6 @@ method call*(lb: LabelObj, event: string, args: varargs[string]) =
 method render*(lb: Label) =
   if not lb.illwillInit: return
   lb.clear()
-  lb.tb.fill(lb.posX, lb.posY, lb.posX + lb.width, lb.height + 1, bgNone, fgNone, " ")
-  
   lb.renderBorder()
   if lb.border and (lb.y2 - lb.y1) < 2:
     lb.height = lb.posY + 2
@@ -111,7 +109,7 @@ method render*(lb: Label) =
 
   # Fixed: Only write to the actual label position, not beyond
   lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
-  lb.tb.display()
+  if not lb.suppressDisplay: lb.tb.display()
 
 
 method wg*(lb: Label): ref BaseWidget = lb

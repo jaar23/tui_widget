@@ -138,7 +138,7 @@ method render*(g: Gauge) =
       g.tb.write(g.x1 + i, g.height - 1, g.bg(), $g.loadingBlock, resetStyle)
   let percentage = fmt"{(pc / fullGauge.toFloat()) * 100.0:>3.2f}"
   g.tb.write(g.width - len(percentage), g.height - 1, g.bg(), percentage, resetStyle)
-  g.tb.display()
+  if not g.suppressDisplay: g.tb.display()
 
 
 method wg*(g: Gauge): ref BaseWidget = g

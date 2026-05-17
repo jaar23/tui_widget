@@ -151,6 +151,9 @@ proc handleMouseEvent*(dp: Display, mouseInfo: MouseInfo) =
     let fn = dp.mouseEvents[mouseInfo.button]
     fn(dp, @[$mouseInfo.x, $mouseInfo.y])
 
+method onMouseEvent*(dp: Display, mouseInfo: MouseInfo) =
+  handleMouseEvent(dp, mouseInfo)
+
 
 proc splitBySize(val: string, size: int, rows: int,
                  visualSkip = 2): seq[string] =
@@ -308,7 +311,7 @@ method render*(dp: Display) =
   if dp.statusbar:
     dp.renderStatusbar()
   
-  dp.tb.display()
+  if not dp.suppressDisplay: dp.tb.display()
   #setDoubleBuffering(true)
 
 

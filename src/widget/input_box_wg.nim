@@ -198,7 +198,7 @@ method render*(ib: InputBox) =
                 resetStyle, ib.visualVal, ib.style.bgColor, styleBlink, "_", resetStyle)
   if ib.statusbar:
     ib.renderStatusbar()
-  ib.tb.display()
+  if not ib.suppressDisplay: ib.tb.display()
 
 
 proc remove*(ib : InputBox) =
@@ -458,6 +458,10 @@ method onControl*(ib: InputBox) =
     var key = getKeyWithTimeout(ib.rpms)
     ib.onUpdate(key)
  
+
+method onMouseEvent*(ib: InputBox, mouseInfo: MouseInfo) =
+  if not ib.onMouse.isNil:
+    ib.onMouse(ib, mouseInfo)
 
 method wg*(ib: InputBox): ref BaseWidget = ib
 

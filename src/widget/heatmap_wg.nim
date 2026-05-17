@@ -531,7 +531,7 @@ method render*(hm: Heatmap) =
   if hm.statusbar:
     hm.renderStatusbar()
   
-  hm.tb.display()
+  if not hm.suppressDisplay: hm.tb.display()
 
 method poll*(hm: Heatmap) =
   var widgetEv: WidgetBgEvent

@@ -462,14 +462,17 @@ proc handleMouseEvent*(table: Table, mouseInfo: MouseInfo) =
       table.rowCursor = min(table.rowCursor + 3, max(rowSize - table.size, 0))  # Scroll down 3 lines
     else:
       discard
-    
+
     table.prevSelection()
     table.render()
-  
+
   # Handle mouse button clicks
   elif mouseInfo.action == mbaPressed and table.mouseEvents.hasKey(mouseInfo.button):
     let fn = table.mouseEvents[mouseInfo.button]
     fn(table, @[$mouseInfo.x, $mouseInfo.y])
+
+method onMouseEvent*(table: Table, mouseInfo: MouseInfo) =
+  handleMouseEvent(table, mouseInfo)
 
 # TODO: multi row render for height > 1
 proc renderTableRow(table: Table, row: TableRow, index: int) =
@@ -590,10 +593,10 @@ method render*(table: Table): void =
       index += 1
 
     table.renderStatusBar()
-    table.tb.display()
+    if not table.suppressDisplay: table.tb.display()
   else:
     table.emptyRows()
-    table.tb.display()
+    if not table.suppressDisplay: table.tb.display()
 
 
 proc filter(table: Table, filterStr: string) =

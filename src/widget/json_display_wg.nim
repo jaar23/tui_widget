@@ -470,7 +470,7 @@ method render*(jv: JsonViewer) =
   if jv.statusbar:
     jv.renderStatusbar()
   
-  jv.tb.display()
+  if not jv.suppressDisplay: jv.tb.display()
 
 
 method poll*(jv: JsonViewer) =

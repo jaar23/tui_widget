@@ -79,6 +79,7 @@ type
     origPosX*: int
     origPosY*: int
     onMouse*: proc(wg: ref BaseWidget, mouseInfo: MouseInfo) {.closure.}
+    suppressDisplay*: bool = false
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -410,13 +411,16 @@ proc experimental*(bw: ref BaseWidget) =
   bw.tb.write(bw.x2 - len(text) - 3, bw.height - 1, bgWhite, fgBlack, text, resetStyle)
 
 
-proc contains*(wg: ref BaseWidget, x, y: int): bool =
-  ## Check if the given coordinates are within the widget's bounds
-  result = x >= wg.posX and x < wg.posX + wg.width and
-           y >= wg.posY and y < wg.posY + wg.height
+method contains*(wg: ref BaseWidget, x, y: int): bool {.base.} =
+  ## Hit-test for mouse coordinates. posX/posY are top-left TB cells,
+  ## width/height are bottom-right TB cells. illwill mouseInfo.x/y are
+  ## already 0-indexed TB cell coordinates so they match directly.
+  ## Widgets with overflow regions (e.g. expanded dropdown) override this.
+  result = x >= wg.posX and x <= wg.width and
+           y >= wg.posY and y <= wg.height
 
-proc onMouseEvent*(wg: ref BaseWidget, mouseInfo: MouseInfo) =
-  ## Default mouse event handler
+method onMouseEvent*(wg: ref BaseWidget, mouseInfo: MouseInfo) {.base.} =
+  ## Default mouse event handler — calls user-registered onMouse callback.
   if not wg.onMouse.isNil:
     wg.onMouse(wg, mouseInfo)
 
