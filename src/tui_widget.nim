@@ -77,8 +77,8 @@ proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
     width: terminalWidth(),
     height: terminalHeight(),
     title: title,
-    border: border,
-    bgColor: bgNone, # disable bgcolor until x
+    border: false,  # disable for full app to avoid overflow
+    bgColor: bgNone,  # disable bgcolor until x
     fgColor: fgWhite, # disable fgcolor until x
     rpms: rpms,
     widgets: newSeq[ref BaseWidget](),
@@ -99,6 +99,7 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
     widget.setChildTb(app.terminalBuffer)
   widget.rpms = app.rpms
   widget.keepOriginalSize()
+  widget.clampToConsole()
   app.widgets.add(widget)
 
 
@@ -119,26 +120,36 @@ proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
 
   widget.width = min(widget.posX + width, consoleWidth())
   widget.height = min(widget.posY + height, consoleHeight())
+  widget.clampToConsole()
   widget.resize()
-  app.addWidget(widget) 
+  app.addWidget(widget)
 
 
-proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+# WidgetSize variants treat width/height as a FRACTION OF THE CONSOLE that
+# the widget should occupy. The underlying int variant uses
+# `widget.height = posY + height_param`, so a `height_param` of N produces a
+# widget spanning N+1 rows. To make `0.5` actually consume ~half the console
+# (and three widgets at 0.5/0.3/0.2 stack to fill the screen exactly), we
+# subtract 1 from the converted row/col count. `MinWidgetSpan - 1` is the
+# floor so small fractions still hand a usable widget to the int variant —
+# clampToConsole will hide it later if it ends up genuinely too small.
+
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
                 width, height: WidgetSize ) =
-  let w = toConsoleWidth(width)
-  let h = toConsoleHeight(height)
+  let w = max(MinWidgetSpan - 1, toConsoleWidth(width)  - 1)
+  let h = max(MinWidgetSpan - 1, toConsoleHeight(height) - 1)
   app.addWidget(widget, w, h)
 
 
-proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
                 width: int, height: WidgetSize) =
-  let h = toConsoleHeight(height)
+  let h = max(MinWidgetSpan - 1, toConsoleHeight(height) - 1)
   app.addWidget(widget, width, h)
 
 
-proc addWidget*(app: var TerminalApp, widget: ref BaseWidget, 
+proc addWidget*(app: var TerminalApp, widget: ref BaseWidget,
                 width: WidgetSize, height: int = 0) =
-  let w = toConsoleWidth(width)
+  let w = max(MinWidgetSpan - 1, toConsoleWidth(width) - 1)
   let h = if height == 1: 0 else: height
   app.addWidget(widget, w, h)
 
@@ -175,16 +186,17 @@ proc addWidget*(app: var TerminalApp,
 
   widget.width = min(widget.posX + width, consoleWidth())
   widget.height = min(widget.posY + height, consoleHeight())
+  widget.clampToConsole()
   widget.resize()
-  app.addWidget(widget) 
+  app.addWidget(widget)
 
 
 
-proc addWidget*(app: var TerminalApp, 
+proc addWidget*(app: var TerminalApp,
                 widget: ref BaseWidget,
-                width: WidgetSize, 
-                height: int, 
-                offsetLeft, offsetTop, 
+                width: WidgetSize,
+                height: int,
+                offsetLeft, offsetTop,
                 offsetRight, offsetBottom: int) {.raises: [SizeOverflow, Exception].} =
   let w = toConsoleWidth(width)
   let h = if height == 1: 0 else: height
@@ -238,7 +250,8 @@ proc addWidget*(app: var TerminalApp,
   let h = toConsoleHeight(height)
   widget.width = min(oleft + w, totalWidth)
   widget.height = min(otop + h, totalHeight)
-  
+
+  widget.clampToConsole()
   # widget.resize()
   app.addWidget(widget)
 
@@ -322,6 +335,10 @@ proc render*(app: var TerminalApp, nonBlocking=false) =
 proc widgetInit(app: var TerminalApp) =
   for w in app.widgets:
     w.illwillInit = true
+    # Last chance to clamp bounds before the first render — catches widgets
+    # constructed with positional newXxx(px, py, w, h, ...) values that
+    # exceed the console at construction time.
+    w.clampToConsole()
 
 
 proc setWidgetBlocking(app: var TerminalApp) =
@@ -417,6 +434,13 @@ proc nonBlockingControl(app: var TerminalApp) =
   else:
     inc app.cursor
     if app.cursor > app.widgets.len - 1: app.cursor = 0
+  # Skip non-focusable widgets (e.g. a status bar). Bounded by total widget
+  # count so an all-non-focusable list can't loop forever.
+  var hops = 0
+  while hops < app.widgets.len and not app.widgets[app.cursor].focusable:
+    inc app.cursor
+    if app.cursor > app.widgets.len - 1: app.cursor = 0
+    inc hops
 
 
 proc resize(app: var TerminalApp): bool =
@@ -458,9 +482,20 @@ proc resize(app: var TerminalApp): bool =
       let wgPosXPercent = wgPosX / origWidth
       let newWgPosX = floor(windWidth.toFloat * wgPosXPercent).toInt()
       w.posX = newWgPosX
+      # Clamp the percentage-scaled bounds back into the new console size —
+      # shrinking the terminal can produce inverted (width < posX) values.
+      # Original requested dims stay in w.origPosX/Y/Width/Height so the
+      # widget reappears at its intended layout if the terminal grows again.
+      # If after clamping the widget can't fit MinWidgetSpan, it's hidden.
+      w.clampToConsole()
       # resize
       w.resize()
       w.tb = app.tb
+      # If clampToConsole hid the widget (terminal too tiny), unhide for
+      # future cycles where it may fit again — visibility is restored on
+      # each resize attempt; clampToConsole re-hides if still invalid.
+      if not w.visibility and w.width > w.posX and w.height > w.posY:
+        w.visibility = true
       inc index
     sleep(50)
     eraseScreen()
@@ -517,7 +552,8 @@ proc go(app: var TerminalApp) =
         # Left-click shifts keyboard focus to the clicked widget
         if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
           for i, widget in app.widgets:
-            if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+            if widget.visibility and widget.focusable and
+               widget.contains(mouseInfo.x, mouseInfo.y):
               app.widgets[app.cursor].focus = false
               app.cursor = i
               app.widgets[app.cursor].focus = true
@@ -572,6 +608,12 @@ proc hold(app: var TerminalApp) =
     case key
     of Key.Tab, Key.None:
       if app.cursor > app.widgets.len - 1: app.cursor = 0
+      # Skip non-focusable widgets when cycling.
+      var hops = 0
+      while hops < app.widgets.len and not app.widgets[app.cursor].focusable:
+        inc app.cursor
+        if app.cursor > app.widgets.len - 1: app.cursor = 0
+        inc hops
       let w = app.widgets[app.cursor]
       w.safeCall "onControl":
         w.onControl()
@@ -581,7 +623,8 @@ proc hold(app: var TerminalApp) =
         let mouseInfo = getMouse()
         if mouseInfo.button == MouseButton.mbLeft and mouseInfo.action == MouseButtonAction.mbaPressed:
           for i, widget in app.widgets:
-            if widget.visibility and widget.contains(mouseInfo.x, mouseInfo.y):
+            if widget.visibility and widget.focusable and
+               widget.contains(mouseInfo.x, mouseInfo.y):
               app.widgets[app.cursor].focus = false
               app.cursor = i
               app.widgets[app.cursor].focus = true

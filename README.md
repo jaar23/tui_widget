@@ -93,3 +93,5 @@ Refers to tests / examples folder for example.
 - terminal app and widgets [example](./examples/dir.nim)
   
 - auto-align widget [example](./tests/auto_align.nim)
+
+- LM Studio chatbot [example](./examples/lmstudio_chat.nim) — local LLM chat with non-blocking HTTP and the global error hook

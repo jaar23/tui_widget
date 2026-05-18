@@ -80,6 +80,7 @@ type
     origPosY*: int
     onMouse*: proc(wg: ref BaseWidget, mouseInfo: MouseInfo) {.closure.}
     suppressDisplay*: bool = false
+    focusable*: bool = true   # Tab cycling / mouse click skip this widget when false
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -103,8 +104,49 @@ var globalErrorHandler*: GlobalErrorHandler = nil
 proc consoleWidth*(): int =
   return terminalWidth() - 2
 
-proc consoleHeight*(): int = 
+proc consoleHeight*(): int =
   return terminalHeight() - 2
+
+
+const MinWidgetSpan* = 1
+  ## Minimum cells a widget needs on each axis after clamping. Set to 1 so
+  ## borderless 1-row widgets (e.g. a status bar) are usable. Widgets that
+  ## request a border but end up shorter than the border itself simply lose
+  ## the border via the bounds guard in `renderBorder` — never stripes.
+
+
+proc clampToConsole*(bw: ref BaseWidget) =
+  ## Bring the widget's posX/posY/width/height inside the current console
+  ## size and refuse to render inverted bounds. Inverted bounds (width <
+  ## posX, height < posY) make illwill's drawRect walk across many rows
+  ## drawing stripe artifacts — see lmstudio-example-render-bug.png.
+  ##
+  ## Policy:
+  ## 1. If width < posX or height < posY, the user clearly made a mistake
+  ##    (no sensible repair exists). Hide the widget.
+  ## 2. Clamp end coords (width/height) DOWN to console size.
+  ## 3. Clamp start coords (posX/posY) DOWN into the console — but never
+  ##    move them just to make room for `MinWidgetSpan`; respect the
+  ##    user's requested origin so adjacent widgets don't overlap.
+  ## 4. If after clamping the live span on either axis is below
+  ##    `MinWidgetSpan`, hide the widget — better gone than a degenerate
+  ##    1- or 2-cell box.
+  ##
+  ## Does NOT touch origPosX/origPosY/origWidth/origHeight — auto-resize
+  ## keeps the user's original intent so the widget reappears at its
+  ## requested layout once the terminal grows back.
+  if bw.width < bw.posX or bw.height < bw.posY:
+    bw.visibility = false
+    return
+  let cw = consoleWidth()
+  let ch = consoleHeight()
+  bw.width  = min(bw.width,  cw)
+  bw.height = min(bw.height, ch)
+  bw.posX   = max(0, min(bw.posX, cw - 1))
+  bw.posY   = max(0, min(bw.posY, ch - 1))
+  if bw.width - bw.posX + 1 < MinWidgetSpan or
+     bw.height - bw.posY + 1 < MinWidgetSpan:
+    bw.visibility = false
 
 
 method onControl*(this: ref BaseWidget): void {.base.} =
@@ -367,8 +409,10 @@ proc fill*(tb: var TerminalBuffer, x1, y1, x2, y2: Natural,
 
 
 proc renderBorder*(bw: ref BaseWidget) =
-  if bw.style.border:
-    bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
+  if not bw.style.border: return
+  # Inverted bounds make illwill's drawRect smear stripes across the screen.
+  if bw.width <= bw.posX or bw.height <= bw.posY: return
+  bw.tb.drawRect(bw.width, bw.height, bw.posX, bw.posY, doubleStyle = bw.focus)
 
 
 proc renderTitle*(bw: ref BaseWidget, index: int = 0) =
@@ -408,6 +452,7 @@ proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: Foregroun
 
 
 proc clear*(bw: ref BaseWidget) =
+  if bw.width <= bw.posX or bw.height <= bw.posY: return
   bw.tb.fill(bw.posX, bw.posY, bw.width, bw.height, bw.bg, bw.fg, " ")
 
 
