@@ -1,4 +1,4 @@
-import illwill, base_wg, sequtils, strutils, os, tables, display_wg
+import illwill, base_wg, sequtils, strutils, os, tables, display_wg, unicode
 import threading/channels
 
 type
@@ -15,11 +15,17 @@ type
   ListRow* = ref ListRowObj
 
   ListViewObj* = object of BaseWidget
-    rows: seq[ListRow]
-    selectedRow: int = 0
+    rows*: seq[ListRow]
+    selectedRow*: int = 0
     mode: Mode = Normal
     filteredSize: int = 0
     selectionStyle*: SelectionStyle
+    textOverlay*: bool = false
+      ## When true, render() skips the per-row inner tb.write loop;
+      ## a postDisplay hook is expected to overlay row text via stdout.
+      ## Used for CJK / wide-glyph correctness. Pair with
+      ## `enableTextOverlay()` to get a default overlay closure that
+      ## handles selection via ANSI inverse video.
     events*: Table[string, EventFn[ListView]]
     keyEvents*: Table[Key, EventFn[ListView]]
     mouseEvents*: Table[MouseButton, EventFn[ListView]]
@@ -322,7 +328,10 @@ method render*(lv: ListView) =
     #  else: lv.rowCursor + lv.filteredSize
     for row in rows[rowStart..min(rowEnd, rows.len - 1)]:
       lv.renderClearRow(index)
-      lv.renderListRow(row, index)
+      # When textOverlay is true, leave the cleared row alone — a
+      # postDisplay hook will write it via stdout (CJK-safe).
+      if not lv.textOverlay:
+        lv.renderListRow(row, index)
       index += 1
     if lv.mode == Filter:
       lv.renderStatusBar("Mode: " & $lv.mode & "|" & $lv.cursor)
@@ -464,6 +473,14 @@ method onUpdate*(lv: ListView, key: Key) =
       lv.rowCursor += 1
     lv.nextSelection()
     lv.colCursor = 0
+  of Key.PageUp:
+    # Scroll up one viewport; keep selection where it was (let the user
+    # browse history without losing the active row).
+    lv.rowCursor = max(0, lv.rowCursor - lv.size)
+  of Key.PageDown:
+    let total = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
+    let maxCur = max(0, total - 1)
+    lv.rowCursor = min(maxCur, lv.rowCursor + lv.size)
   of Key.Right:
     lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
         lv.paddingX2)))
@@ -506,6 +523,50 @@ method onControl*(lv: ListView): void =
 
 
 method wg*(lv: ListView): ref BaseWidget = lv
+
+
+proc enableTextOverlay*(lv: ListView) =
+  ## Opt the list view into wide-glyph-correct rendering. Sets
+  ## `textOverlay` and wires a `postDisplay` closure that writes each
+  ## visible row's text directly to stdout, clipped by visual width.
+  ## Selected rows are highlighted via ANSI inverse video (`\e[7m`) —
+  ## simple and color-scheme-agnostic. The `selectionStyle` field is
+  ## ignored in overlay mode; users wanting a custom selection visual
+  ## can replace `postDisplay` themselves.
+  lv.textOverlay = true
+  lv.postDisplay = proc(wg: ref BaseWidget) =
+    let lv = ListView(wg)
+    if not lv.illwillInit or not lv.textOverlay: return
+    if lv.rows.len == 0: return
+    let rows = lv.vrows()
+    if rows.len == 0: return
+    let widthCells = max(1, lv.x2 - lv.x1)
+    # Mirror the EXACT same scroll math as `method render*` so the
+    # overlay paints the rows that the render pass cleared — otherwise
+    # we draw to cells render didn't touch (stale content stays) and
+    # leave cells render did touch blank (the "gaps" bug).
+    let filteredSize = min(lv.size, rows.len)
+    var rowStart = max(0, lv.rowCursor)
+    var rowEnd = rowStart + filteredSize
+    if rowEnd > filteredSize:
+      rowStart = max(0, lv.rowCursor - filteredSize)
+      rowEnd = max(lv.rowCursor + 1, filteredSize)
+    rowEnd = min(rowEnd, rows.len - 1)
+    let baseRow = lv.posY + 1 + 1
+    let baseCol = lv.x1 + 1
+    var i = 0
+    for idx in rowStart..rowEnd:
+      let row = rows[idx]
+      let clipped = clipToVisualWidth(row.text, widthCells)
+      let used = visualWidth(clipped)
+      let pad = if used < widthCells: " ".repeat(widthCells - used) else: ""
+      let screenRow = baseRow + i
+      if row.selected:
+        stdout.write("\e[", screenRow, ";", baseCol, "f\e[7m",
+                     clipped, pad, "\e[0m")
+      else:
+        stdout.write("\e[", screenRow, ";", baseCol, "f", clipped, pad)
+      inc i
 
 
 proc `onEnter=`*(lv: ListView, enterEv: EventFn[ListView]) =
