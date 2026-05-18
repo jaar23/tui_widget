@@ -1,6 +1,6 @@
 import ../src/tui_widget
 import httpclient, json, net, os, std/tasks, strutils, times, std/wordwrap,
-       options, osproc, uri, random, std/atomics, std/parseopt
+       options, osproc, uri, random, std/atomics, std/parseopt, unicode
 
 # ---------------------------------------------------------------------------
 # LM Studio chatbot — enhanced edition
@@ -272,31 +272,93 @@ chat.border    = true
 chat.wordwrap  = false
 chat.statusbar = false
 
+# Wrap `line` so each output row's *visual* width (East-Asian wide chars
+# counted as 2) is ≤ `maxCells`. Tries to break at the last ASCII space
+# seen; falls back to a hard break at the rune that overflows (the case
+# for CJK text, which has no inter-word whitespace). Continuation rows
+# are prefixed with `indent` so wrapped bodies stay under their
+# Slack-style header.
+proc wrapVisual(line: string, maxCells: int, indent: string): seq[string] =
+  result = @[]
+  if maxCells <= 0:
+    result.add(line); return
+  let indentCells = visualWidth(indent)
+  var cur          = ""   # current line buffer (raw string)
+  var curCells     = 0    # visual width of cur
+  var lastSpaceLen = -1   # byte length of cur at the moment we saw a space
+  for r in runes(line):
+    let rs = $r
+    let rw = runeWidth(r)
+    if curCells + rw > maxCells and cur.len > 0:
+      if lastSpaceLen > 0:
+        # Break at the last space: head before it, tail (incl. current
+        # rune) starts the next line under the indent.
+        let head = cur[0 ..< lastSpaceLen]
+        let tail = cur[lastSpaceLen + 1 .. ^1]
+        result.add(head)
+        cur = indent & tail
+        curCells = indentCells + visualWidth(tail)
+      else:
+        result.add(cur)
+        cur = indent
+        curCells = indentCells
+      lastSpaceLen = -1
+    if r == Rune(' '):
+      lastSpaceLen = cur.len
+    cur.add(rs)
+    curCells += rw
+  if cur.len > 0: result.add(cur)
+
 let chatRecalc: CustomRowRecal = proc(text: string, dp: Display): seq[string] =
   let w = max(10, dp.x2 - dp.x1 - 1)
   result = @[]
   for line in text.splitLines():
     if line.len == 0:
       result.add(" ")
-    elif line.len <= w:
+      continue
+    if visualWidth(line) <= w:
       result.add(line)
-    else:
-      let leading = line.len - line.strip(leading = true).len
-      let indent  = if leading > 0: " ".repeat(leading) else: ""
-      let wrapped = wrapWords(line, maxLineWidth = w, splitLongWords = false)
-      var first = true
-      for piece in wrapped.splitLines():
-        if first:
-          result.add(piece); first = false
-        else:
-          result.add(indent & piece)
+      continue
+    let leading = line.len - line.strip(leading = true).len
+    let indent  = if leading > 0: " ".repeat(leading) else: ""
+    for piece in wrapVisual(line, w, indent):
+      result.add(piece)
 chat.useCustomTextRow = true
 chat.customRowRecal = some(chatRecalc)
+
+# CJK / wide-glyph correct rendering. illwill's TB model assumes one
+# terminal column per rune, so anything written after a Chinese / Japanese /
+# Korean / emoji char lands at the wrong screen column. Side-step it: tell
+# Display to skip drawing the text rows (border/title/status still render),
+# then in a postDisplay hook write each visible row to stdout directly. The
+# terminal handles wide-char advancement natively — we just position the
+# cursor at the start of each row and emit the bytes.
+chat.textOverlay = true
+chat.postDisplay = proc(wg: ref BaseWidget) =
+  let dp = Display(wg)
+  if dp.textRows.len == 0: return
+  let widthCells = max(1, dp.x2 - dp.x1 - 1)
+  let first = max(0, dp.rowCursor)
+  let last  = min(dp.textRows.len - 1, first + dp.size - 1)
+  # screen positions: tui_widget's posX/posY/x1/y1 are 0-indexed TB cells,
+  # the terminal uses 1-indexed coords for cursor positioning.
+  let screenCol = dp.x1 + 1
+  let baseRow   = dp.y1 + 1
+  for i in first..last:
+    let row     = dp.textRows[i]
+    let clipped = clipToVisualWidth(row, widthCells)
+    let used    = visualWidth(clipped)
+    # Pad to widthCells so the previous frame's content doesn't bleed
+    # through where this row is shorter than the widget's inner width.
+    let pad = if used < widthCells: " ".repeat(widthCells - used) else: ""
+    let screenRow = baseRow + (i - first)
+    stdout.write("\e[", screenRow, ";", screenCol, "f", clipped, pad)
 
 var input = newInputBox(id = "input")
 input.title     = "message (Enter to send, Tab cycles chat/input)"
 input.border    = true
 input.statusbar = false
+input.enableTextOverlay()   # CJK-correct typing via stdout overlay
 
 var status = newLabel(id = "status")
 status.border    = false

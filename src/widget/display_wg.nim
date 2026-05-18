@@ -11,10 +11,15 @@ type
 
   DisplayObj* = object of BaseWidget
     text: string = ""
-    textRows: seq[string] = newSeq[string]()
+    textRows*: seq[string] = newSeq[string]()
     wordwrap*: bool = false
     useCustomTextRow* = false
     customRowRecal*: Option[CustomRowRecal]
+    textOverlay*: bool = false
+      ## When true, render() draws border / title / status as usual but
+      ## SKIPS the text-row inner loop. A postDisplay hook is expected
+      ## to overlay the text via stdout — used for CJK / wide-glyph
+      ## correctness (illwill's TB model assumes 1 cell per rune).
     events*: Table[string, EventFn[Display]]
     keyEvents*: Table[Key, EventFn[Display]]
     mouseEvents*: Table[MouseButton, EventFn[Display]]
@@ -300,12 +305,12 @@ method render*(dp: Display) =
   dp.renderBorder()
   dp.renderTitle()
   var index = 1
-  if dp.textRows.len > 0:
+  # `textOverlay = true` => skip drawing text rows here; a postDisplay
+  # hook will overlay them via stdout (needed for wide-glyph correctness).
+  if not dp.textOverlay and dp.textRows.len > 0:
     let rowStart = min(dp.rowCursor, dp.textRows.len - 1)
     let rowEnd = min(dp.textRows.len - 1, rowStart + dp.size)
-    #setDoubleBuffering(false)
     for row in dp.textRows[rowStart..min(rowEnd, max(0, dp.textRows.len - 1))]:
-      #dp.renderCleanRow(index)
       dp.renderRow(row, index)
       inc index
   if dp.statusbar:

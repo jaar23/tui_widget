@@ -330,6 +330,18 @@ proc render*(app: var TerminalApp, nonBlocking=false) =
   for w in app.widgets:
     w.suppressDisplay = false
   app.tb.display()
+  # Post-display overlay hooks: widgets that need to write text directly to
+  # stdout (e.g. CJK / wide-glyph overlays) run AFTER illwill has flushed
+  # the TB. Failures route through safeCall so a buggy overlay can't take
+  # down the loop.
+  var anyOverlay = false
+  for w in app.widgets:
+    if w.visibility and not w.postDisplay.isNil:
+      anyOverlay = true
+      w.safeCall "postDisplay":
+        w.postDisplay(w)
+  if anyOverlay:
+    stdout.flushFile()
 
 
 proc widgetInit(app: var TerminalApp) =

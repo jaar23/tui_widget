@@ -1,4 +1,4 @@
-import illwill, strutils, base_wg, sequtils, encodings
+import illwill, strutils, base_wg, sequtils, encodings, unicode, algorithm
 import tables, threading/channels, os, osproc, streams
 
 type
@@ -7,6 +7,10 @@ type
     visualVal: string = ""
     visualCursor: int = 2
     mode: string = ">"
+    textOverlay*: bool = false
+      ## When true, render() skips the inner tb.write that paints the
+      ## current value; a postDisplay hook is expected to overlay it via
+      ## stdout. Used for CJK / wide-glyph input correctness.
     events*: Table[string, EventFn[InputBox]]
     keyEvents*: Table[Key, EventFn[InputBox]]
 
@@ -186,19 +190,55 @@ method render*(ib: InputBox) =
   ib.clear()
   ib.renderBorder()
   ib.renderTitle()
-  if ib.cursor < ib.value.len:
-    ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
-                resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
-                styleBlink, styleUnderscore, ib.style.bgColor,
-                ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
-                resetStyle, 
-                ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
-  else:
-    ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode, 
-                resetStyle, ib.visualVal, ib.style.bgColor, styleBlink, "_", resetStyle)
+  # When textOverlay is true, leave the value row blank; a postDisplay
+  # hook writes the value via stdout so wide glyphs render correctly.
+  if not ib.textOverlay:
+    if ib.cursor < ib.value.len:
+      ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode,
+                  resetStyle, ib.visualVal.substr(0, ib.visualCursor - 1),
+                  styleBlink, styleUnderscore, ib.style.bgColor,
+                  ib.visualVal.substr(ib.visualCursor, ib.visualCursor),
+                  resetStyle,
+                  ib.visualVal.substr(ib.visualCursor + 1, ib.visualVal.len - 1))
+    else:
+      ib.tb.write(ib.posX + 1, ib.posY + 1, ib.style.fgColor, ib.mode,
+                  resetStyle, ib.visualVal, ib.style.bgColor, styleBlink, "_", resetStyle)
   if ib.statusbar:
     ib.renderStatusbar()
   if not ib.suppressDisplay: ib.tb.display()
+
+
+proc enableTextOverlay*(ib: InputBox) =
+  ## Opt the input box into wide-glyph-correct rendering. The cursor is
+  ## drawn at the END of the visible portion as a blinking underscore;
+  ## mid-string cursor navigation through CJK content is a deeper
+  ## refactor (the existing visualCursor is byte-indexed) — out of scope
+  ## here. Typing flows (cursor naturally at end) work cleanly.
+  ib.textOverlay = true
+  ib.postDisplay = proc(wg: ref BaseWidget) =
+    let ib = InputBox(wg)
+    if not ib.illwillInit or not ib.textOverlay: return
+    # Inner content area: one cell inside the border (left + top).
+    let innerCol = ib.posX + 1 + 1   # TB cell + 1 padding
+    let innerRow = ib.posY + 1 + 1
+    let widthCells = max(1, ib.x2 - ib.x1)
+    # Reserve one cell for the blinking cursor; clip the value tail-first
+    # so the most recently typed glyphs are visible when overflowed.
+    let prefix = ib.mode & " "
+    let prefW  = visualWidth(prefix)
+    let budget = max(1, widthCells - prefW - 1)
+    var tailRunes: seq[Rune] = @[]
+    var used = 0
+    for r in ib.value.runes.toSeq.reversed:
+      let w = runeWidth(r)
+      if used + w > budget: break
+      tailRunes.insert(r, 0)
+      used += w
+    var visible = ""
+    for r in tailRunes: visible.add($r)
+    let pad = max(0, budget - used)
+    stdout.write("\e[", innerRow, ";", innerCol, "f",
+                 prefix, visible, "\e[5;4m_\e[0m", " ".repeat(pad))
 
 
 proc remove*(ib : InputBox) =

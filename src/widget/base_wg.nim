@@ -81,6 +81,11 @@ type
     onMouse*: proc(wg: ref BaseWidget, mouseInfo: MouseInfo) {.closure.}
     suppressDisplay*: bool = false
     focusable*: bool = true   # Tab cycling / mouse click skip this widget when false
+    postDisplay*: proc(wg: ref BaseWidget) {.closure.}
+      ## Optional hook fired AFTER illwill's tb.display() flushes a frame.
+      ## Used by widgets that need to write raw text directly to stdout
+      ## (e.g. CJK / wide-glyph overlays) — letting the terminal handle
+      ## visual width natively instead of illwill's one-cell-per-rune model.
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -106,6 +111,51 @@ proc consoleWidth*(): int =
 
 proc consoleHeight*(): int =
   return terminalHeight() - 2
+
+
+# ---- Visual-width helpers for East-Asian wide / fullwidth / emoji ----------
+# illwill stores one Rune per TB cell and advances by one cell per rune, but
+# wide glyphs actually occupy two terminal columns. Widgets that contain
+# free-form text (chat displays, input boxes) need to wrap and clip by
+# *visual* width so the output stays inside their bounds — and any widget
+# that wants pixel-perfect CJK rendering should overlay text directly via
+# stdout (see BaseWidget.postDisplay) rather than going through tb.write.
+
+proc runeWidth*(r: Rune): int =
+  ## Returns 2 for East-Asian Wide / Fullwidth / Emoji ranges, 0 for control
+  ## characters, 1 otherwise.
+  let cp = r.int32
+  if cp == 0 or cp < 0x20 or cp == 0x7F: return 0
+  if (cp >= 0x1100 and cp <= 0x115F) or   # Hangul Jamo
+     (cp >= 0x2E80 and cp <= 0x303E) or   # CJK Radicals / Punctuation
+     (cp >= 0x3041 and cp <= 0x33FF) or   # Hiragana / Katakana / Bopomofo / etc
+     (cp >= 0x3400 and cp <= 0x4DBF) or   # CJK Ext A
+     (cp >= 0x4E00 and cp <= 0x9FFF) or   # CJK Unified
+     (cp >= 0xA000 and cp <= 0xA4CF) or   # Yi
+     (cp >= 0xAC00 and cp <= 0xD7A3) or   # Hangul Syllables
+     (cp >= 0xF900 and cp <= 0xFAFF) or   # CJK Compatibility
+     (cp >= 0xFE30 and cp <= 0xFE4F) or   # CJK Compatibility Forms
+     (cp >= 0xFF00 and cp <= 0xFF60) or   # Fullwidth Forms
+     (cp >= 0xFFE0 and cp <= 0xFFE6) or   # Fullwidth signs
+     (cp >= 0x1F300 and cp <= 0x1F9FF):   # Emoji block
+    return 2
+  return 1
+
+proc visualWidth*(s: string): int =
+  ## Sum of `runeWidth` over the runes in `s`.
+  for r in s.runes: result += runeWidth(r)
+
+proc clipToVisualWidth*(s: string, cells: int): string =
+  ## Returns the longest rune-prefix of `s` whose total visual width is
+  ## ≤ `cells`. Used to clip an overlay row to its widget's inner width.
+  result = ""
+  if cells <= 0: return
+  var used = 0
+  for r in s.runes:
+    let w = runeWidth(r)
+    if used + w > cells: break
+    result.add($r)
+    used += w
 
 
 const MinWidgetSpan* = 1

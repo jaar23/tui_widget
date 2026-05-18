@@ -5,6 +5,11 @@ type
   LabelObj* = object of BaseWidget
     text: string = ""
     align*: Alignment = Left
+    textOverlay*: bool = false
+      ## When true, render() skips the tb.write text line; a postDisplay
+      ## hook is expected to overlay the text via stdout. Used for
+      ## CJK / wide-glyph correctness. Pair with `enableTextOverlay()`
+      ## to get a default overlay closure.
     events: Table[string, EventFn[Label]]
 
   Label* = ref LabelObj
@@ -107,9 +112,44 @@ method render*(lb: Label) =
   else:
     text = alignLeft(text, lb.x2 - lb.x1)
 
-  # Fixed: Only write to the actual label position, not beyond
-  lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
+  # When textOverlay is set, leave the cleared cells alone; a postDisplay
+  # hook will write the text via stdout so wide glyphs render correctly.
+  if not lb.textOverlay:
+    lb.tb.write(lb.x1, lb.y1, lb.bg, lb.fg, text, resetStyle)
   if not lb.suppressDisplay: lb.tb.display()
+
+
+proc enableTextOverlay*(lb: Label) =
+  ## Opt the label into wide-glyph-correct rendering. Sets `textOverlay`
+  ## and wires a `postDisplay` closure that emits the (alignment-padded
+  ## and visually-clipped) text directly to stdout. The terminal handles
+  ## CJK/emoji width natively so nothing in our code tracks per-cell
+  ## visual position within the text.
+  lb.textOverlay = true
+  lb.postDisplay = proc(wg: ref BaseWidget) =
+    let lb = Label(wg)
+    if not lb.illwillInit or not lb.textOverlay: return
+    let w = max(1, lb.x2 - lb.x1)
+    let raw = lb.text
+    let body =
+      if visualWidth(raw) > w:
+        clipToVisualWidth(raw, max(1, w - 2)) & ".."
+      else:
+        raw
+    let used = visualWidth(body)
+    let pad  = max(0, w - used)
+    var line = ""
+    case lb.align
+    of Right:
+      line = " ".repeat(pad) & body
+    of Center:
+      let l = pad div 2
+      let r = pad - l
+      line = " ".repeat(l) & body & " ".repeat(r)
+    else:
+      line = body & " ".repeat(pad)
+    # x1/y1 are 0-indexed TB cells; terminal cursor positioning is 1-indexed.
+    stdout.write("\e[", lb.y1 + 1, ";", lb.x1 + 1, "f", line)
 
 
 method wg*(lb: Label): ref BaseWidget = lb
