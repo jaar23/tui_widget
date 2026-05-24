@@ -21,11 +21,6 @@ type
     cursorAtLineBg*: BackgroundColor
     cursorAtLineFg*: ForegroundColor
 
-  Completion* = object
-    value*: string
-    description*: string
-    icon*: string
-
   TextAreaObj* = object of BaseWidget
     textRows: seq[string] = newSeq[string]()
     rowStartPos*: seq[int] = newSeq[int]()

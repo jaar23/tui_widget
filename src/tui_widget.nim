@@ -48,12 +48,12 @@ type
     title: string
     bgColor: illwill.BackgroundColor 
     fgColor: illwill.ForegroundColor
-    cursor: int = 0
+    cursor*: int = 0
     fullscreen: bool = true
     border: bool = true
     autoResize*: bool = true
     tb: TerminalBuffer
-    widgets: seq[ref BaseWidget]
+    widgets*: seq[ref BaseWidget]
     rpms: int = 50
     origWidth: int
     origHeight: int
@@ -503,11 +503,14 @@ proc resize(app: var TerminalApp): bool =
       # resize
       w.resize()
       w.tb = app.tb
-      # If clampToConsole hid the widget (terminal too tiny), unhide for
-      # future cycles where it may fit again — visibility is restored on
-      # each resize attempt; clampToConsole re-hides if still invalid.
-      if not w.visibility and w.width > w.posX and w.height > w.posY:
+      # Only restore widgets that *clampToConsole* itself hid (terminal
+      # got too small). User-hidden widgets — e.g. a popup that's invisible
+      # until summoned — set visibility=false directly without touching
+      # autoHidden, and we leave them alone here.
+      if w.autoHidden and not w.visibility and
+         w.width > w.posX and w.height > w.posY:
         w.visibility = true
+        w.autoHidden = false
       inc index
     sleep(50)
     eraseScreen()

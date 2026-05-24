@@ -113,7 +113,7 @@ const
   MinChatRows = 5
   MinHeight   = MinChatRows + 3 + 1   # chat + input + statusbar
   MinWidth    = 40
-  MaxToolHops = 5
+  MaxToolHops = 12
   StreamChunkSize = 6
   StreamChunkSleepMs = 18
 
@@ -369,21 +369,34 @@ chat.on("error", proc(dp: Display, args: varargs[string]) =
 # loop. The final non-tool reply is fake-streamed back to the chat by
 # chunking the content and notifying with small sleeps.
 
-proc llmCall(client: var HttpClient, url: string,
-             msgs: JsonNode): JsonNode {.gcsafe.} =
+proc llmCall(url, token: string, msgs: JsonNode,
+             withTools = true): JsonNode {.gcsafe.} =
+  ## Build a fresh HttpClient per request to avoid keep-alive timeouts:
+  ## if the agent loop sits idle (slow tool, long stream) the server can
+  ## close the kept-alive socket and the next reuse fails with
+  ## "connection was closed before full request has been made".
   # toolSpecs and modelId are module-level GC-managed globals. They're
   # read-only here, so the cast is safe — gcsafe checker just can't prove
   # it across the background-thread boundary.
   var bodyStr = ""
   {.cast(gcsafe).}:
-    bodyStr = $(%*{
+    var body = %*{
       "model": modelId,
       "messages": msgs,
-      "tools": toolSpecs,
-      "tool_choice": "auto",
       "stream": false,
-      "temperature": 0.6
-    })
+      "temperature": 0.6}
+    if withTools:
+      body["tools"] = toolSpecs
+      body["tool_choice"] = %"auto"
+    bodyStr = $body
+  var client = newHttpClient(timeout = 60_000,
+                            sslContext = newContext(
+                              verifyMode = CVerifyPeerUseEnvVars))
+  defer: client.close()
+  var headerPairs = @[("Content-Type", "application/json")]
+  if token.len > 0:
+    headerPairs.add(("Authorization", "Bearer " & token))
+  client.headers = newHttpHeaders(headerPairs)
   let resp = client.request(url, httpMethod = HttpPost, body = bodyStr)
   if resp.code != Http200:
     raise newException(IOError,
@@ -403,21 +416,12 @@ proc streamOut(appPtr: ptr TerminalApp, text: string) {.gcsafe.} =
 
 proc agentLoop(appPtr: ptr TerminalApp,
                url, token, msgsJson: string) {.gcsafe.} =
-  var client = newHttpClient(timeout = 60_000,
-                            sslContext = newContext(
-                              verifyMode = CVerifyPeerUseEnvVars))
-  defer: client.close()
-  # Build headers; only attach Authorization if a non-empty token was set.
-  var headerPairs = @[("Content-Type", "application/json")]
-  if token.len > 0:
-    headerPairs.add(("Authorization", "Bearer " & token))
-  client.headers = newHttpHeaders(headerPairs)
   try:
     var msgs = parseJson(msgsJson)
     var hops = 0
     while hops < MaxToolHops:
       inc hops
-      let parsed = llmCall(client, url, msgs)
+      let parsed = llmCall(url, token, msgs)
       let msg    = parsed["choices"][0]["message"]
       # Track assistant message in API history regardless of tool_calls.
       msgs.add(msg)
@@ -443,8 +447,23 @@ proc agentLoop(appPtr: ptr TerminalApp,
         let text = msg{"content"}.getStr("")
         streamOut(appPtr, text)
         return
-    notify(appPtr, "chat", "error",
-           "stopped after " & $MaxToolHops & " tool hops without a reply")
+    # Hop budget exceeded. Don't leave the user staring at an error — make
+    # one more call with tools disabled so the model is forced to answer
+    # in plain text using whatever it has already gathered.
+    msgs.add(%*{"role": "user",
+                "content": "You have reached the tool-call limit (" &
+                  $MaxToolHops & "). Stop calling tools and write a final " &
+                  "answer for the user now using the information you already " &
+                  "have. If the gathered information is insufficient, say so."})
+    let final = llmCall(url, token, msgs, withTools = false)
+    let finalMsg = final["choices"][0]["message"]
+    let finalText = finalMsg{"content"}.getStr("")
+    if finalText.len > 0:
+      streamOut(appPtr, finalText)
+    else:
+      notify(appPtr, "chat", "error",
+             "stopped after " & $MaxToolHops &
+             " tool hops with no final reply")
   except CatchableError:
     notify(appPtr, "chat", "error", getCurrentExceptionMsg())
 

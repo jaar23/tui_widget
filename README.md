@@ -95,3 +95,7 @@ Refers to tests / examples folder for example.
 - auto-align widget [example](./tests/auto_align.nim)
 
 - LM Studio chatbot [example](./examples/lmstudio_chat.nim) — local LLM chat with non-blocking HTTP and the global error hook
+
+- LM Studio chatbot, ListView variant [example](./examples/lmstudio_chat_listview.nim) — same chat built on `ListView` instead of `Display`
+
+- LM Studio chatbot, dashboard variant [example](./examples/lmstudio_chat_dashboard.nim) — Dropdown model picker + Button toolbar + Checkbox tool toggles + ProgressBar context-usage gauge in a single layout

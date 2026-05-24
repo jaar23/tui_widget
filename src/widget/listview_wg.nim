@@ -410,7 +410,8 @@ proc handleMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
       lv.rowCursor = max(0, lv.rowCursor - 3)
     of sdDown:
       let rowSize = if lv.mode == Filter: lv.vrows().len else: lv.rows.len
-      lv.rowCursor = min(lv.rowCursor + 3, max(rowSize - lv.size, 0))
+      let maxCur = max(0, rowSize - 1)
+      lv.rowCursor = min(maxCur, lv.rowCursor + 3)
     else:
       discard
     lv.render()
@@ -482,21 +483,45 @@ method onUpdate*(lv: ListView, key: Key) =
     let maxCur = max(0, total - 1)
     lv.rowCursor = min(maxCur, lv.rowCursor + lv.size)
   of Key.Right:
-    lv.colCursor = min(lv.colCursor + 1, lv.rows[lv.cursor].text.len - (lv.width - (lv.paddingX1 +
-        lv.paddingX2)))
-    # unlock right key binding
-    lv.call(Key.Right, lv.selected.value)
+    # Same empty-list guard as the custom-key path below — Right/Left/Enter
+    # all read lv.selected (= lv.rows[lv.selectedRow]) which is OOB on an
+    # empty list. Skip the colCursor recompute too; there's no row to
+    # horizontally scroll within.
+    if lv.rows.len > 0 and lv.cursor < lv.rows.len:
+      lv.colCursor = min(lv.colCursor + 1,
+        lv.rows[lv.cursor].text.len -
+          (lv.width - (lv.paddingX1 + lv.paddingX2)))
+    let valR =
+      if lv.rows.len == 0 or lv.selectedRow < 0 or
+         lv.selectedRow >= lv.rows.len: ""
+      else: lv.rows[lv.selectedRow].value
+    lv.call(Key.Right, valR)
   of Key.Left:
     lv.colCursor = max(lv.colCursor - 1, 0)
-    # unlock left key binding
-    lv.call(Key.Left, lv.selected.value)
+    let valL =
+      if lv.rows.len == 0 or lv.selectedRow < 0 or
+         lv.selectedRow >= lv.rows.len: ""
+      else: lv.rows[lv.selectedRow].value
+    lv.call(Key.Left, valL)
   of Key.Enter:
-    lv.call("enter", lv.selected.value)
+    let valE =
+      if lv.rows.len == 0 or lv.selectedRow < 0 or
+         lv.selectedRow >= lv.rows.len: ""
+      else: lv.rows[lv.selectedRow].value
+    lv.call("enter", valE)
   of Tab: lv.focus = false
   else:
     if key in forbiddenKeyBind: discard
     elif lv.keyEvents.hasKey(key):
-      lv.call(key, lv.selected.value)
+      # `lv.selected` indexes lv.rows[lv.selectedRow] unconditionally; if the
+      # list is empty (or selectedRow is stale) that's an out-of-bounds.
+      # Pass "" instead so user-registered key handlers can fire on an
+      # empty list without crashing the dispatcher.
+      let val =
+        if lv.rows.len == 0 or lv.selectedRow < 0 or
+           lv.selectedRow >= lv.rows.len: ""
+        else: lv.rows[lv.selectedRow].value
+      lv.call(key, val)
   lv.render()
   sleep(lv.rpms)
   lv.call("postupdate", $key)
@@ -537,10 +562,23 @@ proc enableTextOverlay*(lv: ListView) =
   lv.postDisplay = proc(wg: ref BaseWidget) =
     let lv = ListView(wg)
     if not lv.illwillInit or not lv.textOverlay: return
-    if lv.rows.len == 0: return
-    let rows = lv.vrows()
-    if rows.len == 0: return
     let widthCells = max(1, lv.x2 - lv.x1)
+    let baseRow    = lv.posY + 1 + 1
+    let baseCol    = lv.x1 + 1
+    let viewport   = max(0, lv.size)
+    let blank      = " ".repeat(widthCells)
+    # ----- shortcut: empty list ------------------------------------------
+    # illwill's render only flushes buffer cells that *changed*. The
+    # overlay writes via stdout, so its cells stay live on the terminal
+    # until we explicitly overwrite them. When rows are empty (e.g. user
+    # just hit /new) we must paint spaces across the whole viewport;
+    # otherwise the previous conversation stays on screen.
+    let rows = lv.vrows()
+    if lv.rows.len == 0 or rows.len == 0:
+      for j in 0 ..< viewport:
+        stdout.write("\e[", baseRow + j, ";", baseCol, "f", blank)
+      return
+    # ----- normal path ---------------------------------------------------
     # Mirror the EXACT same scroll math as `method render*` so the
     # overlay paints the rows that the render pass cleared — otherwise
     # we draw to cells render didn't touch (stale content stays) and
@@ -552,8 +590,6 @@ proc enableTextOverlay*(lv: ListView) =
       rowStart = max(0, lv.rowCursor - filteredSize)
       rowEnd = max(lv.rowCursor + 1, filteredSize)
     rowEnd = min(rowEnd, rows.len - 1)
-    let baseRow = lv.posY + 1 + 1
-    let baseCol = lv.x1 + 1
     var i = 0
     for idx in rowStart..rowEnd:
       let row = rows[idx]
@@ -566,6 +602,13 @@ proc enableTextOverlay*(lv: ListView) =
                      clipped, pad, "\e[0m")
       else:
         stdout.write("\e[", screenRow, ";", baseCol, "f", clipped, pad)
+      inc i
+    # Clear any unused row slots BELOW the painted rows — covers the
+    # case where the new frame has fewer rows than the previous one
+    # (a tool-result row went away, a chat got shorter, etc.) and the
+    # stale overlay text would otherwise linger.
+    while i < viewport:
+      stdout.write("\e[", baseRow + i, ";", baseCol, "f", blank)
       inc i
 
 

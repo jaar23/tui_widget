@@ -1,5 +1,7 @@
 import illwill, strutils, base_wg, sequtils, encodings, unicode, algorithm
 import tables, threading/channels, os, osproc, streams
+import std/enumerate
+import listview_wg
 
 type
   InputBoxObj* = object of BaseWidget
@@ -13,11 +15,22 @@ type
       ## stdout. Used for CJK / wide-glyph input correctness.
     events*: Table[string, EventFn[InputBox]]
     keyEvents*: Table[Key, EventFn[InputBox]]
+    enableAutocomplete*: bool = false
+    autocompleteTrigger*: int = 3
+    autocompleteList*: seq[Completion] = newSeq[Completion]()
+    autocompleteWindowSize*: int = 5
+    autocompleteBgColor*: BackgroundColor = bgCyan
+    autocompleteFgColor*: ForegroundColor = fgWhite
 
   CursorDirection = enum
     Left, Right
 
   InputBox* = ref InputBoxObj
+
+  IbWordToken = object
+    startat: int
+    endat: int
+    token: string
 
 const allowKeyBind = {Key.Up, Key.Down}
 
@@ -34,9 +47,10 @@ proc formatText(val: string): string
 
 proc on*(ib: InputBox, key: Key, fn: EventFn[InputBox]):void {.raises: [EventKeyError]} 
 
-proc newInputBox*(px, py, w, h: int, title = "", val = "", 
+proc newInputBox*(px, py, w, h: int, title = "", val = "",
                   modeChar = '>', border = true, statusbar = false,
                   bgColor = bgNone, fgColor = fgWhite,
+                  enableAutocomplete = false, autocompleteTrigger = 3,
                   tb: TerminalBuffer = newTerminalBuffer(w + 2, h + py)): InputBox =
   var padding = if border: 1 else: 0
   padding = if modeChar != ' ': padding + 1 else: padding + 0
@@ -63,7 +77,9 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
     statusbar: statusbar,
     statusbarSize: statusbarSize,
     events: initTable[string, EventFn[InputBox]](),
-    keyEvents: initTable[Key, EventFn[InputBox]]()
+    keyEvents: initTable[Key, EventFn[InputBox]](),
+    enableAutocomplete: enableAutocomplete,
+    autocompleteTrigger: autocompleteTrigger
   )
   # to ensure key responsive, default to < 50  
   if result.rpms > 50: result.rpms = 50
@@ -84,14 +100,16 @@ proc newInputBox*(px, py, w, h: int, title = "", val = "",
   result.keepOriginalSize()
 
 
-proc newInputBox*(px, py: int, w, h: WidgetSize, title = "", val = "", 
+proc newInputBox*(px, py: int, w, h: WidgetSize, title = "", val = "",
                   modeChar = '>', border = true, statusbar = false,
-                  bgColor = bgNone,fgColor = fgWhite,                   
+                  bgColor = bgNone,fgColor = fgWhite,
+                  enableAutocomplete = false, autocompleteTrigger = 3,
                   tb = newTerminalBuffer(w.toInt + 2, h.toInt + py)): InputBox =
   let width = (consoleWidth().toFloat * w).toInt
   let height = (consoleHeight().toFloat * h).toInt
-  return newInputBox(px, py, width, height, title, val, modeChar, border, 
-                     statusbar, bgColor, fgColor, tb)
+  return newInputBox(px, py, width, height, title, val, modeChar, border,
+                     statusbar, bgColor, fgColor,
+                     enableAutocomplete, autocompleteTrigger, tb)
 
 
 proc newInputBox*(id: string): InputBox =
@@ -309,7 +327,182 @@ proc call(ib: InputBox, key: Key, args: varargs[string]) =
     fn(ib, args)
 
 
-method onUpdate*(ib: InputBox, key: Key) = 
+proc recomputeVisual(ib: InputBox) =
+  if ib.value.len >= ib.width - ib.paddingX1 - 1:
+    let (s, e, cp) = rtlRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
+    ib.visualVal = ib.value.substr(s, e)
+    ib.visualCursor = cp
+  else:
+    let (s, e, cp) = ltrRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
+    ib.visualVal = ib.value.substr(s, e)
+    ib.visualCursor = cp
+
+
+proc splitByToken(val: string): seq[IbWordToken] =
+  result = newSeq[IbWordToken]()
+  var pos = 0
+  for token in val.split(' '):
+    result.add(
+      IbWordToken(
+        startat: pos,
+        endat: pos + token.len,
+        token: token
+      )
+    )
+    pos += max(1, token.len + 1)
+
+
+proc autocomplete(ib: InputBox) =
+  let tokens = splitByToken(ib.value)
+  var currToken: IbWordToken
+
+  for token in tokens:
+    if ib.cursor >= token.startat and token.endat >= ib.cursor:
+      currToken = token
+      break
+
+  if currToken.token.len >= ib.autocompleteTrigger:
+    ib.call("autocomplete", currToken.token)
+  else:
+    ib.autocompleteList = newSeq[Completion]()
+
+  if ib.autocompleteList.len == 0:
+    return
+
+  # Drop the suggestion list below the input row by default; flip above
+  # if there isn't enough vertical room.
+  var listPosY = ib.height + 1
+  var listEndY = listPosY + ib.autocompleteWindowSize
+  if listEndY >= consoleHeight():
+    listPosY = max(0, ib.posY - ib.autocompleteWindowSize)
+    listEndY = ib.posY
+
+  var completionList = newListView(ib.posX, listPosY,
+                                   ib.width, listEndY,
+                                   selectionStyle = Highlight,
+                                   bgColor = bgNone,
+                                   fgColor = ib.autocompleteFgColor,
+                                   tb = ib.tb,
+                                   statusbar = false)
+
+  var rows = newSeq[ListRow]()
+  var enteredKey = ""
+  var listWidth = 0
+  for i, completion in enumerate(ib.autocompleteList):
+    let completionText = completion.icon & " " & completion.value & " " & completion.description
+    rows.add(newListRow(i, completionText, completion.value,
+                        bgColor = ib.autocompleteBgColor,
+                        fgColor = ib.autocompleteFgColor))
+    if completionText.len > listWidth:
+      listWidth = min(ib.width - ib.posX, completionText.len)
+      if completionList.posX + listWidth >= ib.width:
+        completionList.posX = max(ib.posX, ib.width - listWidth - 1)
+  completionList.width = completionList.posX + listWidth
+
+  let esc = proc(lv: ListView, args: varargs[string]) = lv.focus = false
+
+  let captureKey = proc(lv: ListView, key: varargs[string]) =
+    var numbers = initTable[string, string]()
+    numbers["Zero"] = "0"
+    numbers["One"] = "1"
+    numbers["Two"] = "2"
+    numbers["Three"] = "3"
+    numbers["Four"] = "4"
+    numbers["Five"] = "5"
+    numbers["Six"] = "6"
+    numbers["Seven"] = "7"
+    numbers["Eight"] = "8"
+    numbers["Nine"] = "9"
+
+    var specialChars = initTable[string, string]()
+    specialChars["Space"] = " "
+    specialChars["ExclamationMark"] = "!"
+    specialChars["DoubleQuote"] = "\""
+    specialChars["Hash"] = "#"
+    specialChars["Dollar"] = "$"
+    specialChars["Percent"] = "%"
+    specialChars["Ampersand"] = "&"
+    specialChars["SingleQuote"] = "'"
+    specialChars["LeftParen"] = "("
+    specialChars["RightParen"] = ")"
+    specialChars["Asterisk"] = "*"
+    specialChars["Plus"] = "+"
+    specialChars["Comma"] = ","
+    specialChars["Minus"] = "-"
+    specialChars["Dot"] = "."
+    specialChars["Slash"] = "/"
+    specialChars["Colon"] = ":"
+    specialChars["Semicolon"] = ";"
+    specialChars["LessThan"] = "<"
+    specialChars["Equals"] = "="
+    specialChars["GreaterThan"] = ">"
+    specialChars["QuestionMark"] = "?"
+    specialChars["At"] = "@"
+    specialChars["LeftBracket"] = "["
+    specialChars["BackSlash"] = "\\"
+    specialChars["RightBracket"] = "]"
+    specialChars["Caret"] = "^"
+    specialChars["Underscore"] = "_"
+    specialChars["GraveAccent"] = "~"
+    specialChars["LeftBrace"] = "{"
+    specialChars["Pipe"] = "|"
+    specialChars["RightBrace"] = "}"
+    specialChars["Tilde"] = "`"
+
+    if key[0] == "Escape": enteredKey = ""
+    elif numbers.hasKey(key[0]): enteredKey = numbers[key[0]]
+    elif specialChars.hasKey(key[0]): enteredKey = specialChars[key[0]]
+    elif key[0].startsWith("Shift"): enteredKey = key[0].replace("Shift", "")
+    elif key[0] == "Backspace":
+      enteredKey = ""
+      if ib.cursor > 0:
+        ib.value.delete(ib.cursor - 1 .. ib.cursor - 1)
+        ib.cursor = ib.cursor - 1
+    elif key[0] == "Delete":
+      enteredKey = ""
+      if ib.value.len > 0 and ib.cursor < ib.value.len:
+        ib.value.delete(ib.cursor .. ib.cursor)
+    elif key[0] == "Enter" or key[0] == "Left" or key[0] == "Right" or
+      key[0] == "Insert" or key[0] == "Home" or key[0] == "End" or key[0] == "Tab":
+      enteredKey = ""
+    else: enteredKey = key[0].toLower()
+
+  let enterEv = proc(lv: ListView, args: varargs[string]) =
+    let selected = lv.selected.value
+    let s = currToken.startat
+    var e = max(ib.cursor, currToken.endat)
+    if e > ib.value.len: e = ib.value.len
+    if e > s:
+      ib.value.delete(s .. e - 1)
+    ib.cursor = s
+    ib.value.insert(selected & " ", ib.cursor)
+    ib.cursor = ib.cursor + selected.len + 1
+    lv.focus = false
+
+  let escapeList = {Key.Space..Key.Backspace}
+  let escapeList2 = {Key.Right..Key.End}
+  for k in escapeList:
+    completionList.on(k, esc)
+  for k in escapeList2:
+    completionList.on(k, esc)
+
+  completionList.on(Key.Escape, esc)
+  completionList.on("postupdate", captureKey)
+  completionList.on("enter", enterEv)
+  completionList.rows = rows
+  completionList.illwillInit = true
+  completionList.render()
+  completionList.onControl()
+
+  if enteredKey != "":
+    ib.value.insert(enteredKey, ib.cursor)
+    ib.cursor = ib.cursor + enteredKey.len
+    ib.autocompleteList = newSeq[Completion]()
+
+  ib.recomputeVisual()
+
+
+method onUpdate*(ib: InputBox, key: Key) =
   const EscapeKeys = {Key.Escape, Key.Tab}
   const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
@@ -480,12 +673,14 @@ method onUpdate*(ib: InputBox, key: Key) =
     let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
     #let (s, e, cursorPos) = rtlRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
-    ib.visualCursor = cursorPos 
+    ib.visualCursor = cursorPos
   else:
     let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.posX - ib.paddingX2 - 1), ib.cursor)
     #let (s, e, cursorPos) = ltrRange(ib.value, (ib.width - ib.paddingX1 - 1), ib.cursor)
     ib.visualVal = ib.value.substr(s, e)
-    ib.visualCursor = cursorPos 
+    ib.visualCursor = cursorPos
+
+  if ib.enableAutocomplete: ib.autocomplete()
 
   ib.render()
   ib.call("postupdate", $key)

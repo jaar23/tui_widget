@@ -66,6 +66,12 @@ type
     statusbarSize*: int = 0
     useCustomStatusbar*: bool = false
     visibility*: bool = true
+    autoHidden*: bool = false   # true ⇒ clampToConsole hid us because the
+                                # console got too small; resize() is
+                                # allowed to auto-restore visibility once
+                                # bounds fit again. User-hidden widgets
+                                # (visibility=false with autoHidden=false)
+                                # must stay hidden across resizes.
     groups*: bool = false
     debug*: bool = false
     rpms*: int = 50
@@ -90,6 +96,11 @@ type
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
   BoolEventFn*[T] = proc (wg: T, arg: bool): void
+
+  Completion* = object
+    value*: string
+    description*: string
+    icon*: string
 
   EventKeyError* = object of CatchableError
 
@@ -187,6 +198,7 @@ proc clampToConsole*(bw: ref BaseWidget) =
   ## requested layout once the terminal grows back.
   if bw.width < bw.posX or bw.height < bw.posY:
     bw.visibility = false
+    bw.autoHidden = true
     return
   let cw = consoleWidth()
   let ch = consoleHeight()
@@ -197,6 +209,7 @@ proc clampToConsole*(bw: ref BaseWidget) =
   if bw.width - bw.posX + 1 < MinWidgetSpan or
      bw.height - bw.posY + 1 < MinWidgetSpan:
     bw.visibility = false
+    bw.autoHidden = true
 
 
 method onControl*(this: ref BaseWidget): void {.base.} =
