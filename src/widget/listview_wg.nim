@@ -448,6 +448,21 @@ method onMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
 
 
 method onUpdate*(lv: ListView, key: Key) =
+  # Key.None means the input poll timed out — no actual keypress. Re-rendering
+  # here on every idle tick is what makes the screen look "stuck flickering":
+  # illwill's drawRect writes the border via a BoxBuffer whose horizontal box
+  # chars carry forceWrite=true (see illwill.nim:1535), so displayDiff cannot
+  # suppress the border — every onUpdate(Key.None) -> render() re-emits the
+  # full border for this widget. With the host app firing Key.None at the rpms
+  # cadence and the trailing render at the bottom of this proc, the focused
+  # ListView was repainting itself ~20× per second forever. The app's main
+  # render loop (TerminalApp.render) already re-renders this widget after
+  # onUpdate returns, so dropping our own render on Key.None is safe: any
+  # external content change still reaches the screen via the next frame.
+  if key == Key.None:
+    lv.call("preupdate", $key)
+    lv.call("postupdate", $key)
+    return
   lv.call("preupdate", $key)
   # catch changes from ref component
   if lv.rows.len != lv.vrows().len:
@@ -458,7 +473,6 @@ method onUpdate*(lv: ListView, key: Key) =
     if lv.mouseEnabled:
       let mouseInfo = getMouse()
       lv.handleMouseEvent(mouseInfo)
-  of Key.None: lv.render()
   of Key.Up:
     if lv.rowCursor == 0:
       lv.rowCursor = 0

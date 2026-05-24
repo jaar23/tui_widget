@@ -69,10 +69,19 @@ proc enableMouse*(app: var TerminalApp) =
   app.mouseEnabled = true
 
 
-proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(terminalWidth(),
-                     terminalHeight()), title: string = "", border: bool = false,
+proc newTerminalApp*(tb: TerminalBuffer = newTerminalBuffer(bufferWidth(),
+                     bufferHeight()), title: string = "", border: bool = false,
                      bgColor = illwill.bgNone, fgColor = illwill.fgWhite,
                      rpms: int = 20): TerminalApp =
+  # Buffer is sized via screen_bounds.bufferWidth/Height — one cell smaller
+  # than terminalWidth/Height so illwill's tb.display() never flushes the
+  # absolute bottom-right terminal cell. Writing that cell triggers
+  # terminal auto-scroll on many terminals (the symptom: modal closes and
+  # the chat borders accumulate as horizontal stripes as each frame
+  # scrolls 1 row). consoleWidth()/Height() = -2 so every widget that uses
+  # them as its right/bottom edge still fits in the buffer.
+  # app.width / app.height stay raw so resize() can compare to the live
+  # terminal size.
   result = TerminalApp(
     width: terminalWidth(),
     height: terminalHeight(),
@@ -93,10 +102,33 @@ proc terminalBuffer*(app: var TerminalApp): var TerminalBuffer =
   app.tb
 
 
+proc render*(app: var TerminalApp, nonBlocking = false)
+  ## Forward declaration so addWidget can build a closure that calls render.
+  ## Body is defined further down (after the widget plumbing).
+
+
+proc renderViaPtr(p: ptr TerminalApp) =
+  ## Helper for the appRender closure: render() takes `var TerminalApp` and
+  ## Nim won't treat a closure-captured ptr deref as an lvalue, so the deref
+  ## happens here in proc scope where it's a plain mutable parameter.
+  p[].render()
+
+
 proc addWidget*(app: var TerminalApp, widget: ref BaseWidget) =
   widget.tb = app.terminalBuffer
+  # Capture a stable pointer to `app` so widgets can request a synchronous
+  # full-app repaint from inside nested blocking handlers (e.g. Container.hide
+  # firing while we're three levels deep in Button.onControl). The invariant
+  # — that `addr app` outlives every widget — is the same one
+  # notify(addr app, ...) already relies on; every existing test/example
+  # holds the TerminalApp in a long-lived var.
+  let appPtr: ptr TerminalApp = addr app
+  let appRenderFn = proc() {.closure.} =
+    renderViaPtr(appPtr)
+  widget.appRender = appRenderFn
   if widget.groups:
     widget.setChildTb(app.terminalBuffer)
+    widget.setChildAppRender(appRenderFn)
   widget.rpms = app.rpms
   widget.keepOriginalSize()
   widget.clampToConsole()
@@ -466,7 +498,8 @@ proc resize(app: var TerminalApp): bool =
     eraseScreen()
     app.width = windWidth
     app.height = windHeight
-    app.tb = newTerminalBuffer(windWidth, windHeight)
+    # Same one-cell edge reserve as newTerminalApp — see comment there.
+    app.tb = newTerminalBuffer(bufferWidth(), bufferHeight())
     var index = 0
     for w in  app.widgets:
       # ----------------w
@@ -548,19 +581,27 @@ proc go(app: var TerminalApp) =
   threadMaster.spawn backgroundTasks()
   
   app.tb.clear()
-  app.renderAppFrame() 
+  app.renderAppFrame()
+  # Initial frame so the screen has content before the first key arrives.
+  app.render()
   while true:
     if app.resize():
       app.tb.clear()
       app.renderAppFrame()
+      app.render()
       continue
 
-    app.render()
     var key = getKeyWithTimeout(app.rpms)
     case key
     of Key.Tab:
       app.widgets[app.cursor].focus = false
       app.nonBlockingControl()
+      # The previous flow used the next Key.None tick in the else branch
+      # (`w.focus = true`) to flip the new cursor's focus on; that's gone
+      # now (Key.None no longer triggers a render), so set focus=true here
+      # explicitly. Otherwise Tab leaves the new widget visually unfocused.
+      app.widgets[app.cursor].focus = true
+      app.render()
     of Key.Mouse:
       if app.mouseEnabled:
         let mouseInfo = getMouse()
@@ -578,6 +619,15 @@ proc go(app: var TerminalApp) =
             widget.safeCall "onMouseEvent":
               widget.onMouseEvent(mouseInfo)
         app.render()
+    of Key.None:
+      # Idle tick — getKeyWithTimeout returned with no actual keypress. The
+      # render at the top of the loop already drew the current state; firing
+      # onUpdate + app.render again here is what produced the "constant
+      # repaint" storm — illwill's drawRect force-writes border box chars
+      # (see illwill.nim:1535), so every redundant frame re-emits every
+      # widget's border at ~rpms tickrate forever. Still pump the channels
+      # so background-notify events get processed, but skip the rerender.
+      app.pollWidgetChannel()
     else:
       let w = app.widgets[app.cursor]
       w.focus = true

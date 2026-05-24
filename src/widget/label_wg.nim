@@ -156,6 +156,16 @@ method wg*(lb: Label): ref BaseWidget = lb
 
 
 proc val(lb: Label, text: string) =
+  # Skip the render when text hasn't changed. Background threads (e.g. a
+  # spinner notifying status labels every 150ms) hit this setter
+  # repeatedly with the SAME value; each call would otherwise trigger a
+  # tb.display() flush, and the flush re-emits every cell whose
+  # forceWrite flag is set — which is every horizontal box-char in any
+  # widget border (see illwill.nim:1535). The visible result is a
+  # constant border repaint storm whose source is invisible because
+  # nothing in the label itself appears to change. This guard cuts the
+  # storm at its root.
+  if lb.text == text: return
   lb.text = text
   if lb.width > 0:
     lb.render()
@@ -177,6 +187,12 @@ method poll*(lb: Label) =
   var widgetEv: WidgetBgEvent
   if lb.channel.tryRecv(widgetEv):
     lb.call(widgetEv.event, widgetEv.args)
-    lb.render()
+    # NOTE: do NOT call lb.render() here unconditionally. The handler is
+    # already responsible for updating state (and `text=` re-renders when
+    # the value actually changed). An unconditional render here calls
+    # tb.display() on every channel event, which re-emits every forceWrite
+    # cell in the buffer — the entire app's borders — even when nothing
+    # on this label changed. With a 150ms spinner tick pumping channel
+    # events, that's a constant border-repaint storm on idle.
 
 

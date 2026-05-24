@@ -504,12 +504,26 @@ proc autocomplete(ib: InputBox) =
 
 method onUpdate*(ib: InputBox, key: Key) =
   const EscapeKeys = {Key.Escape, Key.Tab}
-  const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four, 
+  const NumericKeys = @[Key.Zero, Key.One, Key.Two, Key.Three, Key.Four,
                         Key.Five, Key.Six, Key.Seven, Key.Eight, Key.Nine]
+  # Key.None means the input poll timed out — no actual keypress. The block
+  # below sets `ib.focus = true` unconditionally and ends with `ib.render()`,
+  # so doing the full path on every idle tick force-writes the border (illwill
+  # drawRect uses BoxBuffer with forceWrite=true for horizontal box chars,
+  # see illwill.nim:1535) ~20× per second. Worse, the focus reassignment
+  # masks the cursor's actual focused widget — input would visually look
+  # focused even when Tab had moved cursor elsewhere. The host app's main
+  # render loop already re-renders this widget after onUpdate, so we only
+  # need preupdate/postupdate to keep firing (host code uses them for paste
+  # detection, double-Esc, etc.); the render itself is redundant on idle.
+  if key == Key.None:
+    ib.call("preupdate", $key)
+    ib.call("postupdate", $key)
+    return
   ib.focus = true
   ib.call("preupdate", $key)
   case key
-  of Key.None: discard
+  of Key.None: discard  # unreachable — early-returned above; kept for clarity
   of EscapeKeys:
     ib.focus = false
     ib.mode = "|"

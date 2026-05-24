@@ -98,6 +98,7 @@ proc add*(ctr: Container, wg: ref BaseWidget, width: float, height: float) =
   wg.tb = ctr.tb
   wg.rpms = ctr.rpms
   wg.illwillInit = true
+  wg.appRender = ctr.appRender
   wg.resize()   # recompute size/derived fields after repositioning
   ctr.widgets.add(wg)
 
@@ -105,6 +106,12 @@ proc add*(ctr: Container, wg: ref BaseWidget, width: float, height: float) =
 method setChildTb*(ctr: Container, tb: TerminalBuffer): void =
   for w in ctr.widgets:
     w.tb = tb
+
+
+method setChildAppRender*(ctr: Container,
+                         fn: proc() {.closure.}): void =
+  for w in ctr.widgets:
+    w.appRender = fn
 
 proc on*(ctr: Container, event: string, fn: EventFn[Container]) =
   ctr.events[event] = fn
@@ -153,26 +160,37 @@ method poll*(ctr: Container) =
 
 proc show*(ctr: Container, resetCursors = false) =
   ## Make Container and all children visible. Call before onControl() for popup use.
-  ## Clears the full terminal buffer first so background widgets don't bleed through.
+  ## Triggers the app's full-screen repaint via appRender so background widgets
+  ## are drawn first and the popup is overlaid focused-last. Falls back to a
+  ## local render() when the container is used standalone (no app attached).
   ctr.visibility = true
   ctr.cursor = 0
   for w in ctr.widgets:
     w.visibility = true
     w.tb = ctr.tb
     w.illwillInit = true
+    w.appRender = ctr.appRender
     if resetCursors: w.resetCursor()
-  ctr.tb.fill(0, 0, terminalWidth(), terminalHeight(), bgNone, fgWhite, " ")
-  ctr.render()
+  if not ctr.appRender.isNil:
+    ctr.appRender()
+  else:
+    ctr.render()
 
 
 proc hide*(ctr: Container) =
-  ## Hide Container and all children. Releases focus.
+  ## Hide Container and all children. Releases focus and asks the app to
+  ## repaint so the widgets the popup was sitting on top of come back. The
+  ## local ctr.clear() wipes the popup's rectangle synchronously so the next
+  ## app render starts from a clean rect (defence-in-depth — app.render's
+  ## renderAppFrame also fills the whole buffer).
   ctr.focus = false
   ctr.visibility = false
   for w in ctr.widgets:
     w.visibility = false
     w.focus = false
   ctr.clear()
+  if not ctr.appRender.isNil:
+    ctr.appRender()
 
 
 method onUpdate*(ctr: Container, key: Key) =

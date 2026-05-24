@@ -1,5 +1,7 @@
 import illwill, threading/channels, unicode, std/wordwrap
 import os, osproc, streams
+import ./screen_bounds
+export screen_bounds
 
 type
   Alignment* = enum
@@ -92,6 +94,12 @@ type
       ## Used by widgets that need to write raw text directly to stdout
       ## (e.g. CJK / wide-glyph overlays) — letting the terminal handle
       ## visual width natively instead of illwill's one-cell-per-rune model.
+    appRender*: proc() {.closure.}
+      ## Set by TerminalApp.addWidget so a widget can request a synchronous
+      ## full-app repaint from inside a blocking handler (e.g. Container.hide
+      ## firing while we're nested inside a Button.onControl inner loop).
+      ## Nil for widgets used standalone — Container falls back to local
+      ## render() in that case.
 
   EventFn*[T] = proc (wg: T, args: varargs[string]): void
 
@@ -118,10 +126,10 @@ var globalErrorHandler*: GlobalErrorHandler = nil
 
 
 proc consoleWidth*(): int =
-  return terminalWidth() - 2
+  return maxWidgetWidth()
 
 proc consoleHeight*(): int =
-  return terminalHeight() - 2
+  return maxWidgetHeight()
 
 
 # ---- Visual-width helpers for East-Asian wide / fullwidth / emoji ----------
@@ -229,16 +237,28 @@ method call*(this: ref BaseWidget, event: string, args: bool): void {.base.} =
   echo ""
 
 
-method call*(this: BaseWidget, event: string, args: varargs[string]): void {.base.} = 
-  echo ""
+method call*(this: BaseWidget, event: string, args: varargs[string]): void {.base.} =
+  # No-op fallback for widgets without their own `call` override.
+  # Originally this was `echo ""`, which writes a stray newline to stdout
+  # — invisible while the host app repainted every frame (the next render
+  # restored the cursor position), but with the per-Key.None render gated
+  # off, those newlines accumulate and visibly scroll the terminal.
+  discard
 
 
-method call*(this: BaseWidget, event: string, args: bool): void {.base.} = 
-  echo ""
+method call*(this: BaseWidget, event: string, args: bool): void {.base.} =
+  discard
 
 
 method poll*(this: ref BaseWidget): void {.base.} =
-  echo ""
+  # No-op fallback for widgets without their own `poll` override. See the
+  # comment on `call` above for why this MUST NOT write to stdout: with
+  # the main loop no longer rendering every idle tick, any stdout write
+  # here (including a bare `echo ""`) survives and scrolls the screen.
+  # Most concrete widgets (Label, ListView, Display, Button, Container,
+  # Markdown, Table, etc.) override this; widgets that don't (e.g.
+  # InputBox) used to silently emit a newline per poll cycle.
+  discard
 
 
 proc `channel=`*(this: ref BaseWidget, channel: Chan[WidgetBgEvent]) = this.channel = channel
@@ -266,6 +286,14 @@ method wg*(this: ref BaseWidget): ref BaseWidget {.base.} = this
 method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
   #child needs to implement this!
   echo ""
+
+
+method setChildAppRender*(this: ref BaseWidget,
+                         fn: proc() {.closure.}): void {.base.} =
+  ## Composite widgets (e.g. Container) override this to propagate the
+  ## app-level repaint callback to children that were added before the
+  ## composite itself was attached to the TerminalApp.
+  discard
 
 
 method onError*(this: ref BaseWidget, errorCode: string) {.base.} =
