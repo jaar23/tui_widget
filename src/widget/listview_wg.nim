@@ -408,6 +408,16 @@ proc onMouse*(lv: ListView, button: MouseButton, fn: EventFn[ListView]) =
 
 proc handleMouseEvent*(lv: ListView, mouseInfo: MouseInfo) =
   ## Handle mouse events including wheel scrolling and click-to-select.
+  ## Honors `lv.mouseEnabled`: when false, the entire mouse path is a
+  ## no-op. The flag was previously checked only on the keyboard-driven
+  ## `onUpdate(Key.Mouse)` path; the app's main loop dispatches mouse
+  ## events directly to `onMouseEvent` → `handleMouseEvent` for every
+  ## widget under the cursor (see tui_widget.nim main loop). Without
+  ## this guard, a host that toggles `mouseEnabled` to gate clicks
+  ## (e.g., pgm freezing the chat while a modal is up) would still see
+  ## click-through on the direct-dispatch path, moving selection and
+  ## firing the `enter` callback.
+  if not lv.mouseEnabled: return
   if mouseInfo.scroll:
     case mouseInfo.scrollDir
     of sdUp:
