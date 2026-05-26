@@ -161,20 +161,106 @@ proc runeWidth*(r: Rune): int =
   return 1
 
 proc visualWidth*(s: string): int =
-  ## Sum of `runeWidth` over the runes in `s`.
-  for r in s.runes: result += runeWidth(r)
+  ## Visual cell width of `s` as it will appear after `clipToVisualWidth`
+  ## / `stripAnsi` normalize it for the terminal. CSI ANSI escape
+  ## sequences (ESC `[` … final-byte in 0x40-0x7E) count as 0 cells.
+  ## Whitespace-like controls (`\n`, `\r`, `\t`) count as 1 cell because
+  ## the strip path replaces each with a single space. Other C0/C1
+  ## controls count as 0 — strip drops them outright.
+  var i = 0
+  while i < s.len:
+    if s[i] == '\e' and i + 1 < s.len and s[i+1] == '[':
+      i += 2
+      while i < s.len:
+        let c = s[i].int
+        inc i
+        if c >= 0x40 and c <= 0x7E: break
+      continue
+    let b = s[i].int
+    if b == 0x09 or b == 0x0A or b == 0x0D:
+      inc result
+      inc i
+      continue
+    if b < 0x20 or b == 0x7F:
+      inc i
+      continue
+    var r: Rune
+    fastRuneAt(s, i, r, true)
+    result += runeWidth(r)
 
 proc clipToVisualWidth*(s: string, cells: int): string =
-  ## Returns the longest rune-prefix of `s` whose total visual width is
-  ## ≤ `cells`. Used to clip an overlay row to its widget's inner width.
-  result = ""
+  ## Returns the longest prefix of `s` whose total visual width is ≤
+  ## `cells`. CSI ANSI escape sequences pass through verbatim (0 cells,
+  ## styling reaches the terminal). Bare whitespace controls (`\n`,
+  ## `\r`, `\t`) are replaced with a single space so multi-line row
+  ## content reads naturally instead of merging words. Other control
+  ## characters (BS, BEL, DEL, …) are dropped. Leaving any of these in
+  ## the output would move the cursor out of the row during a stdout
+  ## write and bleed the row's tail past the right border.
+  ## Used to clip an overlay row to its widget's inner width.
+  result = newStringOfCap(s.len)
   if cells <= 0: return
   var used = 0
-  for r in s.runes:
+  var i = 0
+  while i < s.len:
+    if s[i] == '\e' and i + 1 < s.len and s[i+1] == '[':
+      let start = i
+      i += 2
+      while i < s.len:
+        let c = s[i].int
+        inc i
+        if c >= 0x40 and c <= 0x7E: break
+      result.add(s[start ..< i])
+      continue
+    let b = s[i].int
+    if b == 0x09 or b == 0x0A or b == 0x0D:
+      if used + 1 > cells: break
+      result.add(' ')
+      used += 1
+      inc i
+      continue
+    if b < 0x20 or b == 0x7F:
+      inc i
+      continue
+    var r: Rune
+    let runeStart = i
+    fastRuneAt(s, i, r, true)
     let w = runeWidth(r)
     if used + w > cells: break
-    result.add($r)
+    result.add(s[runeStart ..< i])
     used += w
+
+proc stripAnsi*(s: string): string =
+  ## Removes CSI ANSI escape sequences from `s`, replaces whitespace-like
+  ## controls (`\n`, `\r`, `\t`) with a single space, and drops the rest
+  ## of the C0/C1 control set. illwill's TerminalBuffer stores one rune
+  ## per cell, so an embedded ESC inside a tb.write run becomes a literal
+  ## cell that the terminal later re-interprets — collapsing subsequent
+  ## cells leftward and bleeding text past the widget's right border. A
+  ## bare `\n` inside one row's text is worse: the terminal drops the
+  ## cursor to column 0 of the next line, painting the row's tail
+  ## entirely outside the widget. Strip before any tb.write of styled
+  ## or multi-line text; use the widget's bg/fg/style fields for color.
+  result = newStringOfCap(s.len)
+  var i = 0
+  while i < s.len:
+    if s[i] == '\e' and i + 1 < s.len and s[i+1] == '[':
+      i += 2
+      while i < s.len:
+        let c = s[i].int
+        inc i
+        if c >= 0x40 and c <= 0x7E: break
+      continue
+    let b = s[i].int
+    if b == 0x09 or b == 0x0A or b == 0x0D:
+      result.add(' ')
+      inc i
+      continue
+    if b < 0x20 or b == 0x7F:
+      inc i
+      continue
+    result.add(s[i])
+    inc i
 
 
 const MinWidgetSpan* = 1
@@ -226,15 +312,18 @@ method onControl*(this: ref BaseWidget): void {.base.} =
 
 
 method onUpdate*(this: ref BaseWidget, key: Key): void {.base.} =
-  echo ""
+  # No-op base. Every concrete widget should override; falling through to
+  # the base path means a bug, but it must NOT write to stdout — see the
+  # note on base `poll` below for why.
+  discard
 
 
-method call*(this: ref BaseWidget, event: string, args: varargs[string]): void {.base.} = 
-  echo ""
+method call*(this: ref BaseWidget, event: string, args: varargs[string]): void {.base.} =
+  discard
 
 
-method call*(this: ref BaseWidget, event: string, args: bool): void {.base.} = 
-  echo ""
+method call*(this: ref BaseWidget, event: string, args: bool): void {.base.} =
+  discard
 
 
 method call*(this: BaseWidget, event: string, args: varargs[string]): void {.base.} =
@@ -276,16 +365,18 @@ proc channel*(this: var BaseWidget): var Chan[WidgetBgEvent] = this.channel
 proc asRef*[T](x: T): ref T = new(result); result[] = x
 
 
-method render*(this: ref BaseWidget): void {.base.} = 
-  echo ""
+method render*(this: ref BaseWidget): void {.base.} =
+  # No-op base — every concrete widget overrides. MUST NOT write stdout.
+  discard
 
 
 method wg*(this: ref BaseWidget): ref BaseWidget {.base.} = this
 
 
 method setChildTb*(this: ref BaseWidget, tb: TerminalBuffer): void {.base.} =
-  #child needs to implement this!
-  echo ""
+  # No-op base — composite widgets (Container) override to propagate the
+  # shared buffer to children. MUST NOT write stdout.
+  discard
 
 
 method setChildAppRender*(this: ref BaseWidget,
@@ -533,13 +624,13 @@ proc renderRect*(bw: ref BaseWidget, x1, y1, x2, y2: int,
 
 
 proc renderRow*(bw: ref BaseWidget, content: string, index: int = 0) =
-  bw.tb.write(bw.x1, bw.posY + index, bw.fg, bw.bg, content)
+  bw.tb.write(bw.x1, bw.posY + index, bw.fg, bw.bg, stripAnsi(content))
 
 
-proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: ForegroundColor, 
+proc renderRow*(bw: ref BaseWidget, bgColor: BackgroundColor, fgColor: ForegroundColor,
                 content: string, index: int = 0, withoutPadding = false) =
   let x1 = if withoutPadding: bw.posX else: bw.x1
-  bw.tb.write(x1, bw.posY + index, bgColor, fgColor, content, resetStyle)
+  bw.tb.write(x1, bw.posY + index, bgColor, fgColor, stripAnsi(content), resetStyle)
 
 
 proc clear*(bw: ref BaseWidget) =

@@ -100,10 +100,13 @@ method render*(lb: Label) =
   var text: string = ""
 
   lb.size = max(3, lb.x2 - lb.x1)
-  if lb.text.len > lb.size:
-    text = lb.text[0..lb.size - 2] & ".."
+  # Strip CSI escapes — byte-slicing styled text would cut mid-sequence,
+  # and any surviving ESC reaches tb.write where it bleeds past the label.
+  let rawText = stripAnsi(lb.text)
+  if rawText.len > lb.size:
+    text = rawText[0..lb.size - 2] & ".."
   else:
-    text = lb.text
+    text = rawText
 
   if lb.align == Right:
     text = align(text, lb.x2 - lb.x1)

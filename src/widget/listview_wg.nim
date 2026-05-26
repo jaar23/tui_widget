@@ -170,20 +170,18 @@ proc emptyRows(lv: ListView, emptyMessage = "No records",
 proc scrollRow(lv: ListView, startIndex: int): string =
   let selected = lv.selectedRow
   var extraPadd = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: 1 else: 0
-  #if lv.border: extraPadd += 2
-  #echo lv.rows[selected].text.len
-  # testing
-  # previously using lv.cursor
-  var actualStartIndex = max(0, lv.rows[selected].text.len - (lv.width - (lv.paddingX1 +
+  # Strip ANSI before slicing — byte-indexing into a string with embedded
+  # CSI sequences could cut mid-escape and leave the terminal in a stuck
+  # styled state, or push the row's tail past the right border once
+  # tb.write turns each ESC into a literal cell.
+  let rowText = stripAnsi(lv.rows[selected].text)
+  var actualStartIndex = max(0, rowText.len - (lv.width - (lv.paddingX1 +
       lv.paddingX2)))
   actualStartIndex = min(actualStartIndex, startIndex)
   if actualStartIndex < 0:
     actualStartIndex = 0
-  # previously using lv.cursor
-  let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 + lv.paddingX2), lv.rows[
-      selected].text.len)
-  # previously using lv.cursor
-  return lv.rows[selected].text[actualStartIndex ..< min(lv.rows[selected].text.len, endIndex - extraPadd)]
+  let endIndex = min(actualStartIndex + lv.width - (lv.paddingX1 + lv.paddingX2), rowText.len)
+  return rowText[actualStartIndex ..< min(rowText.len, endIndex - extraPadd)]
 
 
 proc renderClearRow(lv: ListView, index: int, full = false) =
@@ -198,16 +196,22 @@ proc renderClearRow(lv: ListView, index: int, full = false) =
 proc renderListRow(lv: ListView, row: ListRow, index: int) =
   var posX = if lv.selectionStyle == Arrow or lv.selectionStyle == HighlightArrow: lv.paddingX1 + 1 else: lv.paddingX1
   var borderX = if lv.border: 0 else: 0
-  # if lv.rows.len <= lv.selectedRow: 
+  # if lv.rows.len <= lv.selectedRow:
   #   lv.selectedRow = 0
   #   lv.cursor = 0
+  # Embedded CSI escapes in row.text get drawn as literal cells by
+  # tb.write, then re-interpreted as control codes when the buffer is
+  # displayed — text after the escape shifts left and overflows the right
+  # border. Strip before slicing so the byte length and the visible width
+  # match. scrollRow already strips internally.
+  let cleanText = stripAnsi(row.text)
   var text = ""
-  if row.selected and (lv.x2 - lv.x1) > row.text.len:
-    text = row.text
-  elif row.selected and (lv.x2 - lv.x1) < row.text.len:
-    text = lv.scrollRow(lv.colCursor) 
-  else: 
-    text = row.text[0..min(row.text.len - 1, lv.width - lv.x1 - posX - borderX)]
+  if row.selected and (lv.x2 - lv.x1) > cleanText.len:
+    text = cleanText
+  elif row.selected and (lv.x2 - lv.x1) < cleanText.len:
+    text = lv.scrollRow(lv.colCursor)
+  else:
+    text = cleanText[0..min(cleanText.len - 1, lv.width - lv.x1 - posX - borderX)]
 
   if row.align == Left:
     text = alignLeft(text, min(lv.width, lv.width - lv.posX - posX - borderX))
@@ -615,7 +619,12 @@ proc enableTextOverlay*(lv: ListView) =
         stdout.write("\e[", screenRow, ";", baseCol, "f\e[7m",
                      clipped, pad, "\e[0m")
       else:
-        stdout.write("\e[", screenRow, ";", baseCol, "f", clipped, pad)
+        # Trailing `\e[0m` so an unclosed CSI inside the row (a partial
+        # `\e[31m...` with no reset) can't carry color into the padding,
+        # the next row, or the right border. With visualWidth fixed to
+        # skip CSI bytes, `pad` is now the correct cell count.
+        stdout.write("\e[", screenRow, ";", baseCol, "f", clipped, pad,
+                     "\e[0m")
       inc i
     # Clear any unused row slots BELOW the painted rows — covers the
     # case where the new frame has fewer rows than the previous one

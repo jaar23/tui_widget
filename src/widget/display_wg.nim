@@ -175,8 +175,13 @@ proc splitBySize(val: string, size: int, rows: int,
 proc textWindow(text: string, width: int, offset: int): seq[string] =
   var formattedText = newSeq[string]()
   let lines = text.splitLines()
-  for line in lines:
-    if line == "": continue
+  for rawLine in lines:
+    if rawLine == "": continue
+    # Strip ANSI before byte-slicing — illwill's tb.write puts every byte
+    # in a cell, so a `\e[31m` inside the slice would render as literal
+    # control bytes that the terminal then re-interprets, pushing later
+    # cells left and bleeding text past the right border.
+    let line = stripAnsi(rawLine)
     var visibleText = ""
     var currentOffset = 0
     let lineLen = line.len
@@ -205,12 +210,16 @@ proc textWindow(text: string, width: int, offset: int): seq[string] =
 
 
 proc rowReCal(dp: Display) =
+  # textWindow strips per-line; the wordwrap branch feeds the raw text to
+  # wrapWords which counts ANSI escape bytes toward its line width, so do
+  # the strip up-front for both paths and match what tb.write will see.
+  let cleanText = stripAnsi(dp.text)
   if dp.wordwrap:
-    let rows = dp.text.len / toInt(dp.x2.toFloat() * 0.5)
-    dp.textRows = dp.text.splitBySize(dp.x2 - dp.x1, toInt(rows) +
+    let rows = cleanText.len / toInt(dp.x2.toFloat() * 0.5)
+    dp.textRows = cleanText.splitBySize(dp.x2 - dp.x1, toInt(rows) +
         dp.style.paddingX2)
   else:
-    dp.textRows = textWindow(dp.text, dp.x2 - dp.x1, dp.cursor)
+    dp.textRows = textWindow(cleanText, dp.x2 - dp.x1, dp.cursor)
 
 
 proc help(dp: Display, args: varargs[string]) = 
